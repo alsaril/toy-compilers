@@ -7,7 +7,7 @@ import org.junit.jupiter.api.Test
 
 class GrammarTest {
     @Test
-    fun `should correctly parse a bf expression`() {
+    fun `correctly parses a bf expression`() {
         // given
         val expr = "+[->+<]123"
 
