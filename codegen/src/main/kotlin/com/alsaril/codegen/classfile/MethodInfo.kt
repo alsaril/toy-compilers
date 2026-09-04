@@ -7,8 +7,8 @@ import com.alsaril.codegen.write
 
 class MethodInfo(
     private val accessFlags: Int,
-    val nameIndex: Int,
-    val descriptorIndex: Int,
+    private val nameIndex: Int,
+    private val descriptorIndex: Int,
     private val attributes: List<AttributeInfo>,
 ) : Writable {
     override fun ClassWriter.write() {

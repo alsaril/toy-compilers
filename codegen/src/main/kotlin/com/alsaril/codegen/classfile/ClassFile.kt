@@ -7,11 +7,11 @@ import com.alsaril.codegen.write
 
 
 data class ClassFile(
-    val constantPool: StaticConstantPool,
     val thisClassIndex: Int,
     val parentIndex: Int,
     val ifaceIndexes: List<Int>,
     val methods: List<MethodInfo>,
+    val constantPool: StaticConstantPool,
 ) : Writable {
     private val ACC_PUBLIC = 0x0001
     private val ACC_FINAL = 0x0010

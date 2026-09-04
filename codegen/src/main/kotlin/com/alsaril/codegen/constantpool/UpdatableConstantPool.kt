@@ -15,17 +15,22 @@ class UpdatableConstantPool {
     private val nameAndTypeCache = mutableMapOf<Pair<String, String>, Int>()
     private val refCache = mutableMapOf<RefKey, Int>()
 
+    private var built = false
+
     fun putUtf8(value: String) = utf8Cache.computeIfAbsent(value) {
+        if (built) throw IllegalStateException("built")
         entries.add(ConstantUtf8Info(value))
         index++
     }
 
     fun putInt(value: Int) = intCache.computeIfAbsent(value) {
+        if (built) throw IllegalStateException("built")
         entries.add(ConstantIntegerInfo(value))
         index++
     }
 
     fun putLong(value: Long) = longCache.computeIfAbsent(value) {
+        if (built) throw IllegalStateException("built")
         entries.add(ConstantLongInfo(value))
         val pos = index
         index += 2
@@ -33,6 +38,7 @@ class UpdatableConstantPool {
     }
 
     fun putDouble(value: Double) = doubleCache.computeIfAbsent(value) {
+        if (built) throw IllegalStateException("built")
         entries.add(ConstantDoubleInfo(value))
         val pos = index
         index += 2
@@ -40,21 +46,24 @@ class UpdatableConstantPool {
     }
 
     fun putClass(name: String) = classCache.computeIfAbsent(name) {
+        if (built) throw IllegalStateException("built")
         val nameIndex = putUtf8(name)
         entries.add(ConstantClassInfo(nameIndex))
         index++
     }
 
     fun putString(value: String) = stringCache.computeIfAbsent(value) {
+        if (built) throw IllegalStateException("built")
         val valueIndex = putUtf8(value)
         entries.add(ConstantStringInfo(valueIndex))
         index++
     }
 
-    fun putConstantNameAndTypeInfo(name: String, type: String) = nameAndTypeCache.computeIfAbsent(name to type) {
+    fun putConstantNameAndTypeInfo(name: String, descriptor: String) = nameAndTypeCache.computeIfAbsent(name to descriptor) {
+        if (built) throw IllegalStateException("built")
         val nameIndex = putUtf8(name)
-        val typeIndex = putUtf8(type)
-        entries.add(ConstantNameAndTypeInfo(nameIndex, typeIndex))
+        val descriptorIndex = putUtf8(descriptor)
+        entries.add(ConstantNameAndTypeInfo(nameIndex, descriptorIndex))
         index++
     }
 
@@ -62,11 +71,12 @@ class UpdatableConstantPool {
         FIELD, METHOD, INTERFACE_METHOD;
     }
 
-    private data class RefKey(val classNameIndex: Int, val name: String, val type: String, val refType: RefType)
+    private data class RefKey(val classNameIndex: Int, val name: String, val descriptor: String, val refType: RefType)
 
-    fun putRef(classNameIndex: Int, name: String, type: String, refType: RefType) =
-        refCache.computeIfAbsent(RefKey(classNameIndex, name, type, refType)) {
-            val nameAndTypeIndex = putConstantNameAndTypeInfo(name, type)
+    fun putRef(classNameIndex: Int, name: String, descriptor: String, refType: RefType) =
+        refCache.computeIfAbsent(RefKey(classNameIndex, name, descriptor, refType)) {
+            if (built) throw IllegalStateException("built")
+            val nameAndTypeIndex = putConstantNameAndTypeInfo(name, descriptor)
             val info = when (refType) {
                 FIELD -> ConstantFieldRefInfo(classNameIndex, nameAndTypeIndex)
                 METHOD -> ConstantMethodRefInfo(classNameIndex, nameAndTypeIndex)
@@ -76,8 +86,11 @@ class UpdatableConstantPool {
             index++
         }
 
-    fun build() = StaticConstantPool(
-        index,
-        entries.toList()
-    )
+    fun build(): StaticConstantPool {
+        built = true
+        return StaticConstantPool(
+            index,
+            entries.toList()
+        )
+    }
 }
