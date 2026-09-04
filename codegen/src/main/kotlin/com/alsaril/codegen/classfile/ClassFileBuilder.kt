@@ -24,22 +24,24 @@ class ClassFileBuilder {
 
     fun method(
         name: String,
-        signature: String,
+        descriptor: String,
         maxStack: Int,
         maxLocals: Int,
-        vararg modifiers: MethodModifier,
+        vararg accessFlags: MethodAccessFlag,
         codeBuilder: CodeBuilder.() -> Unit,
     ): ClassFileBuilder {
+        val (bytecode, stackMapFrames) = CodeBuilder(cp, this.name, parent).apply { codeBuilder() }.build()
+        methods.add(Method(name, descriptor, maxStack, maxLocals, accessFlags.toList(), bytecode, stackMapFrames))
         return this
     }
 
     fun build(): Pair<String, ByteArray> {
         val file = ClassFile(
-            cp.build(),
             cp.putClass(name),
             cp.putClass(parent),
             ifaces.map { cp.putClass(it) },
-            methods.map { it.info() },
+            methods.map { it.info(cp) },
+            cp.build(),
         )
         return name to toBytes { write(file) }
     }
@@ -47,14 +49,4 @@ class ClassFileBuilder {
     companion object {
         fun classFile(name: String, parent: String) = ClassFileBuilder(name, parent)
     }
-}
-
-enum class MethodModifier {
-    PUBLIC, PROTECTED, PRIVATE, STATIC, FINAL
-}
-
-interface CodeBuilder
-
-interface Method {
-    fun info(): MethodInfo
 }

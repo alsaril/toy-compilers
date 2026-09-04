@@ -1,11 +1,11 @@
 package com.alsaril.bf
 
-import com.alsaril.bf.ir.IrInstruction
+import com.alsaril.bf.ir.*
 import com.alsaril.codegen.classfile.ClassFileBuilder.Companion.classFile
-import com.alsaril.codegen.classfile.MethodModifier.*
-import com.sun.tools.javac.jvm.ByteCodes.aload
-import com.sun.tools.javac.jvm.ByteCodes.bastore
-import com.sun.tools.javac.jvm.ByteCodes.iload
+import com.alsaril.codegen.classfile.CodeBuilder.ArrayType.BYTE
+import com.alsaril.codegen.classfile.CodeBuilder.IntInfo
+import com.alsaril.codegen.classfile.CodeBuilder.ObjInfo
+import com.alsaril.codegen.classfile.MethodAccessFlag.*
 
 
 object CodeGenerator {
@@ -15,19 +15,17 @@ object CodeGenerator {
     fun generate(instructions: List<IrInstruction>): Pair<String, ByteArray> {
         return classFile("Impl", parent = "java/lang/Object")
             .iface("java/lang/Runnable")
-            .method("<init>", "()V", maxStack = 1, maxLocals = 0, PUBLIC) {
-                val superCall = method(parent(), "<init>", "()V")
-
+            .method("<init>", "()V", maxStack = 1, maxLocals = 1, PUBLIC) {
                 aload(0)
-                invokespecial(superCall)
+                invokespecial(method(parent(), "<init>", "()V"))
                 `return`()
             }
-            .method("guard", "(I)V", maxStack = 2, maxLocals = 1, PRIVATE, FINAL) {
-                iload(1)
+            .method("guard", "(I)V", maxStack = 2, maxLocals = 1, PRIVATE, FINAL, STATIC) {
+                iload(0)
                 iconst(0)
                 val j1 = if_icmplt()
 
-                iload(1)
+                iload(0)
                 iconst(maxMemsize)
                 val j2 = if_icmpge()
 
@@ -35,7 +33,7 @@ object CodeGenerator {
 
                 val handler = loc()
                 j1(handler); j2(handler)
-                frame(same())
+                frameSame()
 
                 construct(clazz("java/lang/ArrayIndexOutOfBoundsException"), "<init>", "()V")
                 athrow()
@@ -63,13 +61,15 @@ object CodeGenerator {
                 iconst(0)
                 istore(pointerIndex)
 
-                frame(append(objInfo("[B"), intInfo))
+                frameAppend(ObjInfo("[B"), IntInfo)
+
+                fun guard() {
+                    iload(pointerIndex)
+                    invokestatic(guard)
+                }
 
                 fun apply(times: Int, inc: Boolean) { // maxStack 4
-                    aload(0)
-                    iload(pointerIndex)
-                    invokespecial(guard)
-
+                    guard()
                     aload(arrayIndex)
                     iload(pointerIndex)
                     dup2()
@@ -87,6 +87,7 @@ object CodeGenerator {
                             Command.INC -> apply(it.times, inc = true)
                             Command.DEC -> apply(it.times, inc = false)
                             Command.OUT -> { // maxStack 3
+                                guard()
                                 getstatic(outField)
                                 aload(arrayIndex)
                                 iload(pointerIndex)
@@ -95,6 +96,7 @@ object CodeGenerator {
                             }
 
                             Command.IN -> { // maxStack 3
+                                guard()
                                 aload(arrayIndex)
                                 iload(pointerIndex)
                                 getstatic(inField)
@@ -106,7 +108,7 @@ object CodeGenerator {
                         is LoopBegin -> {
                             val destCallback = goto() // jump over the loop body
                             val loopBody = loc()
-                            frame(same())
+                            frameSame()
                             loopStartInfo[i] = loopBody to destCallback
                         }
 
@@ -114,7 +116,7 @@ object CodeGenerator {
                             val (location, callback) = loopStartInfo[it.startIndex]!!
 
                             val thisInstruction = loc()
-                            frame(same())
+                            frameSame()
                             aload(arrayIndex)
                             iload(pointerIndex)
                             baload()
