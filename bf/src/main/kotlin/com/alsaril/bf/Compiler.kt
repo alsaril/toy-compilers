@@ -1,6 +1,8 @@
 package com.alsaril.bf
 
 import com.alsaril.bf.CodeGenerator.generate
+import com.alsaril.bf.ir.IrInstruction
+import com.alsaril.bf.ir.IrVisitor
 import com.alsaril.codegen.ByteClassLoader.loadClass
 import org.antlr.v4.runtime.CharStreams.fromString
 import org.antlr.v4.runtime.CommonTokenStream

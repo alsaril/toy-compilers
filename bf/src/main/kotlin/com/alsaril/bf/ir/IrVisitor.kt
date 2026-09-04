@@ -1,20 +1,9 @@
-package com.alsaril.bf
+package com.alsaril.bf.ir
 
+import com.alsaril.bf.BFBaseVisitor
+import com.alsaril.bf.BFParser
 import org.antlr.v4.runtime.tree.TerminalNode
 
-sealed interface IrInstruction
-
-enum class Command {
-    LEFT, RIGHT, INC, DEC, OUT, IN;
-}
-
-data class CommandInstruction(val command: Command, val times: Int = 1) : IrInstruction
-
-class JumpInstruction(
-    val forward: Boolean,
-) : IrInstruction {
-    var destinationIndex: Int = -1
-}
 
 class IrVisitor : BFBaseVisitor<Unit>() {
     private val instructions = mutableListOf<IrInstruction>()
@@ -48,18 +37,13 @@ class IrVisitor : BFBaseVisitor<Unit>() {
     }
 
     override fun visitBlock(ctx: BFParser.BlockContext) {
-        val begin = JumpInstruction(forward = true)
-        instructions.add(begin)
+        instructions.add(LoopBegin)
         val beginIndex = instructions.lastIndex
 
         ctx.children.forEach(::visit)
 
-        val end = JumpInstruction(forward = false)
+        val end = LoopEnd(beginIndex)
         instructions.add(end)
-        val endIndex = instructions.lastIndex
-
-        begin.destinationIndex = endIndex
-        end.destinationIndex = beginIndex
     }
 
     fun instructions(): List<IrInstruction> = instructions
