@@ -1,8 +1,8 @@
 package com.alsaril.bf
 
 import com.alsaril.bf.ir.IrInstruction
-import com.alsaril.codegen.ClassFileBuilder.Companion.classFile
-import com.alsaril.codegen.MethodModifier.*
+import com.alsaril.codegen.classfile.ClassFileBuilder.Companion.classFile
+import com.alsaril.codegen.classfile.MethodModifier.*
 import com.sun.tools.javac.jvm.ByteCodes.aload
 import com.sun.tools.javac.jvm.ByteCodes.bastore
 import com.sun.tools.javac.jvm.ByteCodes.iload

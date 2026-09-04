@@ -1,11 +1,14 @@
-package com.alsaril.codegen
+package com.alsaril.codegen.classfile
 
 import com.alsaril.codegen.constantpool.UpdatableConstantPool
+import com.alsaril.codegen.toBytes
+import com.alsaril.codegen.write
 
 class ClassFileBuilder {
     private val name: String
     private val parent: String
     private val ifaces = mutableListOf<String>()
+    private val methods = mutableListOf<Method>()
 
     private val cp = UpdatableConstantPool()
 
@@ -25,13 +28,20 @@ class ClassFileBuilder {
         maxStack: Int,
         maxLocals: Int,
         vararg modifiers: MethodModifier,
-        codeBuilder: CodeBuilder.() -> Unit
+        codeBuilder: CodeBuilder.() -> Unit,
     ): ClassFileBuilder {
         return this
     }
 
     fun build(): Pair<String, ByteArray> {
-
+        val file = ClassFile(
+            cp.build(),
+            cp.putClass(name),
+            cp.putClass(parent),
+            ifaces.map { cp.putClass(it) },
+            methods.map { it.info() },
+        )
+        return name to toBytes { write(file) }
     }
 
     companion object {
@@ -44,3 +54,7 @@ enum class MethodModifier {
 }
 
 interface CodeBuilder
+
+interface Method {
+    fun info(): MethodInfo
+}
