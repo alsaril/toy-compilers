@@ -6,6 +6,10 @@ fun CodeBuilder.ifeq(dest: Int? = null) = jumpTemplate(0x99, dest)
 
 fun CodeBuilder.ifne(dest: Int? = null) = jumpTemplate(0x9a, dest)
 
+fun CodeBuilder.ifge(dest: Int? = null) = jumpTemplate(0x9c, dest)
+
+fun CodeBuilder.ifgt(dest: Int? = null) = jumpTemplate(0x9d, dest)
+
 fun CodeBuilder.if_icmplt(dest: Int? = null) = jumpTemplate(0xa1, dest)
 
 fun CodeBuilder.if_icmpge(dest: Int? = null) = jumpTemplate(0xa2, dest)
