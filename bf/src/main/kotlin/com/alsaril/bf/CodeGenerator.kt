@@ -1,10 +1,9 @@
 package com.alsaril.bf
 
 import com.alsaril.bf.ir.*
+import com.alsaril.codegen.classfile.code.*
 import com.alsaril.codegen.classfile.ClassFileBuilder.Companion.classFile
-import com.alsaril.codegen.classfile.CodeBuilder.ArrayType.BYTE
-import com.alsaril.codegen.classfile.CodeBuilder.IntInfo
-import com.alsaril.codegen.classfile.CodeBuilder.ObjInfo
+import com.alsaril.codegen.classfile.code.ArrayType.BYTE
 import com.alsaril.codegen.classfile.MethodAccessFlag.*
 
 
