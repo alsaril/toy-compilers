@@ -1,8 +1,7 @@
-package com.alsaril.codegen.classfile
+package com.alsaril.codegen
 
-import com.alsaril.codegen.ByteClassLoader
 import com.alsaril.codegen.ByteClassLoader.loadClass
-import com.alsaril.codegen.bytesOf
+import com.alsaril.codegen.classfile.ClassFileBuilder
 import com.alsaril.codegen.classfile.ClassFileBuilder.Companion.classFile
 import com.alsaril.codegen.classfile.MethodAccessFlag.PUBLIC
 import com.alsaril.codegen.classfile.MethodAccessFlag.STATIC
