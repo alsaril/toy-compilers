@@ -30,6 +30,10 @@ class JumpsTest {
     @Test
     fun `emits a placeholder when the destination is unknown`() {
         assertThat(bytecode { goto() }).containsExactly(*bytesOf(0xA7, 0x00, 0x00))
+        assertThat(bytecode { ifeq() }).containsExactly(*bytesOf(0x99, 0x00, 0x00))
+        assertThat(bytecode { ifne() }).containsExactly(*bytesOf(0x9A, 0x00, 0x00))
+        assertThat(bytecode { if_icmplt() }).containsExactly(*bytesOf(0xA1, 0x00, 0x00))
+        assertThat(bytecode { if_icmpge() }).containsExactly(*bytesOf(0xA2, 0x00, 0x00))
     }
 
     @Test
