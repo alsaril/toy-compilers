@@ -82,6 +82,10 @@ fun CodeBuilder.dup2() {
 }
 
 // return
+fun CodeBuilder.ireturn() {
+    b1(0xac)
+}
+
 fun CodeBuilder.`return`() {
     b1(0xb1)
 }
