@@ -2,6 +2,7 @@ package com.alsaril.codegen.classfile
 
 import com.alsaril.codegen.classfile.attributes.StackMapTableAttribute
 import com.alsaril.codegen.classfile.attributes.CodeAttribute
+import com.alsaril.codegen.classfile.code.CodeBuilder
 import com.alsaril.codegen.constantpool.UpdatableConstantPool
 import com.alsaril.codegen.toBytes
 import com.alsaril.codegen.write
@@ -55,7 +56,7 @@ class ClassFileBuilder {
             cp.putClass(name),
             cp.putClass(parent),
             ifaces.map { cp.putClass(it) },
-            methods.toList(),
+            methods,
             cp.build(),
         )
         return name to toBytes { write(file) }
