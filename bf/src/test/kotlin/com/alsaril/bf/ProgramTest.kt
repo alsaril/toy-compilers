@@ -62,6 +62,12 @@ class ProgramTest {
         }
 
         @Test
+        fun `compiles a run longer than one instruction can hold`() {
+            // 100000 increments wrap to 160 within the byte cell
+            assertThat(run("+".repeat(100_000) + ".")).containsExactly(160.toByte())
+        }
+
+        @Test
         fun `multiplies with a loop`() {
             // 7 * 7 = 49, the code point of '1'
             assertThat(run("+++++++[>+++++++<-]>.").text()).isEqualTo("1")
