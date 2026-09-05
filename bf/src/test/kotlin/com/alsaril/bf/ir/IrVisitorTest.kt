@@ -87,6 +87,19 @@ class IrVisitorTest {
         }
 
         @Test
+        fun `never folds beyond what the backend can encode`() {
+            // iconst and iinc both reject an operand wider than a signed short
+            assertThat(ir("+".repeat(100_000)))
+                .allSatisfy { assertThat((it as CommandInstruction).times).isBetween(1, 32767) }
+        }
+
+        @Test
+        fun `splits a long run into several instructions`() {
+            assertThat(ir("+".repeat(100_000)).sumOf { (it as CommandInstruction).times })
+                .isEqualTo(100_000)
+        }
+
+        @Test
         fun `resumes folding after a run is interrupted`() {
             assertThat(ir("++-+++")).containsExactly(
                 CommandInstruction(INC, times = 2),
