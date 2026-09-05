@@ -9,12 +9,12 @@ import org.antlr.v4.runtime.CommonTokenStream
 
 
 object Compiler {
-    fun compile(expr: String): Runnable {
+    fun compile(expr: String): ExtendedRunnable {
         val instructions = parse(expr) // frontend
         val (name, code) = generate(instructions) // backend
         val clazz = loadClass(name, code)
-        require(Runnable::class.java.isAssignableFrom(clazz)) // sanity check
-        return clazz.getDeclaredConstructor().newInstance() as Runnable
+        require(ExtendedRunnable::class.java.isAssignableFrom(clazz)) // sanity check
+        return clazz.getDeclaredConstructor().newInstance() as ExtendedRunnable
     }
 
     private fun parse(expr: String): List<IrInstruction> {

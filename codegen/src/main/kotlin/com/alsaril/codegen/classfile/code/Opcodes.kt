@@ -23,6 +23,17 @@ fun CodeBuilder.iconst(value: Int) {
     }
 }
 
+fun CodeBuilder.ldc(pointer: DataPointer) {
+    val index = pointer.index
+    if (index < 0x100) {
+        b1(0x12) // ldc
+        b1(index)
+    } else {
+        b1(0x13) // ldc_w
+        b2(index)
+    }
+}
+
 // load
 fun CodeBuilder.iload(index: Int) {
     instructionFamily(index, 0x1a, 0x15)

@@ -14,19 +14,6 @@ import org.junit.jupiter.api.Test
 class InvocationsTest {
 
     @Nested
-    inner class Pointers {
-
-        @Test
-        fun `names the enclosing and parent classes`() {
-            val builder = builder()
-
-            assertThat(builder.self()).isEqualTo(ClassPointer(THIS_CLASS))
-            assertThat(builder.parent()).isEqualTo(ClassPointer(PARENT_CLASS))
-            assertThat(builder.clazz("java/lang/String")).isEqualTo(ClassPointer("java/lang/String"))
-        }
-    }
-
-    @Nested
     inner class Descriptors {
 
         @Test
@@ -108,7 +95,7 @@ class InvocationsTest {
 
         @Test
         fun `writes new with the class index`() {
-            assertThat(bytecode { new(4) }).containsExactly(*bytesOf(0xBB, 0x00, 0x04))
+            assertThat(bytecode { new(ClassPointer(4)) }).containsExactly(*bytesOf(0xBB, 0x00, 0x04))
         }
 
         @Test

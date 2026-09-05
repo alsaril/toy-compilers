@@ -9,23 +9,32 @@ import com.alsaril.codegen.classfile.MethodAccessFlag.*
 
 object CodeGenerator {
 
-    private val maxMemsize = 30000
+    private val defaulMemsize = 30000
 
     fun generate(instructions: List<IrInstruction>): Pair<String, ByteArray> {
+        fun CodeBuilder.raise(message: String) {
+            val exceptionClass = clazz("java/lang/IllegalStateException")
+            new(exceptionClass)
+            dup()
+            ldc(string(message))
+            invokespecial(method(exceptionClass, "<init>", "(Ljava/lang/String;)V"))
+            athrow()
+        }
+
         return classFile("Impl", parent = "java/lang/Object")
-            .iface("java/lang/Runnable")
+            .iface("com/alsaril/bf/ExtendedRunnable")
             .method("<init>", "()V", maxStack = 1, maxLocals = 1, PUBLIC) {
                 aload(0)
                 invokespecial(method(parent(), "<init>", "()V"))
                 `return`()
             }
-            .method("guard", "(I)V", maxStack = 2, maxLocals = 1, PRIVATE, FINAL, STATIC) {
+            .method("guard", "(II)V", maxStack = 3, maxLocals = 2, PRIVATE, FINAL, STATIC) {
                 iload(0)
                 iconst(0)
                 val j1 = if_icmplt()
 
                 iload(0)
-                iconst(maxMemsize)
+                iload(1)
                 val j2 = if_icmpge()
 
                 `return`()
@@ -34,26 +43,28 @@ object CodeGenerator {
                 j1(handler); j2(handler)
                 frameSame()
 
-                construct(clazz("java/lang/ArrayIndexOutOfBoundsException"), "<init>", "()V")
-                athrow()
+                raise("Buffer overflow")
             }
-            .method("run", "()V", maxStack = 4, maxLocals = 3, PUBLIC, FINAL) {
+            .method("run", "()V", maxStack = 5, maxLocals = 1, PUBLIC, FINAL) {
+                aload(0)
+                getstatic(field(clazz("java/lang/System"), "in", "Ljava/io/InputStream;"))
+                getstatic(field(clazz("java/lang/System"), "out", "Ljava/io/PrintStream;"))
+                ldc(int(defaulMemsize))
+                ldc(int(Int.MAX_VALUE))
+                invokespecial(method(self(), "run", "(Ljava/io/InputStream;Ljava/io/OutputStream;II)V"))
+                `return`()
+            }
+            .method("run", "(Ljava/io/InputStream;Ljava/io/OutputStream;II)V", maxStack = 4, maxLocals = 7, PUBLIC, FINAL) {
                 val loopStartInfo = mutableMapOf<Int, Pair<Int, (Int) -> Unit>>()
 
-                val guard = method(self(), "guard", "(I)V")
-                val outField = field(clazz("java/lang/System"), "out", "Ljava/io/PrintStream;")
-                val printChar = method(clazz("java/io/PrintStream"), "print", "(C)V")
-                val inField = field(clazz("java/lang/System"), "in", "Ljava/io/InputStream;")
-                val readChar = method(clazz("java/io/InputStream"), "read", "()I")
+                val inIndex = 1
+                val outIndex = 2
+                val memsizeIndex = 3
+                val cyclesIndex = 4
+                val arrayIndex = 5
+                val pointerIndex = 6
 
-                // 0 -- this
-                // 1 -- array of 30000 elements
-                // 2 -- data pointer
-
-                val arrayIndex = 1
-                val pointerIndex = 2
-
-                iconst(maxMemsize)
+                iload(memsizeIndex)
                 newarray(BYTE)
                 astore(arrayIndex)
 
@@ -64,7 +75,8 @@ object CodeGenerator {
 
                 fun guard() {
                     iload(pointerIndex)
-                    invokestatic(guard)
+                    iload(memsizeIndex)
+                    invokestatic(method(self(), "guard", "(II)V"))
                 }
 
                 fun apply(times: Int, inc: Boolean) { // maxStack 4
@@ -87,19 +99,19 @@ object CodeGenerator {
                             Command.DEC -> apply(it.times, inc = false)
                             Command.OUT -> { // maxStack 3
                                 guard()
-                                getstatic(outField)
+                                aload(outIndex)
                                 aload(arrayIndex)
                                 iload(pointerIndex)
                                 baload()
-                                invokevirtual(printChar)
+                                invokevirtual(method(clazz("java/io/OutputStream"), "write", "(I)V"))
                             }
 
                             Command.IN -> { // maxStack 3
                                 guard()
                                 aload(arrayIndex)
                                 iload(pointerIndex)
-                                getstatic(inField)
-                                invokevirtual(readChar)
+                                aload(inIndex)
+                                invokevirtual(method(clazz("java/io/InputStream"), "read", "()I"))
                                 bastore()
                             }
                         }
@@ -108,6 +120,16 @@ object CodeGenerator {
                             val destCallback = goto() // jump over the loop body
                             val loopBody = loc()
                             frameSame()
+
+                            // cycles check
+                            iinc(cyclesIndex, -1)
+                            iload(cyclesIndex)
+                            val safe = ifge()
+                            raise("Cycles overflow")
+
+                            safe(loc())
+                            frameSame()
+
                             loopStartInfo[i] = loopBody to destCallback
                         }
 
@@ -124,6 +146,9 @@ object CodeGenerator {
                     }
                 }
 
+                // flush output
+                aload(outIndex)
+                invokevirtual(method(clazz("java/io/OutputStream"), "flush", "()V"))
                 `return`()
             }
             .build()

@@ -1,13 +1,19 @@
 package com.alsaril.codegen.classfile.code
 
-data class ClassPointer(val name: String)
+data class ClassPointer(val index: Int)
 
 data class MethodDescriptor(val index: Int)
 
 data class FieldDescriptor(val index: Int)
 
-fun CodeBuilder.self() = ClassPointer(thisClass)
+data class DataPointer(val index: Int)
 
-fun CodeBuilder.parent() = ClassPointer(parentClass)
+fun CodeBuilder.self() = ClassPointer(cp.putClass(thisClass))
 
-fun CodeBuilder.clazz(name: String) = ClassPointer(name)
+fun CodeBuilder.parent() = ClassPointer(cp.putClass(parentClass))
+
+fun CodeBuilder.clazz(name: String) = ClassPointer(cp.putClass(name))
+
+fun CodeBuilder.int(value: Int) = DataPointer(cp.putInt(value))
+
+fun CodeBuilder.string(value: String) = DataPointer(cp.putString(value))

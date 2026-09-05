@@ -65,6 +65,24 @@ class OpcodesTest {
     }
 
     @Nested
+    inner class Ldc {
+
+        @Test
+        fun `uses the single byte form for a low pool index`() {
+            assertThat(bytecode { ldc(DataPointer(1)) }).containsExactly(*bytesOf(0x12, 0x01))
+            assertThat(bytecode { ldc(DataPointer(255)) }).containsExactly(*bytesOf(0x12, 0xFF))
+        }
+
+        @Test
+        fun `switches to the wide form past a single byte index`() {
+            assertThat(bytecode { ldc(DataPointer(256)) })
+                .containsExactly(*bytesOf(0x13, 0x01, 0x00))
+            assertThat(bytecode { ldc(DataPointer(65535)) })
+                .containsExactly(*bytesOf(0x13, 0xFF, 0xFF))
+        }
+    }
+
+    @Nested
     inner class LoadsAndStores {
 
         @Test
