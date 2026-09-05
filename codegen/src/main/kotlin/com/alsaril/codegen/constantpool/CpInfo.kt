@@ -12,45 +12,45 @@ abstract class CpInfo(private val tag: Int) : Writable {
     abstract fun ClassWriter.writeInfo()
 }
 
-class ConstantUtf8Info(
-    private val value: String
+data class ConstantUtf8Info(
+    val value: String
 ) : CpInfo(tag = 1) {
     override fun ClassWriter.writeInfo() = utf8(value)
 }
 
-class ConstantIntegerInfo(
+data class ConstantIntegerInfo(
     val value: Int
 ) : CpInfo(tag = 3) {
     override fun ClassWriter.writeInfo() = int(value)
 }
 
-class ConstantLongInfo(
+data class ConstantLongInfo(
     val value: Long
 ) : CpInfo(tag = 5) {
     override fun ClassWriter.writeInfo() = long(value)
 }
 
-class ConstantDoubleInfo(
-    private val value: Double
+data class ConstantDoubleInfo(
+    val value: Double
 ) : CpInfo(tag = 6) {
     override fun ClassWriter.writeInfo() = double(value)
 }
 
-class ConstantClassInfo(
-    private val nameIndex: Int
+data class ConstantClassInfo(
+    val nameIndex: Int
 ) : CpInfo(tag = 7) {
     override fun ClassWriter.writeInfo() = short(nameIndex)
 }
 
-class ConstantStringInfo(
-    private val valueIndex: Int
+data class ConstantStringInfo(
+    val valueIndex: Int
 ) : CpInfo(tag = 8) {
     override fun ClassWriter.writeInfo() = short(valueIndex)
 }
 
-class ConstantFieldRefInfo(
-    private val classNameIndex: Int,
-    private val nameAndTypeIndex: Int
+data class ConstantFieldRefInfo(
+    val classNameIndex: Int,
+    val nameAndTypeIndex: Int
 ) : CpInfo(tag = 9) {
     override fun ClassWriter.writeInfo() {
         short(classNameIndex)
@@ -58,9 +58,9 @@ class ConstantFieldRefInfo(
     }
 }
 
-class ConstantMethodRefInfo(
-    private val classNameIndex: Int,
-    private val nameAndTypeIndex: Int
+data class ConstantMethodRefInfo(
+    val classNameIndex: Int,
+    val nameAndTypeIndex: Int
 ) : CpInfo(tag = 10) {
     override fun ClassWriter.writeInfo() {
         short(classNameIndex)
@@ -68,9 +68,9 @@ class ConstantMethodRefInfo(
     }
 }
 
-class ConstantInterfaceMethodRefInfo(
-    private val classNameIndex: Int,
-    private val nameAndTypeIndex: Int
+data class ConstantInterfaceMethodRefInfo(
+    val classNameIndex: Int,
+    val nameAndTypeIndex: Int
 ) : CpInfo(tag = 11) {
     override fun ClassWriter.writeInfo() {
         short(classNameIndex)
@@ -78,9 +78,9 @@ class ConstantInterfaceMethodRefInfo(
     }
 }
 
-class ConstantNameAndTypeInfo(
-    private val nameIndex: Int,
-    private val descriptorIndex: Int
+data class ConstantNameAndTypeInfo(
+    val nameIndex: Int,
+    val descriptorIndex: Int
 ) : CpInfo(tag = 12) {
     override fun ClassWriter.writeInfo() {
         short(nameIndex)

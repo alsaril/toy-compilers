@@ -114,7 +114,6 @@ object CodeGenerator {
 
                         is LoopEnd -> {
                             val (location, callback) = loopStartInfo[it.startIndex]!!
-
                             val thisInstruction = loc()
                             frameSame()
                             aload(arrayIndex)
