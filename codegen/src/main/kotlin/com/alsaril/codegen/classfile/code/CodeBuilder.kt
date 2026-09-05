@@ -41,6 +41,9 @@ class CodeBuilder(
     // a frame is positioned relative to the previous one, so base stays here
     internal fun frame(build: (offsetDelta: Int) -> StackMapFrame) {
         val l = loc()
+        // frame offsets must strictly increase, so an offset already covered by the
+        // previous frame keeps it rather than recording a second one there
+        if (frames.isNotEmpty() && l == base - 1) return
         frames.add(build(l - base))
         base = l + 1
     }
