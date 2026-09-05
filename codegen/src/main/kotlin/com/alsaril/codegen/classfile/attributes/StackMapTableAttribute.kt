@@ -1,8 +1,7 @@
-package bf.compiler.attributes
+package com.alsaril.codegen.classfile.attributes
 
 import com.alsaril.codegen.ClassWriter
 import com.alsaril.codegen.Writable
-import com.alsaril.codegen.classfile.attributes.AttributeInfo
 import com.alsaril.codegen.write
 
 
