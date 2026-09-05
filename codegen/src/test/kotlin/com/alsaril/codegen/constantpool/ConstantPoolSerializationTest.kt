@@ -1,8 +1,7 @@
 package com.alsaril.codegen.constantpool
 
-import com.alsaril.codegen.Writable
-import com.alsaril.codegen.toBytes
-import com.alsaril.codegen.write
+import com.alsaril.codegen.bytesOf
+import com.alsaril.codegen.serialized
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatExceptionOfType
 import org.junit.jupiter.api.Nested
@@ -232,7 +231,3 @@ class ConstantPoolSerializationTest {
         }
     }
 }
-
-private fun Writable.serialized(): ByteArray = toBytes { write(this@serialized) }
-
-private fun bytesOf(vararg values: Int) = ByteArray(values.size) { values[it].toByte() }
