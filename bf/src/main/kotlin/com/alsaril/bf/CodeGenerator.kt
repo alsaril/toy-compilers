@@ -54,7 +54,7 @@ object CodeGenerator {
                 invokespecial(method(self(), "run", "(Ljava/io/InputStream;Ljava/io/OutputStream;II)V"))
                 `return`()
             }
-            .method("run", "(Ljava/io/InputStream;Ljava/io/OutputStream;II)V", maxStack = 4, maxLocals = 7, PUBLIC, FINAL) {
+            .method("run", "(Ljava/io/InputStream;Ljava/io/OutputStream;II)V", maxStack = 4, maxLocals = 8, PUBLIC, FINAL) {
                 val loopStartInfo = mutableMapOf<Int, Pair<Int, (Int) -> Unit>>()
 
                 val inIndex = 1
@@ -63,6 +63,7 @@ object CodeGenerator {
                 val cyclesIndex = 4
                 val arrayIndex = 5
                 val pointerIndex = 6
+                val readIndex = 7
 
                 iload(memsizeIndex)
                 newarray(BYTE)
@@ -71,7 +72,10 @@ object CodeGenerator {
                 iconst(0)
                 istore(pointerIndex)
 
-                frameAppend(ObjInfo("[B"), IntInfo)
+                iconst(0)
+                istore(readIndex)
+
+                frameAppend(ObjInfo("[B"), IntInfo, IntInfo)
 
                 fun guard() {
                     iload(pointerIndex)
@@ -108,10 +112,22 @@ object CodeGenerator {
 
                             Command.IN -> { // maxStack 3
                                 guard()
-                                aload(arrayIndex)
-                                iload(pointerIndex)
                                 aload(inIndex)
                                 invokevirtual(method(clazz("java/io/InputStream"), "read", "()I"))
+                                istore(readIndex)
+
+                                // eof fix -1 -> 0
+                                iload(readIndex)
+                                val ok = ifge()
+                                iconst(0)
+                                istore(readIndex)
+
+                                ok(loc())
+                                frameSame()
+
+                                aload(arrayIndex)
+                                iload(pointerIndex)
+                                iload(readIndex)
                                 bastore()
                             }
                         }
