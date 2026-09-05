@@ -132,6 +132,7 @@ class OpcodesTest {
         @Test
         fun `rejects a constant beyond the wide form`() {
             assertThatIllegalArgumentException().isThrownBy { bytecode { iinc(0, 32768) } }
+            assertThatIllegalArgumentException().isThrownBy { bytecode { iinc(0, -32769) } }
         }
     }
 }

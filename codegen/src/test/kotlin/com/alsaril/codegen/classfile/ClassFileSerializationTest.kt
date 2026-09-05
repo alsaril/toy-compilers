@@ -126,8 +126,9 @@ class ClassFileSerializationTest {
         }
 
         @Test
-        fun `rejects a same frame beyond the single byte range`() {
+        fun `rejects a same frame outside the single byte range`() {
             assertThatIllegalArgumentException().isThrownBy { SameFrame(64) }
+            assertThatIllegalArgumentException().isThrownBy { SameFrame(-1) }
         }
 
         @Test
