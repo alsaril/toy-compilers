@@ -1,5 +1,7 @@
 package com.alsaril.codegen.classfile
 
+import com.alsaril.codegen.classfile.attributes.StackMapTableAttribute
+import com.alsaril.codegen.classfile.attributes.CodeAttribute
 import com.alsaril.codegen.constantpool.UpdatableConstantPool
 import com.alsaril.codegen.toBytes
 import com.alsaril.codegen.write
@@ -8,7 +10,7 @@ class ClassFileBuilder {
     private val name: String
     private val parent: String
     private val ifaces = mutableListOf<String>()
-    private val methods = mutableListOf<Method>()
+    private val methods = mutableListOf<MethodInfo>()
 
     private val cp = UpdatableConstantPool()
 
@@ -31,7 +33,20 @@ class ClassFileBuilder {
         codeBuilder: CodeBuilder.() -> Unit,
     ): ClassFileBuilder {
         val (bytecode, stackMapFrames) = CodeBuilder(cp, this.name, parent).apply { codeBuilder() }.build()
-        methods.add(Method(name, descriptor, maxStack, maxLocals, accessFlags.toList(), bytecode, stackMapFrames))
+        val code = CodeAttribute(
+            cp.putUtf8("Code"),
+            maxStack,
+            maxLocals,
+            bytecode,
+            listOf(StackMapTableAttribute(cp.putUtf8("StackMapTable"), stackMapFrames)),
+        )
+        val methodInfo = MethodInfo(
+            accessFlags.fold(0) { acc, flag -> acc or flag.value },
+            cp.putUtf8(name),
+            cp.putUtf8(descriptor),
+            listOf(code),
+        )
+        methods.add(methodInfo)
         return this
     }
 
@@ -40,7 +55,7 @@ class ClassFileBuilder {
             cp.putClass(name),
             cp.putClass(parent),
             ifaces.map { cp.putClass(it) },
-            methods.map { it.info(cp) },
+            methods.toList(),
             cp.build(),
         )
         return name to toBytes { write(file) }

@@ -1,10 +1,10 @@
 package com.alsaril.codegen.classfile
 
-import bf.compiler.attributes.AppendFrame
-import bf.compiler.attributes.ObjectVariableInfo
-import bf.compiler.attributes.SimpleVerificationTypeInfo.IntegerVariableInfo
-import bf.compiler.attributes.StackMapFrame
-import bf.compiler.attributes.sameFrame
+import com.alsaril.codegen.classfile.attributes.AppendFrame
+import com.alsaril.codegen.classfile.attributes.ObjectVariableInfo
+import com.alsaril.codegen.classfile.attributes.SimpleVerificationTypeInfo.IntegerVariableInfo
+import com.alsaril.codegen.classfile.attributes.StackMapFrame
+import com.alsaril.codegen.classfile.attributes.sameFrame
 import com.alsaril.codegen.constantpool.UpdatableConstantPool
 import com.alsaril.codegen.constantpool.UpdatableConstantPool.RefType.FIELD
 import com.alsaril.codegen.constantpool.UpdatableConstantPool.RefType.METHOD
