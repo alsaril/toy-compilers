@@ -5,6 +5,8 @@ import com.alsaril.codegen.classfile.code.*
 import com.alsaril.codegen.classfile.ClassFileBuilder.Companion.classFile
 import com.alsaril.codegen.classfile.code.ArrayType.BYTE
 import com.alsaril.codegen.classfile.MethodAccessFlag.*
+import kotlin.math.max
+import kotlin.math.min
 
 
 object CodeGenerator {
@@ -89,16 +91,35 @@ object CodeGenerator {
                     iload(pointerIndex)
                     dup2()
                     baload()
-                    iconst(times)
+                    // mod 256
+                    iconst(times and 0xff)
                     if (inc) iadd() else isub()
                     bastore()
+                }
+
+                fun inc(times: Int) {
+                    if (times in Short.MIN_VALUE..Short.MAX_VALUE) {
+                        iinc(pointerIndex, times)
+                        return
+                    }
+                    var t = times
+                    while (t > 0) {
+                        val d = min(t, Short.MAX_VALUE.toInt())
+                        iinc(pointerIndex, d)
+                        t -= d
+                    }
+                    while (t < 0) {
+                        val d = max(t, Short.MIN_VALUE.toInt())
+                        iinc(pointerIndex, d)
+                        t -= d
+                    }
                 }
 
                 instructions.forEachIndexed { i, it ->
                     when (it) {
                         is CommandInstruction -> when (it.command) {
-                            Command.LEFT -> iinc(pointerIndex, -it.times)
-                            Command.RIGHT -> iinc(pointerIndex, +it.times)
+                            Command.LEFT -> inc(-it.times)
+                            Command.RIGHT -> inc(it.times)
                             Command.INC -> apply(it.times, inc = true)
                             Command.DEC -> apply(it.times, inc = false)
                             Command.OUT -> { // maxStack 3
