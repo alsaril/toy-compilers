@@ -8,16 +8,16 @@ import com.alsaril.codegen.toBytes
 import com.alsaril.codegen.write
 
 class ClassFileBuilder {
-    private val name: String
-    private val parent: String
+    private val thisName: String
+    private val parentName: String
     private val ifaces = mutableListOf<String>()
     private val methods = mutableListOf<MethodInfo>()
 
     private val cp = UpdatableConstantPool()
 
     private constructor(name: String, parent: String) {
-        this.name = name
-        this.parent = parent
+        this.thisName = name
+        this.parentName = parent
     }
 
     fun iface(name: String): ClassFileBuilder {
@@ -33,7 +33,7 @@ class ClassFileBuilder {
         vararg accessFlags: MethodAccessFlag,
         codeBuilder: CodeBuilder.() -> Unit,
     ): ClassFileBuilder {
-        val (bytecode, stackMapFrames) = CodeBuilder(cp, this.name, parent).apply { codeBuilder() }.build()
+        val (bytecode, stackMapFrames) = CodeBuilder(cp, thisName, parentName).apply { codeBuilder() }.build()
         val code = CodeAttribute(
             cp.putUtf8("Code"),
             maxStack,
@@ -53,13 +53,13 @@ class ClassFileBuilder {
 
     fun build(): Pair<String, ByteArray> {
         val file = ClassFile(
-            cp.putClass(name),
-            cp.putClass(parent),
+            cp.putClass(thisName),
+            cp.putClass(parentName),
             ifaces.map { cp.putClass(it) },
             methods,
             cp.build(),
         )
-        return name to toBytes { write(file) }
+        return thisName to toBytes { write(file) }
     }
 
     companion object {
