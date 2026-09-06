@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
+import org.antlr.v4.runtime.misc.ParseCancellationException
 
 class ProgramTest {
 
@@ -185,6 +186,58 @@ class ProgramTest {
             assertThatExceptionOfType(IllegalStateException::class.java)
                 .isThrownBy { run("+[]", cycles = 1_000) }
                 .withMessage("Cycles overflow")
+        }
+    }
+
+    @Nested
+    inner class Parsing {
+
+        @Test
+        fun `rejects an unclosed bracket`() {
+            assertThatExceptionOfType(IllegalArgumentException::class.java)
+                .isThrownBy { compile("+[+") }
+                .withMessage("unexpected end of program at line 1, column 4, a '[' is never closed")
+        }
+
+        @Test
+        fun `rejects an unclosed nested bracket`() {
+            assertThatExceptionOfType(IllegalArgumentException::class.java)
+                .isThrownBy { compile("[[]") }
+                .withMessageContaining("a '[' is never closed")
+        }
+
+        @Test
+        fun `rejects a stray closing bracket`() {
+            assertThatExceptionOfType(IllegalArgumentException::class.java)
+                .isThrownBy { compile("]") }
+                .withMessage("unexpected ']' at line 1, column 1")
+        }
+
+        @Test
+        fun `reports where the error is`() {
+            assertThatExceptionOfType(IllegalArgumentException::class.java)
+                .isThrownBy { compile("++]") }
+                .withMessage("unexpected ']' at line 1, column 3")
+        }
+
+        @Test
+        fun `counts a position past a comment`() {
+            // skipped characters still advance the position
+            assertThatExceptionOfType(IllegalArgumentException::class.java)
+                .isThrownBy { compile("+ hey ]") }
+                .withMessage("unexpected ']' at line 1, column 7")
+        }
+
+        @Test
+        fun `keeps the parser failure as the cause`() {
+            assertThatExceptionOfType(IllegalArgumentException::class.java)
+                .isThrownBy { compile("[") }
+                .withCauseInstanceOf(ParseCancellationException::class.java)
+        }
+
+        @Test
+        fun `accepts balanced brackets`() {
+            assertThatNoException().isThrownBy { compile("[[][]]") }
         }
     }
 
