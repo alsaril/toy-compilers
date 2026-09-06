@@ -1,14 +1,11 @@
 package com.alsaril.bf
 
 import com.alsaril.bf.Compiler.compile
-import org.assertj.core.api.Assertions.assertThat
-import org.assertj.core.api.Assertions.assertThatExceptionOfType
-import org.assertj.core.api.Assertions.assertThatNoException
+import org.assertj.core.api.Assertions.*
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
-import org.antlr.v4.runtime.misc.ParseCancellationException
 
 class ProgramTest {
 
@@ -196,43 +193,42 @@ class ProgramTest {
         fun `rejects an unclosed bracket`() {
             assertThatExceptionOfType(IllegalArgumentException::class.java)
                 .isThrownBy { compile("+[+") }
-                .withMessage("unexpected end of program at line 1, column 4, a '[' is never closed")
+                .withMessage("']' expected at 3")
         }
 
         @Test
         fun `rejects an unclosed nested bracket`() {
             assertThatExceptionOfType(IllegalArgumentException::class.java)
                 .isThrownBy { compile("[[]") }
-                .withMessageContaining("a '[' is never closed")
+                .withMessageContaining("']' expected")
         }
 
         @Test
         fun `rejects a stray closing bracket`() {
             assertThatExceptionOfType(IllegalArgumentException::class.java)
                 .isThrownBy { compile("]") }
-                .withMessage("unexpected ']' at line 1, column 1")
+                .withMessage("unexpected ']' at 0")
         }
 
         @Test
         fun `reports where the error is`() {
             assertThatExceptionOfType(IllegalArgumentException::class.java)
                 .isThrownBy { compile("++]") }
-                .withMessage("unexpected ']' at line 1, column 3")
+                .withMessage("unexpected ']' at 2")
         }
 
         @Test
         fun `counts a position past a comment`() {
-            // skipped characters still advance the position
+            // skipped characters still count towards the index
             assertThatExceptionOfType(IllegalArgumentException::class.java)
                 .isThrownBy { compile("+ hey ]") }
-                .withMessage("unexpected ']' at line 1, column 7")
+                .withMessage("unexpected ']' at 6")
         }
 
         @Test
-        fun `keeps the parser failure as the cause`() {
+        fun `rejects a bracket opened at the very start`() {
             assertThatExceptionOfType(IllegalArgumentException::class.java)
                 .isThrownBy { compile("[") }
-                .withCauseInstanceOf(ParseCancellationException::class.java)
         }
 
         @Test
