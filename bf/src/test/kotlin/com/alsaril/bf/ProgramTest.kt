@@ -68,6 +68,29 @@ class ProgramTest {
         }
 
         @Test
+        fun `compiles a pointer move longer than one instruction can hold`() {
+            // 70000 is past Short.MAX_VALUE, so each move is emitted as several iincs
+            val n = 70_000
+
+            // mark a far cell, walk all the way back, then read both ends
+            val source = ">".repeat(n) + "+".repeat(65) + "." + "<".repeat(n) + "."
+
+            assertThat(run(source, memsize = 100_000)).containsExactly(65, 0)
+        }
+
+        @Test
+        fun `keeps the bounds check across a split pointer move`() {
+            assertThatExceptionOfType(IllegalStateException::class.java)
+                .isThrownBy { run("<".repeat(70_000) + ".") }
+                .withMessage("Buffer overflow")
+        }
+
+        @Test
+        fun `wraps a run of exactly 256 increments back to zero`() {
+            assertThat(run("+".repeat(256) + ".")).containsExactly(0)
+        }
+
+        @Test
         fun `multiplies with a loop`() {
             // 7 * 7 = 49, the code point of '1'
             assertThat(run("+++++++[>+++++++<-]>.").text()).isEqualTo("1")

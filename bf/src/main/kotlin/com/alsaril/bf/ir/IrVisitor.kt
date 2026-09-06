@@ -26,8 +26,7 @@ class IrVisitor : BFBaseVisitor<Unit>() {
             prev !is CommandInstruction ||
             prev.command == Command.OUT ||
             prev.command == Command.IN ||
-            prev.command != newCommand ||
-            prev.times == Short.MAX_VALUE.toInt()
+            prev.command != newCommand
         ) {
             instructions.add(CommandInstruction(newCommand))
             return
