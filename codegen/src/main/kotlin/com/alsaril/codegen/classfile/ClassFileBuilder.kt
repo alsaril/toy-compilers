@@ -1,11 +1,14 @@
 package com.alsaril.codegen.classfile
 
-import com.alsaril.codegen.classfile.attributes.StackMapTableAttribute
 import com.alsaril.codegen.classfile.attributes.CodeAttribute
+import com.alsaril.codegen.classfile.attributes.StackMapTableAttribute
 import com.alsaril.codegen.classfile.code.CodeBuilder
 import com.alsaril.codegen.constantpool.UpdatableConstantPool
 import com.alsaril.codegen.toBytes
 import com.alsaril.codegen.write
+import kotlin.contracts.ExperimentalContracts
+import kotlin.contracts.InvocationKind
+import kotlin.contracts.contract
 
 class ClassFileBuilder {
     private val thisName: String
@@ -33,13 +36,24 @@ class ClassFileBuilder {
         vararg accessFlags: MethodAccessFlag,
         codeBuilder: CodeBuilder.() -> Unit,
     ): ClassFileBuilder {
-        val (bytecode, stackMapFrames) = CodeBuilder(cp, thisName, parentName).apply { codeBuilder() }.build()
+        val fragment = CodeBuilder(cp, thisName, parentName).apply { codeBuilder() }.build()
+        return method(name, descriptor, fragment, maxStack, maxLocals, *accessFlags)
+    }
+
+    fun method(
+        name: String,
+        descriptor: String,
+        fragment: Fragment,
+        maxStack: Int,
+        maxLocals: Int,
+        vararg accessFlags: MethodAccessFlag,
+    ): ClassFileBuilder {
         val code = CodeAttribute(
             cp.putUtf8("Code"),
             maxStack,
             maxLocals,
-            bytecode,
-            listOf(StackMapTableAttribute(cp.putUtf8("StackMapTable"), stackMapFrames)),
+            fragment.bytecode(),
+            listOf(StackMapTableAttribute(cp.putUtf8("StackMapTable"), fragment.frames)),
         )
         val methodInfo = MethodInfo(
             accessFlags.fold(0) { acc, flag -> acc or flag.value },
@@ -49,6 +63,16 @@ class ClassFileBuilder {
         )
         methods.add(methodInfo)
         return this
+    }
+
+    @OptIn(ExperimentalContracts::class)
+    fun emitFragment(codeBuilder: CodeBuilder.() -> Unit): Fragment {
+        contract {
+            callsInPlace(codeBuilder, InvocationKind.EXACTLY_ONCE)
+        }
+        return CodeBuilder(cp, thisName, parentName)
+            .apply { codeBuilder() }
+            .build()
     }
 
     fun build(): Pair<String, ByteArray> {

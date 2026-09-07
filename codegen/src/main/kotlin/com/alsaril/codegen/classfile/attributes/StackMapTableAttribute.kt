@@ -15,24 +15,26 @@ class StackMapTableAttribute(
     }
 }
 
-interface StackMapFrame : Writable
+sealed interface StackMapFrame : Writable {
+    val offsetDelta: Int
+}
 
 fun sameFrame(offsetDelta: Int) = if (offsetDelta <= 63) SameFrame(offsetDelta) else SameFrameExtended(offsetDelta)
 
 data class SameFrame(
-    val frameType: Int,
+    override val offsetDelta: Int,
 ) : StackMapFrame {
     init {
-        require(frameType in 0..63)
+        require(offsetDelta in 0..63)
     }
 
     override fun ClassWriter.write() {
-        byte(frameType)
+        byte(offsetDelta)
     }
 }
 
 data class SameFrameExtended(
-    val offsetDelta: Int,
+    override val offsetDelta: Int,
 ) : StackMapFrame {
     override fun ClassWriter.write() {
         byte(251) // frame_type
@@ -41,7 +43,7 @@ data class SameFrameExtended(
 }
 
 data class AppendFrame(
-    val offsetDelta: Int,
+    override val offsetDelta: Int,
     val locals: List<VerificationTypeInfo>,
 ) : StackMapFrame {
     init {
@@ -56,7 +58,7 @@ data class AppendFrame(
 }
 
 data class FullFrame(
-    val offsetDelta: Int,
+    override val offsetDelta: Int,
     val locals: List<VerificationTypeInfo>,
     val stack: List<VerificationTypeInfo>,
 ) : StackMapFrame {

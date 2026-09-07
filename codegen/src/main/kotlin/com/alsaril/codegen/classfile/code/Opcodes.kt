@@ -43,6 +43,10 @@ fun CodeBuilder.aload(index: Int) {
     instructionFamily(index, 0x2a, 0x19)
 }
 
+fun CodeBuilder.iaload() {
+    b1(0x2e)
+}
+
 fun CodeBuilder.baload() {
     b1(0x33)
 }
@@ -54,6 +58,10 @@ fun CodeBuilder.istore(index: Int) {
 
 fun CodeBuilder.astore(index: Int) {
     instructionFamily(index, 0x4b, 0x3a)
+}
+
+fun CodeBuilder.iastore() {
+    b1(0x4f)
 }
 
 fun CodeBuilder.bastore() {
@@ -90,6 +98,10 @@ fun CodeBuilder.dup() {
 
 fun CodeBuilder.dup2() {
     b1(0x5c)
+}
+
+fun CodeBuilder.dup_x2() {
+    b1(0x5b)
 }
 
 // return

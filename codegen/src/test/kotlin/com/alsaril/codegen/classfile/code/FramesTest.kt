@@ -76,7 +76,7 @@ class FramesTest {
         val cp = UpdatableConstantPool()
 
         // when
-        val recorded = builder(cp).apply { frameAppend(ObjInfo("[B")) }.build().second
+        val recorded = builder(cp).apply { frameAppend(ObjInfo("[B")) }.build().frames
 
         // then the descriptor is registered as a class and referenced by index
         assertThat(recorded).containsExactly(AppendFrame(0, listOf(ObjectVariableInfo(2))))

@@ -8,6 +8,6 @@ const val PARENT_CLASS = "Parent"
 
 fun builder(cp: UpdatableConstantPool = UpdatableConstantPool()) = CodeBuilder(cp, THIS_CLASS, PARENT_CLASS)
 
-fun bytecode(block: CodeBuilder.() -> Unit): ByteArray = builder().apply(block).build().first
+fun bytecode(block: CodeBuilder.() -> Unit): ByteArray = builder().apply(block).build().bytecode()
 
-fun frames(block: CodeBuilder.() -> Unit): List<StackMapFrame> = builder().apply(block).build().second
+fun frames(block: CodeBuilder.() -> Unit): List<StackMapFrame> = builder().apply(block).build().frames
