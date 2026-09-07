@@ -1,9 +1,12 @@
 package com.alsaril.codegen.classfile.code
 
 import com.alsaril.codegen.classfile.attributes.AppendFrame
+import com.alsaril.codegen.classfile.attributes.FullFrame
 import com.alsaril.codegen.classfile.attributes.ObjectVariableInfo
 import com.alsaril.codegen.classfile.attributes.SameFrame
 import com.alsaril.codegen.classfile.attributes.SameFrameExtended
+import com.alsaril.codegen.classfile.attributes.SameLocals1StackItemFrameExtended
+import com.alsaril.codegen.classfile.attributes.SameLocals1StackItemFrameShort
 import com.alsaril.codegen.classfile.attributes.SimpleVerificationTypeInfo.IntegerVariableInfo
 import com.alsaril.codegen.constantpool.ConstantClassInfo
 import com.alsaril.codegen.constantpool.ConstantUtf8Info
@@ -83,7 +86,7 @@ class FramesTest {
         val cp = UpdatableConstantPool()
 
         // when
-        val recorded = builder(cp).apply { frameAppend(ObjInfo("[B")) }.build().frames
+        val recorded = builder(cp).apply { frameAppend(objInfo("[B")) }.build().frames
 
         // then the descriptor is registered as a class and referenced by index
         assertThat(recorded).containsExactly(AppendFrame(0, listOf(ObjectVariableInfo(2))))
@@ -95,7 +98,7 @@ class FramesTest {
 
     @Test
     fun `appends several locals in order`() {
-        assertThat(frames { frameAppend(ObjInfo("[B"), IntInfo) })
+        assertThat(frames { frameAppend(objInfo("[B"), IntInfo) })
             .containsExactly(AppendFrame(0, listOf(ObjectVariableInfo(2), IntegerVariableInfo)))
     }
 
@@ -112,6 +115,79 @@ class FramesTest {
         assertThat(recorded).containsExactly(
             AppendFrame(0, listOf(IntegerVariableInfo)),
             SameFrame(2),
+        )
+    }
+
+    @Test
+    fun `describes a single stack item`() {
+        // an exception handler starts with the throwable alone on the stack
+        assertThat(frames { frameStack(IntInfo) })
+            .containsExactly(SameLocals1StackItemFrameShort(0, IntegerVariableInfo))
+    }
+
+    @Test
+    fun `switches to the extended form for a distant stack frame`() {
+        val recorded = frames {
+            repeat(64) { nop() }
+            frameStack(IntInfo)
+        }
+
+        assertThat(recorded).containsExactly(SameLocals1StackItemFrameExtended(64, IntegerVariableInfo))
+    }
+
+    @Test
+    fun `advances the base past a stack frame too`() {
+        // given
+        val recorded = frames {
+            frameStack(IntInfo)
+            repeat(3) { nop() }
+            frameSame()
+        }
+
+        // then
+        assertThat(recorded).containsExactly(
+            SameLocals1StackItemFrameShort(0, IntegerVariableInfo),
+            SameFrame(2),
+        )
+    }
+
+    @Test
+    fun `spells out both halves of a full frame`() {
+        // given
+        val recorded = frames { frameFull(listOf(IntInfo, objInfo("[B")), listOf(IntInfo)) }
+
+        // then
+        assertThat(recorded).containsExactly(
+            FullFrame(
+                offsetDelta = 0,
+                locals = listOf(IntegerVariableInfo, ObjectVariableInfo(2)),
+                stack = listOf(IntegerVariableInfo),
+            ),
+        )
+    }
+
+    @Test
+    fun `writes a full frame with nothing in it`() {
+        assertThat(frames { frameFull(emptyList(), emptyList()) })
+            .containsExactly(FullFrame(0, emptyList(), emptyList()))
+    }
+
+    @Test
+    fun `takes an object type from a class pointer as well as a name`() {
+        // given
+        val cp = UpdatableConstantPool()
+
+        // when both spellings of the same class are used
+        val recorded = builder(cp).apply { frameFull(listOf(objInfo(self()), objInfo(THIS_CLASS)), emptyList()) }
+            .build().frames
+
+        // then they land on the one pool entry
+        assertThat(recorded).containsExactly(
+            FullFrame(0, listOf(ObjectVariableInfo(2), ObjectVariableInfo(2)), emptyList()),
+        )
+        assertThat(cp.build().entries).containsExactly(
+            ConstantUtf8Info(THIS_CLASS),
+            ConstantClassInfo(nameIndex = 1),
         )
     }
 }

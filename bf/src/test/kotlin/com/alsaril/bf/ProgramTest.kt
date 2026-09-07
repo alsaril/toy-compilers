@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
+import java.io.OutputStream
 
 class ProgramTest {
 
@@ -27,6 +28,25 @@ class ProgramTest {
     }
 
     private fun ByteArray.text() = String(this, Charsets.ISO_8859_1)
+
+    /** hands over what was written only once the stream has been flushed */
+    private class LateStream : OutputStream() {
+        private val pending = ByteArrayOutputStream()
+        private val flushed = ByteArrayOutputStream()
+
+        var flushes = 0
+            private set
+
+        override fun write(b: Int) = pending.write(b)
+
+        override fun flush() {
+            flushes++
+            flushed.write(pending.toByteArray())
+            pending.reset()
+        }
+
+        fun text() = String(flushed.toByteArray(), Charsets.ISO_8859_1)
+    }
 
     @Nested
     inner class Programs {
@@ -394,6 +414,115 @@ class ProgramTest {
         @Test
         fun `compiles each program to its own class`() {
             assertThat(compile("+")).isNotSameAs(compile("+"))
+        }
+    }
+
+    /**
+     * A program is compiled to a try/finally around its body, so the stream it was handed
+     * is flushed whether the body returns or is stopped part way through. Nothing else
+     * flushes it, and a ByteArrayOutputStream cannot tell the difference, so these tests
+     * run against a LateStream instead.
+     */
+    @Nested
+    inner class Flushing {
+
+        private fun runInto(
+            out: OutputStream,
+            source: String,
+            input: String = "",
+            memsize: Int = 30_000,
+            cycles: Int = 1_000_000,
+        ) = compile(source).run(
+            ByteArrayInputStream(input.toByteArray(Charsets.ISO_8859_1)),
+            out,
+            memsize,
+            cycles,
+        )
+
+        private val printsA = "+".repeat(65) + "."
+
+        @Test
+        fun `flushes once when the program returns`() {
+            // given
+            val out = LateStream()
+
+            // when
+            runInto(out, printsA)
+
+            // then
+            assertThat(out.text()).isEqualTo("A")
+            assertThat(out.flushes).isOne()
+        }
+
+        @Test
+        fun `flushes even when the program writes nothing`() {
+            // given
+            val out = LateStream()
+
+            // when
+            runInto(out, "+")
+
+            // then
+            assertThat(out.flushes).isOne()
+        }
+
+        @Test
+        fun `flushes what was written before a bounds failure`() {
+            // given
+            val out = LateStream()
+
+            // when the pointer walks off the tape after printing
+            assertThatExceptionOfType(IllegalStateException::class.java)
+                .isThrownBy { runInto(out, printsA + "<.") }
+                .withMessage("Buffer overflow")
+
+            // then the output survives the failure, which is still raised
+            assertThat(out.text()).isEqualTo("A")
+            assertThat(out.flushes).isOne()
+        }
+
+        @Test
+        fun `flushes what was written before the cycle limit stops the program`() {
+            // given
+            val out = LateStream()
+
+            // when
+            assertThatExceptionOfType(IllegalStateException::class.java)
+                .isThrownBy { runInto(out, printsA + "+[]", cycles = 100) }
+                .withMessage("Cycles overflow")
+
+            // then
+            assertThat(out.text()).isEqualTo("A")
+            assertThat(out.flushes).isOne()
+        }
+
+        @Test
+        fun `flushes what was written from an outlined method`() {
+            // given a program large enough that the writes live in their own methods
+            val out = LateStream()
+            val padding = "+-".repeat(400)
+
+            // when
+            assertThatExceptionOfType(IllegalStateException::class.java)
+                .isThrownBy { runInto(out, padding + printsA + padding + "<.") }
+                .withMessage("Buffer overflow")
+
+            // then the handler on the outermost frame still catches it
+            assertThat(out.text()).isEqualTo("A")
+            assertThat(out.flushes).isOne()
+        }
+
+        @Test
+        fun `lets a failure from the stream itself through`() {
+            // given a stream that fails on the write the program asks for
+            val out = object : OutputStream() {
+                override fun write(b: Int) = throw UnsupportedOperationException("nope")
+            }
+
+            // then the finally does not turn it into something else
+            assertThatExceptionOfType(UnsupportedOperationException::class.java)
+                .isThrownBy { runInto(out, printsA) }
+                .withMessage("nope")
         }
     }
 }

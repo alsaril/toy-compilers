@@ -5,14 +5,18 @@ import com.alsaril.codegen.bytesOf
 import com.alsaril.codegen.classfile.attributes.AppendFrame
 import com.alsaril.codegen.classfile.attributes.AttributeInfo
 import com.alsaril.codegen.classfile.attributes.CodeAttribute
+import com.alsaril.codegen.classfile.attributes.ExceptionHandler
 import com.alsaril.codegen.classfile.attributes.FullFrame
 import com.alsaril.codegen.classfile.attributes.ObjectVariableInfo
 import com.alsaril.codegen.classfile.attributes.SameFrame
 import com.alsaril.codegen.classfile.attributes.SameFrameExtended
+import com.alsaril.codegen.classfile.attributes.SameLocals1StackItemFrameExtended
+import com.alsaril.codegen.classfile.attributes.SameLocals1StackItemFrameShort
 import com.alsaril.codegen.classfile.attributes.SimpleVerificationTypeInfo.IntegerVariableInfo
 import com.alsaril.codegen.classfile.attributes.SimpleVerificationTypeInfo.TopVariableInfo
 import com.alsaril.codegen.classfile.attributes.StackMapTableAttribute
 import com.alsaril.codegen.classfile.attributes.sameFrame
+import com.alsaril.codegen.classfile.attributes.sameLocals1StackItem
 import com.alsaril.codegen.constantpool.ConstantIntegerInfo
 import com.alsaril.codegen.constantpool.StaticConstantPool
 import com.alsaril.codegen.serialized
@@ -57,6 +61,7 @@ class ClassFileSerializationTest {
                 maxStack = 2,
                 maxLocals = 3,
                 code = bytesOf(0xB1),
+                exceptionHandlers = emptyList(),
                 attributes = emptyList(),
             )
 
@@ -75,6 +80,38 @@ class ClassFileSerializationTest {
             )
         }
 
+        @Test
+        fun `writes each exception handler after the table length`() {
+            // given
+            val code = CodeAttribute(
+                nameIndex = 1,
+                maxStack = 0,
+                maxLocals = 0,
+                code = bytesOf(0xB1),
+                exceptionHandlers = listOf(
+                    ExceptionHandler(startPc = 0, endPc = 1, handlerPc = 1, catchType = 0),
+                    ExceptionHandler(startPc = 2, endPc = 3, handlerPc = 4, catchType = 5),
+                ),
+                attributes = emptyList(),
+            )
+
+            // then
+            assertThat(code.serialized()).containsExactly(
+                *bytesOf(
+                    0x00, 0x01,
+                    0x00, 0x00, 0x00, 0x1D,  // 13 as before, plus 8 bytes per handler
+                    0x00, 0x00,              // max_stack
+                    0x00, 0x00,              // max_locals
+                    0x00, 0x00, 0x00, 0x01,  // code_length
+                    0xB1,
+                    0x00, 0x02,              // exception_table_length
+                    0x00, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00,
+                    0x00, 0x02, 0x00, 0x03, 0x00, 0x04, 0x00, 0x05,
+                    0x00, 0x00,              // attributes_count
+                ),
+            )
+        }
+
         /**
          * code_length is a u4 on the wire, so the writer cannot catch either bound; the
          * JVMS caps a method at 1..65535 bytes and only the attribute itself knows that.
@@ -88,13 +125,14 @@ class ClassFileSerializationTest {
                         maxStack = 0,
                         maxLocals = 0,
                         code = ByteArray(65_536),
+                        exceptionHandlers = emptyList(),
                         attributes = emptyList(),
                     )
                 }
                 .withMessageContaining("over the 65535 limit")
 
             assertThatNoException().isThrownBy {
-                CodeAttribute(1, 0, 0, ByteArray(65_535), emptyList())
+                CodeAttribute(1, 0, 0, ByteArray(65_535), emptyList(), emptyList())
             }
         }
 
@@ -109,13 +147,14 @@ class ClassFileSerializationTest {
                         maxStack = 0,
                         maxLocals = 0,
                         code = bytesOf(),
+                        exceptionHandlers = emptyList(),
                         attributes = emptyList(),
                     )
                 }
                 .withMessageContaining("code_length must be at least 1")
 
             assertThatNoException().isThrownBy {
-                CodeAttribute(1, 0, 0, bytesOf(0xB1), emptyList())
+                CodeAttribute(1, 0, 0, bytesOf(0xB1), emptyList(), emptyList())
             }
         }
 
@@ -127,6 +166,7 @@ class ClassFileSerializationTest {
                 maxStack = 0,
                 maxLocals = 0,
                 code = bytesOf(0xB1),
+                exceptionHandlers = emptyList(),
                 attributes = listOf(RawAttribute(9, bytesOf(0x2A))),
             )
 
@@ -197,6 +237,41 @@ class ClassFileSerializationTest {
         }
 
         @Test
+        fun `writes a compact stack frame as a tag past the same frames`() {
+            // the 64..127 tags are an offset of 0..63 with one item on the stack
+            assertThat(SameLocals1StackItemFrameShort(0, IntegerVariableInfo).serialized())
+                .containsExactly(*bytesOf(0x40, 0x01))
+            assertThat(SameLocals1StackItemFrameShort(63, ObjectVariableInfo(3)).serialized())
+                .containsExactly(*bytesOf(0x7F, 0x07, 0x00, 0x03))
+        }
+
+        @Test
+        fun `rejects a compact stack frame outside the single byte range`() {
+            assertThatIllegalArgumentException()
+                .isThrownBy { SameLocals1StackItemFrameShort(64, IntegerVariableInfo) }
+            assertThatIllegalArgumentException()
+                .isThrownBy { SameLocals1StackItemFrameShort(-1, IntegerVariableInfo) }
+        }
+
+        @Test
+        fun `writes an extended stack frame as a tag, an offset and the item`() {
+            assertThat(SameLocals1StackItemFrameExtended(300, ObjectVariableInfo(3)).serialized())
+                .containsExactly(*bytesOf(0xF7, 0x01, 0x2C, 0x07, 0x00, 0x03))
+        }
+
+        @Test
+        fun `picks the compact stack frame up to an offset of 63`() {
+            assertThat(sameLocals1StackItem(63, IntegerVariableInfo))
+                .isEqualTo(SameLocals1StackItemFrameShort(63, IntegerVariableInfo))
+        }
+
+        @Test
+        fun `switches to the extended stack frame past an offset of 63`() {
+            assertThat(sameLocals1StackItem(64, IntegerVariableInfo))
+                .isEqualTo(SameLocals1StackItemFrameExtended(64, IntegerVariableInfo))
+        }
+
+        @Test
         fun `encodes the local count into the append frame tag`() {
             assertThat(AppendFrame(5, listOf(IntegerVariableInfo)).serialized())
                 .containsExactly(*bytesOf(0xFC, 0x00, 0x05, 0x01))
@@ -252,6 +327,29 @@ class ClassFileSerializationTest {
         fun `writes an object type as a tag and a constant pool index`() {
             assertThat(ObjectVariableInfo(258).serialized())
                 .containsExactly(*bytesOf(0x07, 0x01, 0x02))
+        }
+    }
+
+    @Nested
+    inner class ExceptionHandlers {
+
+        @Test
+        fun `writes the range, the handler and the caught type as four indexes`() {
+            assertThat(ExceptionHandler(1, 258, 3, 4).serialized())
+                .containsExactly(*bytesOf(0x00, 0x01, 0x01, 0x02, 0x00, 0x03, 0x00, 0x04))
+        }
+
+        @Test
+        fun `writes a catch all as a zero type`() {
+            assertThat(ExceptionHandler(0, 1, 1, catchType = 0).serialized())
+                .endsWith(*bytesOf(0x00, 0x00))
+        }
+
+        @Test
+        fun `rejects a location past a u2`() {
+            assertThatIllegalArgumentException()
+                .isThrownBy { ExceptionHandler(0x10000, 0, 0, 0).serialized() }
+                .withMessageContaining("does not fit a u2")
         }
     }
 

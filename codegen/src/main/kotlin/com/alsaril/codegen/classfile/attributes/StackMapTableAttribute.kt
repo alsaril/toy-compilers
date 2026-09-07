@@ -42,6 +42,40 @@ data class SameFrameExtended(
     }
 }
 
+fun sameLocals1StackItem(offsetDelta: Int, stack: VerificationTypeInfo) =
+    if (offsetDelta <= 63) SameLocals1StackItemFrameShort(offsetDelta, stack)
+    else SameLocals1StackItemFrameExtended(offsetDelta, stack)
+
+interface SameLocals1StackItemFrame : StackMapFrame {
+    override val offsetDelta: Int
+    val stack: VerificationTypeInfo
+}
+
+data class SameLocals1StackItemFrameShort(
+    override val offsetDelta: Int,
+    override val stack: VerificationTypeInfo,
+) : SameLocals1StackItemFrame {
+    init {
+        require(offsetDelta in 0..63)
+    }
+
+    override fun ClassWriter.write() {
+        byte(offsetDelta + 64)
+        write(stack)
+    }
+}
+
+data class SameLocals1StackItemFrameExtended(
+    override val offsetDelta: Int,
+    override val stack: VerificationTypeInfo,
+) : SameLocals1StackItemFrame {
+    override fun ClassWriter.write() {
+        byte(247) // frame_type
+        short(offsetDelta)
+        write(stack)
+    }
+}
+
 data class AppendFrame(
     override val offsetDelta: Int,
     val locals: List<VerificationTypeInfo>,

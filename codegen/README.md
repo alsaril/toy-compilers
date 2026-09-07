@@ -1,7 +1,8 @@
 # codegen
 
-Writes JVM class files by hand — constant pool, methods, bytecode and stack map frames.
-No ASM. Language-agnostic: it knows about the class file format, nothing about sources.
+Writes JVM class files by hand — constant pool, methods, bytecode, stack map frames and
+exception handlers. No ASM. Language-agnostic: it knows about the class file format,
+nothing about sources.
 
 ## Pipeline
 
@@ -14,7 +15,8 @@ ClassFileBuilder ──> ClassFile ──> ClassWriter ──> ByteArray ──>
 Everything serialisable implements `Writable`, which writes into a `ClassWriter` — a
 narrow byte sink (`byte`, `short`, `int`, `long`, `double`, `bytes`, `utf8`). Class file
 structures follow JVMS §4.1–4.7 one-to-one: `ClassFile`, `MethodInfo`, `AttributeInfo`
-with `CodeAttribute` and `StackMapTableAttribute`.
+with `CodeAttribute` and `StackMapTableAttribute`, and `ExceptionHandler` for a row of the
+`Code` attribute's exception table.
 
 ## Constant pool
 
@@ -52,14 +54,20 @@ jump(loc())
 ## Stack map frames
 
 Frames are recorded as offsets *relative to the previous frame*, which `CodeBuilder`
-tracks so callers only say `frameSame()` or `frameAppend(...)`. It picks the compact or
-extended encoding automatically, and drops a frame that lands on an offset the previous
-one already covers — two frames may not share an offset, which happens naturally when a
-loop body is empty.
+tracks so callers only say `frameSame()`, `frameAppend(...)`, `frameStack(...)` or
+`frameFull(...)`. It picks the compact or extended encoding automatically, and drops a
+frame that lands on an offset the previous one already covers — two frames may not share
+an offset, which happens naturally when a loop body is empty.
 
-Four of the seven frame kinds in JVMS §4.7.4 are implemented: `SameFrame`,
-`SameFrameExtended`, `AppendFrame` and `FullFrame`. `FullFrame` states the locals and the
-stack outright, so it covers any frame the other three cannot encode.
+Almost all of the frame kinds in JVMS §4.7.4 are implemented; only `chop_frame` is
+missing.
+
+## Exception handlers
+
+A handler is a row of the `Code` attribute's exception table: the range it covers, where
+to jump, and the type it catches. `try` marks the start of the range and `catch` closes
+it, returning a patcher that records the handler once its location is known — the same
+closure trick as a jump. A `catch` with no type matches any throwable.
 
 ## Two ways to define a method
 
@@ -77,10 +85,11 @@ val body   = emitFragment { ... }
 method(name, descriptor, listOf(prefix, body).join(), maxStack, maxLocals, PUBLIC)
 ```
 
-`Fragment` is code plus its frames plus its length. `List<Fragment>.join()` concatenates
-them and **rewrites frame offsets** against the positions they land on in the joined code.
-This is what lets a caller assemble a method out of parts, or split one body across
-several methods.
+`Fragment` is code plus its frames, its exception handlers and its length.
+`List<Fragment>.join()` concatenates them and **rewrites the positions inside them**
+against where they land in the joined code — relative frame offsets and absolute handler
+locations alike. This is what lets a caller assemble a method out of parts, or split one
+body across several methods.
 
 Building a `CodeBuilder` *freezes* it: further emission throws, but **jump patchers still
 work**, writing into the frozen array. That is what makes a fragment emitted early
@@ -99,8 +108,8 @@ two places that check:
 
 - **`DosWriter.byte` / `short`** — the only `ClassWriter` implementation, so every
   structural field passes through it: pool indices and `constant_pool_count`, member and
-  attribute counts, access flags, frame offset deltas, tags. All of them are unsigned, so
-  the ranges are `0..0xff` and `0..0xffff`.
+  attribute counts, access flags, frame offset deltas, exception table locations, tags.
+  All of them are unsigned, so the ranges are `0..0xff` and `0..0xffff`.
 - **`CodeBuilder.u1` / `s1` / `u2` / `s2`** — bytecode never touches `ClassWriter`; it
   accumulates in the builder and leaves as a single `bytes(code)`. Operands here are not
   all one shape, so there is an emitter per width and signedness and each call names the
@@ -125,4 +134,4 @@ fit, at the point the value is emitted.
 
 Byte-level expectations are written out literally from the JVMS rather than produced by a
 second copy of the encoder, and `GeneratedClassTest` loads and runs generated classes so
-the **JVM verifier** checks the pool, bytecode and frames.
+the **JVM verifier** checks the pool, bytecode, frames and exception table.

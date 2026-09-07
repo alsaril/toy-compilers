@@ -95,8 +95,14 @@ Argument parsing is [Clikt](https://github.com/ajalt/clikt), the one dependency 
 module has; the compiler and `codegen` behind it pull in nothing. The cycle limit is there
 to stop a runaway program rather than to ration a real one, hence the default.
 `Buffer overflow` and `Cycles overflow` reach the CLI as `IllegalStateException` and are
-reported as a message and exit status 1, with anything already written flushed first — the
-generated flush only runs on a normal return.
+reported as a message and exit status 1.
+
+**Output is always flushed.** `run` guards the program body with an exception handler, so
+the stream is flushed whether the body returned or was stopped part way through:
+
+```
+try { run() } finally { flush() }
+```
 
 State shared across the split methods:
 
@@ -127,8 +133,8 @@ iterations. It also makes non-terminating programs testable.
   comes back before the next access is not an error, and `><` on a one-cell tape is fine.
 - **EOF reads as 0**, not `-1`. `read()` returning `-1` is clamped, which is what the
   usual `,[.,]` idiom needs to terminate. A real `0xFF` input byte stays `0xFF`.
-- **Output is flushed** before returning, so a program without a trailing newline is not
-  silently lost.
+- **Output is flushed** on the way out, so a program without a trailing newline is not
+  silently lost, and neither is what a stopped program had already written.
 
 ## Tests
 

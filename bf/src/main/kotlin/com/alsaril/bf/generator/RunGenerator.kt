@@ -42,15 +42,39 @@ object RunGenerator {
             newarray(BYTE)
             astore(4)
 
+            frameFull(
+                listOf(
+                    objInfo(self()),
+                    objInfo("java/io/InputStream"),
+                    objInfo("java/io/OutputStream"),
+                    IntInfo,
+                    objInfo("[B"),
+                    objInfo("[I")
+                ), emptyList()
+            )
+
             aload(1)
             aload(2)
             iload(3)
             aload(4)
             aload(5)
-            invokestatic(method(self(), name, descriptor))
 
+            val from = `try`()
+            invokestatic(method(self(), name, descriptor))
+            aconst_null()
+            val handler = `catch`(from, type = null)
+
+            handler(loc())
+            frameStack(objInfo("java/lang/Throwable"))
             aload(2)
             invokevirtual(method(clazz("java/io/OutputStream"), "flush", "()V"))
+
+            dup()
+            val exit = ifnull()
+            athrow()
+
+            exit(loc())
+            frameStack(objInfo("java/lang/Throwable"))
             `return`()
         }
     }

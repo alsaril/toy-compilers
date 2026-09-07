@@ -8,6 +8,8 @@ data class FieldDescriptor(val index: Int)
 
 data class DataPointer(val index: Int)
 
+data class TryPointer(val index: Int)
+
 fun CodeBuilder.self() = ClassPointer(cp.putClass(thisClass))
 
 fun CodeBuilder.parent() = ClassPointer(cp.putClass(parentClass))
