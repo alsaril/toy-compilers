@@ -15,37 +15,37 @@ fun CodeBuilder.field(classPointer: ClassPointer, name: String, descriptor: Stri
 
 // get
 fun CodeBuilder.getstatic(fieldDescriptor: FieldDescriptor) {
-    b1(0xb2)
-    b2(fieldDescriptor.index)
+    u1(0xb2)
+    u2(fieldDescriptor.index)
 }
 
 // invoke
 fun CodeBuilder.invokevirtual(methodDescriptor: MethodDescriptor) {
-    b1(0xb6)
-    b2(methodDescriptor.index)
+    u1(0xb6)
+    u2(methodDescriptor.index)
 }
 
 fun CodeBuilder.invokespecial(methodDescriptor: MethodDescriptor) {
-    b1(0xb7)
-    b2(methodDescriptor.index)
+    u1(0xb7)
+    u2(methodDescriptor.index)
 }
 
 fun CodeBuilder.invokestatic(methodDescriptor: MethodDescriptor) {
-    b1(0xb8)
-    b2(methodDescriptor.index)
+    u1(0xb8)
+    u2(methodDescriptor.index)
 }
 
 fun CodeBuilder.invokeinterface(methodDescriptor: MethodDescriptor, count: Int) {
-    b1(0xb9)
-    b2(methodDescriptor.index)
-    b1(count)
-    b1(0)
+    u1(0xb9)
+    u2(methodDescriptor.index)
+    u1(count)
+    u1(0)
 }
 
 // new
 fun CodeBuilder.new(classPointer: ClassPointer) {
-    b1(0xbb)
-    b2(classPointer.index)
+    u1(0xbb)
+    u2(classPointer.index)
 }
 
 enum class ArrayType(val index: Int) {
@@ -53,8 +53,8 @@ enum class ArrayType(val index: Int) {
 }
 
 fun CodeBuilder.newarray(type: ArrayType) {
-    b1(0xbc)
-    b1(type.index)
+    u1(0xbc)
+    u1(type.index)
 }
 
 fun CodeBuilder.construct(classPointer: ClassPointer, name: String, descriptor: String) {

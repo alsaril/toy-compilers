@@ -3,6 +3,7 @@ package com.alsaril.codegen.classfile.code
 import com.alsaril.codegen.bytesOf
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatExceptionOfType
+import org.assertj.core.api.Assertions.assertThatIllegalArgumentException
 import org.assertj.core.api.Assertions.assertThatNoException
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
@@ -36,29 +37,51 @@ class CodeBuilderTest {
     inner class OperandWidths {
 
         @Test
-        fun `rejects a byte operand outside the union of u1 and s1`() {
-            assertThatExceptionOfType(IllegalArgumentException::class.java)
-                .isThrownBy { builder().b1(0x100) }
-                .withMessageContaining("does not fit")
+        fun `u1 takes an unsigned byte`() {
+            assertThatNoException().isThrownBy { bytecode { u1(0); u1(0xff) } }
 
-            assertThatExceptionOfType(IllegalArgumentException::class.java)
-                .isThrownBy { builder().b1(-129) }
+            assertThatIllegalArgumentException()
+                .isThrownBy { builder().u1(0x100) }
+                .withMessageContaining("does not fit a u1")
         }
 
         @Test
-        fun `rejects a short operand outside the union of u2 and s2`() {
-            assertThatExceptionOfType(IllegalArgumentException::class.java)
-                .isThrownBy { builder().b2(0x10000) }
-                .withMessageContaining("does not fit")
+        fun `s1 takes a signed byte`() {
+            assertThatNoException().isThrownBy { bytecode { s1(-128); s1(127) } }
 
-            assertThatExceptionOfType(IllegalArgumentException::class.java)
-                .isThrownBy { builder().b2(-32769) }
+            assertThatIllegalArgumentException()
+                .isThrownBy { builder().s1(128) }
+                .withMessageContaining("does not fit an s1")
+
+            assertThatIllegalArgumentException().isThrownBy { builder().s1(-129) }
         }
 
         @Test
-        fun `accepts the whole union at both ends`() {
-            assertThatNoException().isThrownBy { builder().b1(-128); builder().b1(0xff) }
-            assertThatNoException().isThrownBy { builder().b2(-32768); builder().b2(0xffff) }
+        fun `u2 takes an unsigned short`() {
+            assertThat(bytecode { u2(0xCAFE) }).containsExactly(*bytesOf(0xCA, 0xFE))
+
+            assertThatIllegalArgumentException()
+                .isThrownBy { builder().u2(0x10000) }
+                .withMessageContaining("does not fit a u2")
+        }
+
+        @Test
+        fun `s2 takes a signed short`() {
+            assertThat(bytecode { s2(-2) }).containsExactly(*bytesOf(0xFF, 0xFE))
+
+            assertThatIllegalArgumentException()
+                .isThrownBy { builder().s2(32_768) }
+                .withMessageContaining("does not fit an s2")
+        }
+
+        // 200 is a fine u1 and not an s1, -1 the other way round; one range covering
+        // both signednesses would accept all four of these
+        @Test
+        fun `does not accept a value that fits only the other signedness`() {
+            assertThatIllegalArgumentException().isThrownBy { builder().s1(200) }
+            assertThatIllegalArgumentException().isThrownBy { builder().u1(-1) }
+            assertThatIllegalArgumentException().isThrownBy { builder().s2(0xffff) }
+            assertThatIllegalArgumentException().isThrownBy { builder().u2(-1) }
         }
     }
 
