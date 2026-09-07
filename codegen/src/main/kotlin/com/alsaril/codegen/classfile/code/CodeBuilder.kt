@@ -19,7 +19,7 @@ class CodeBuilder(
     private var frozen: ByteArray? = null
 
     fun build(): Fragment {
-        frozen?.let {  throw IllegalStateException() }
+        frozen?.let { throw IllegalStateException() }
         with (bytecode.toByteArray()) {
             frozen = this
             return Fragment(listOf(this), frames, this.size)
@@ -28,31 +28,43 @@ class CodeBuilder(
 
     fun loc() = bytecode.size
 
-    internal fun b1(value: Byte) {
-        frozen?.let {  throw IllegalStateException() }
-        bytecode.add(value)
+    internal fun u1(value: Int) {
+        require(value in 0..0xff) { "$value does not fit a u1" }
+        put(value)
     }
 
-    internal fun b1(value: Int) {
-        require(value in Byte.MIN_VALUE..0xff) { "$value does not fit a bytecode operand byte" }
-        b1(value.toByte())
+    internal fun s1(value: Int) {
+        require(value in Byte.MIN_VALUE..Byte.MAX_VALUE) { "$value does not fit an s1" }
+        put(value)
     }
 
-    internal fun b2(value: Int) {
-        require(value in Short.MIN_VALUE..0xffff) { "$value does not fit a bytecode operand short" }
-        b1(value shr 8)
-        b1(value and 0xff)
+    internal fun u2(value: Int) {
+        require(value in 0..0xffff) { "$value does not fit a u2" }
+        put(value shr 8)
+        put(value)
     }
 
-    internal fun b1At(value: Int, pos: Int) {
+    internal fun s2(value: Int) {
+        require(value in Short.MIN_VALUE..Short.MAX_VALUE) { "$value does not fit an s2" }
+        put(value shr 8)
+        put(value)
+    }
+
+    internal fun s2At(value: Int, pos: Int) {
+        require(value in Short.MIN_VALUE..Short.MAX_VALUE) { "$value does not fit an s2" }
+        putAt(value shr 8, pos)
+        putAt(value, pos + 1)
+    }
+
+    private fun put(value: Int) {
+        frozen?.let { throw IllegalStateException() }
+        bytecode.add(value.toByte())
+    }
+
+    private fun putAt(value: Int, pos: Int) {
         frozen?.let { it[pos] = value.toByte() } ?: run {
             bytecode[pos] = value.toByte()
         }
-    }
-
-    internal fun b2At(value: Int, pos: Int) {
-        b1At(value shr 8, pos)
-        b1At(value and 0xff, pos + 1)
     }
 
     // a frame is positioned relative to the previous one, so base stays here

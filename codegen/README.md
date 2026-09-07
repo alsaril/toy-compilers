@@ -98,15 +98,21 @@ two places that check:
   structural field passes through it: pool indices and `constant_pool_count`, member and
   attribute counts, access flags, frame offset deltas, tags. All of them are unsigned, so
   the ranges are `0..0xff` and `0..0xffff`.
-- **`CodeBuilder.b1` / `b2`** — bytecode never touches `ClassWriter`; it accumulates in the
-  builder and leaves as a single `bytes(code)`. An operand here may be unsigned (an opcode,
-  a local index, a pool index) or signed (an `iinc` delta, a branch offset), so each range
-  is the union of the two.
+- **`CodeBuilder.u1` / `s1` / `u2` / `s2`** — bytecode never touches `ClassWriter`; it
+  accumulates in the builder and leaves as a single `bytes(code)`. Operands here are not
+  all one shape, so there is an emitter per width and signedness and each call names the
+  field it fills:
 
-Two constraints neither place can express get their own check. A branch offset must fit a
-*signed* short, which the union above is too wide to catch, so `Jumps` narrows it where
-the offset is computed. And `code_length` is a `u4` on the wire that the JVMS caps at
-65535, so `CodeAttribute` checks it in its `init`.
+```kotlin
+u1(0x10)   // bipush, an opcode
+s1(value)  // its operand, a signed byte
+```
+
+`s2At` is the same check for a branch offset patched in after the fact, once its target
+is known.
+
+One constraint neither place can express gets its own check: `code_length` is a `u4` on
+the wire that the JVMS caps at 65535, so `CodeAttribute` checks it in its `init`.
 
 Each check raises an `IllegalArgumentException` naming the value and the width it did not
 fit, at the point the value is emitted.

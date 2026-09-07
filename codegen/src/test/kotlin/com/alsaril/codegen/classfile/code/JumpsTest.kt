@@ -109,15 +109,11 @@ class JumpsTest {
         // then
         assertThat(code).containsExactly(*bytesOf(0xA7, 0x00, 0x00))
     }
-    /**
-     * A branch offset is the only signed two byte operand, so CodeBuilder's wider union
-     * range cannot catch a method that has outgrown it.
-     */
     @Test
     fun `rejects a branch offset past a signed short`() {
         assertThatExceptionOfType(IllegalArgumentException::class.java)
             .isThrownBy { builder().goto(dest = 40_000) }
-            .withMessageContaining("branch offset")
+            .withMessageContaining("does not fit an s2")
 
         assertThatExceptionOfType(IllegalArgumentException::class.java)
             .isThrownBy { builder().apply { repeat(3) { nop() } }.ifeq(dest = -40_000) }
@@ -130,7 +126,10 @@ class JumpsTest {
 
         assertThatExceptionOfType(IllegalArgumentException::class.java)
             .isThrownBy { patch(40_000) }
-            .withMessageContaining("branch offset")
+            .withMessageContaining("does not fit an s2")
+
+        assertThatExceptionOfType(IllegalArgumentException::class.java)
+            .isThrownBy { patch(-40_000) }
     }
 
 }

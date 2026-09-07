@@ -17,19 +17,13 @@ fun CodeBuilder.if_icmpge(dest: Int? = null) = jumpTemplate(0xa2, dest)
 // jump offsets are relative to the opcode, so an unknown dest is patched later
 private fun CodeBuilder.jumpTemplate(opcode: Int, dest: Int?): (Int) -> Unit {
     val start = loc()
-    b1(opcode)
+    u1(opcode)
     val pos = loc()
     if (dest != null) {
-        b2(offset(dest, start))
+        s2(dest - start)
         return {}
     } else {
-        b2(0) // placeholder
-        return { target -> b2At(offset(target, start), pos) }
+        s2(0) // placeholder
+        return { target -> s2At(target - start, pos) }
     }
-}
-
-private fun offset(target: Int, start: Int): Int {
-    val offset = target - start
-    require(offset in Short.MIN_VALUE..Short.MAX_VALUE) { "branch offset $offset is out of range" }
-    return offset
 }
