@@ -114,7 +114,7 @@ class InvocationsTest {
             builder.construct(builder.clazz("A"), "<init>", "()V")
 
             // then class A is index 2 and the method ref lands at 6
-            assertThat(builder.build().first).containsExactly(
+            assertThat(builder.build().bytecode()).containsExactly(
                 *bytesOf(
                     0xBB, 0x00, 0x02,  // new A
                     0x59,              // dup

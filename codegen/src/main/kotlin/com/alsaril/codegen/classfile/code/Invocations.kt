@@ -49,7 +49,7 @@ fun CodeBuilder.new(classPointer: ClassPointer) {
 }
 
 enum class ArrayType(val index: Int) {
-    BYTE(8);
+    BYTE(8), INT(10);
 }
 
 fun CodeBuilder.newarray(type: ArrayType) {

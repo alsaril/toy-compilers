@@ -1,5 +1,6 @@
 package com.alsaril.codegen.classfile.code
 
+import com.alsaril.codegen.classfile.Fragment
 import com.alsaril.codegen.classfile.attributes.StackMapFrame
 import com.alsaril.codegen.constantpool.UpdatableConstantPool
 
@@ -15,13 +16,25 @@ class CodeBuilder(
     private val bytecode = mutableListOf<Byte>()
     private val frames = mutableListOf<StackMapFrame>()
     private var base = 0
+    private var frozen: ByteArray? = null
 
-    fun build(): Pair<ByteArray, List<StackMapFrame>> = bytecode.toByteArray() to frames
+    fun build(): Fragment {
+        frozen?.let {  throw IllegalStateException() }
+        with (bytecode.toByteArray()) {
+            frozen = this
+            return Fragment(listOf(this), frames, this.size)
+        }
+    }
 
     fun loc() = bytecode.size
 
+    internal fun b1(value: Byte) {
+        frozen?.let {  throw IllegalStateException() }
+        bytecode.add(value)
+    }
+
     internal fun b1(value: Int) {
-        bytecode.add(value.toByte())
+        b1(value.toByte())
     }
 
     internal fun b2(value: Int) {
@@ -30,7 +43,9 @@ class CodeBuilder(
     }
 
     internal fun b1At(value: Int, pos: Int) {
-        bytecode[pos] = value.toByte()
+        frozen?.let { it[pos] = value.toByte() } ?: run {
+            bytecode[pos] = value.toByte()
+        }
     }
 
     internal fun b2At(value: Int, pos: Int) {
