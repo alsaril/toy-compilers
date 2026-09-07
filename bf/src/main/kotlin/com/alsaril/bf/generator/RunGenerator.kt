@@ -113,30 +113,30 @@ object RunGenerator {
         }
     }
 
+    private fun ClassFileBuilder.pack(
+        fragments: List<Fragment>,
+        generation: Generation,
+        budget: Int
+    ): Fragment = tryInline(fragments, budget) ?: run {
+        var start: Int? = 0
+        val calls = mutableListOf<Fragment>()
+
+        while (start != null) {
+            val chunk = collect(fragments, start, generation.bodyLengthLimit, allowSingleFragmentSpill = true)
+            calls.add(emitCall(defineMethod(chunk.fragments.join(), generation)))
+            start = chunk.next
+        }
+
+        pack(calls, generation, budget) // recursive, but the depth is log(program length)
+    }
+
     private fun ClassFileBuilder.combine(
         fragments: List<Fragment>,
         generation: Generation,
         loop: Boolean
     ): Fragment {
         val budget = generation.bodyLengthLimit - if (loop) generation.loopOverhead else 0
-
-        val body = tryInline(fragments, budget) ?: run {
-            var start: Int? = 0
-            var size = 0
-            val result = mutableListOf<ByteArray>()
-            val chunkBudget = generation.bodyLengthLimit
-            while (start != null) {
-                val chunk = collect(fragments, start, chunkBudget, allowSingleFragmentSpill = true)
-                val ref = defineMethod(chunk.fragments.join(), generation)
-                val (call, frames, s) = emitCall(ref)
-                require(frames.isEmpty())
-                result.addAll(call)
-                size += s
-                start = chunk.next
-            }
-
-            Fragment(result, emptyList(), size)
-        }
+        val body = pack(fragments, generation, budget)
 
         if (!loop) return body
 

@@ -9,5 +9,5 @@ fun main(args: Array<String>) {
     }
     val source = File(args[0]).readText()
     val program: ExtendedRunnable = compile(source)
-    program.run(System.`in`, System.out, 30_000, 100_000)
+    program.run(System.`in`, System.out, 30_000, Int.MAX_VALUE)
 }
