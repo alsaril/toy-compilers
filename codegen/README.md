@@ -90,27 +90,26 @@ class name can be defined repeatedly — one compilation per program, not per JV
 
 ## Width checks
 
-A class file is mostly `u1` and `u2` fields, and a value that outgrows one used to be
-truncated silently — the damage surfaced much later at class load, as an error naming
-whatever the truncated value happened to hit. Every width is now checked, and because
-there are only two ways a byte reaches the output there are only two funnels:
+A class file is mostly `u1` and `u2` fields, and a value that does not fit one is rejected
+where it is written. There are only two ways a byte reaches the output, so there are only
+two places that check:
 
 - **`DosWriter.byte` / `short`** — the only `ClassWriter` implementation, so every
   structural field passes through it: pool indices and `constant_pool_count`, member and
-  attribute counts, access flags, `maxStack`/`maxLocals`, frame offset deltas, tags. All
-  of them are unsigned, so the checks are just `0..0xff` and `0..0xffff`.
+  attribute counts, access flags, frame offset deltas, tags. All of them are unsigned, so
+  the ranges are `0..0xff` and `0..0xffff`.
 - **`CodeBuilder.b1` / `b2`** — bytecode never touches `ClassWriter`; it accumulates in the
   builder and leaves as a single `bytes(code)`. An operand here may be unsigned (an opcode,
-  a local index, a pool index) or signed (an `iinc` delta, a branch offset), so the range
+  a local index, a pool index) or signed (an `iinc` delta, a branch offset), so each range
   is the union of the two.
 
-Two constraints no funnel can see get their own check. A branch offset must fit a *signed*
-short, which the union above is too wide to catch, so `Jumps` narrows it where the offset
-is computed. And `code_length` is a `u4` on the wire that the JVMS caps at 65535, so
-`CodeAttribute` checks it in its `init`.
+Two constraints neither place can express get their own check. A branch offset must fit a
+*signed* short, which the union above is too wide to catch, so `Jumps` narrows it where
+the offset is computed. And `code_length` is a `u4` on the wire that the JVMS caps at
+65535, so `CodeAttribute` checks it in its `init`.
 
-What is still not checked is whether `maxStack` and `maxLocals` are *correct* — they are
-declared by the caller, and only the JVM verifier will disagree.
+Each check raises an `IllegalArgumentException` naming the value and the width it did not
+fit, at the point the value is emitted.
 
 ## Tests
 
