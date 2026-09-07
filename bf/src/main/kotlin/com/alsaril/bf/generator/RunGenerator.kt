@@ -60,7 +60,7 @@ object RunGenerator {
         val descriptor = "(Ljava/io/InputStream;Ljava/io/OutputStream;I[B[I)V"
         val prefix = emitFragment {
             iconst(0) // 1 byte
-            istore(readIndex) // 3 bytes
+            istore(readIndex) // 2 bytes
             frameAppend(IntInfo)
         }
         val postfix = emitFragment { `return`() }
@@ -91,7 +91,7 @@ object RunGenerator {
         fragments.asSequence().drop(start).forEachIndexed { index, fragment ->
             if (size + fragment.size > maxsize) return Chunk(result, size, start + index)
             result.add(fragment)
-            size += fragments.size
+            size += fragment.size
         }
         return Chunk(result, size, null)
     }
