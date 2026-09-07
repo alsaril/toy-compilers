@@ -7,10 +7,10 @@ import com.alsaril.bf.Loop
 import com.alsaril.codegen.classfile.ClassFileBuilder
 import com.alsaril.codegen.classfile.Fragment
 import com.alsaril.codegen.classfile.MethodAccessFlag.*
-import com.alsaril.codegen.classfile.attributes.*
 import com.alsaril.codegen.classfile.code.*
 import com.alsaril.codegen.classfile.code.ArrayType.BYTE
 import com.alsaril.codegen.classfile.code.ArrayType.INT
+import com.alsaril.codegen.classfile.join
 import kotlin.math.min
 
 object RunGenerator {
@@ -35,7 +35,7 @@ object RunGenerator {
             dup()
             astore(5)
             iconst(1)
-            iload(4) // cycles arg # stack 3
+            iload(4) // cycles arg
             iastore()
 
             iload(3) // memsize arg
@@ -55,101 +55,21 @@ object RunGenerator {
         }
     }
 
-    private fun ClassFileBuilder.emitMethodPrefix() = emitFragment {
-        iconst(0)
-        istore(readIndex)
-        frameAppend(IntInfo)
-    }
-
-    private fun ClassFileBuilder.emitMethodPostfix() = emitFragment { `return`() }
-
-    private fun ClassFileBuilder.bodyLengthLimit() =
-        methodLengthLimit - emitMethodPrefix().size - emitMethodPostfix().size
-
     private fun ClassFileBuilder.defineMethod(fragment: Fragment, counter: MutableInt): Pair<String, String> {
         val name = "f${counter.inc()}"
         val descriptor = "(Ljava/io/InputStream;Ljava/io/OutputStream;I[B[I)V"
         val prefix = emitMethodPrefix()
         val postfix = emitMethodPostfix()
-        val body = joinFragments(listOf(prefix, fragment, postfix))
+        val body = listOf(prefix, fragment, postfix).join()
         method(name, descriptor, body, 5, 6, PRIVATE, STATIC, FINAL)
         return name to descriptor
-    }
-
-    private fun ClassFileBuilder.emitCall(method: Pair<String, String>) = emitFragment {
-        val (name, descriptor) = method
-        aload(0)
-        aload(1)
-        iload(2)
-        aload(3)
-        aload(4)
-        invokestatic(method(self(), name, descriptor))
-    }
-
-    private data class MutableInt(var value: Int = 0) {
-        fun inc() = value++
-    }
-
-    private data class Chunk(val fragments: List<Fragment>, val size: Int, val next: Int?)
-
-    private fun collect(
-        fragments: List<Fragment>,
-        start: Int,
-        maxsize: Int,
-        allowSingleFragmentSpill: Boolean = false
-    ): Chunk {
-        val result = mutableListOf<Fragment>()
-        var size = 0
-        fragments.asSequence().drop(start).forEachIndexed { index, fragment ->
-            if (size + fragment.size > maxsize) {
-                if (result.isEmpty() && allowSingleFragmentSpill) {
-                    return Chunk(listOf(fragment), fragment.size, if (fragments.size > start + 1) start + 1 else null)
-                }
-                return Chunk(result, size, start + index)
-            }
-            result.add(fragment)
-            size += fragment.size
-        }
-        return Chunk(result, size, null)
-    }
-
-    private fun joinFragments(fragments: List<Fragment>): Fragment {
-        if (fragments.size == 1) return fragments.first()
-        val result = mutableListOf<ByteArray>()
-        val globalFrames = mutableListOf<StackMapFrame>()
-        var globalBase = 0
-        var globalSize = 0
-
-        fragments.forEach { (code, frames, size) ->
-            result.addAll(code)
-            if (frames.isNotEmpty()) {
-                val frame = frames.first()
-                val patchedOffset = frame.offsetDelta + globalSize - globalBase
-                if (patchedOffset != -1) {
-                    val patched = when (frame) {
-                        is SameFrame, is SameFrameExtended -> sameFrame(patchedOffset)
-                        is AppendFrame -> frame.copy(offsetDelta = patchedOffset)
-                        is FullFrame -> frame.copy(offsetDelta = patchedOffset)
-                    }
-                    globalFrames.add(patched)
-                    globalBase += patched.offsetDelta + 1
-                }
-            }
-            frames.asSequence().drop(1).forEach {
-                globalFrames.add(it)
-                globalBase += it.offsetDelta + 1
-            }
-            globalSize += size
-        }
-
-        return Fragment(result, globalFrames, globalSize)
     }
 
     // join into one fragment
     private fun tryInline(fragments: List<Fragment>, budget: Int): Fragment? {
         val chunk = collect(fragments, 0, budget)
         if (chunk.next != null) return null
-        return joinFragments(chunk.fragments)
+        return chunk.fragments.join()
     }
 
     private fun ClassFileBuilder.materialize(
@@ -168,7 +88,7 @@ object RunGenerator {
         val chunkBudget = bodyLengthLimit()
         while (start != null) {
             val chunk = collect(fragments, start, chunkBudget, allowSingleFragmentSpill = true)
-            val ref = defineMethod(joinFragments(chunk.fragments), counter)
+            val ref = defineMethod(chunk.fragments.join(), counter)
             val (call, frames, s) = emitCall(ref)
             require(frames.isEmpty())
             result.addAll(call)
@@ -189,7 +109,7 @@ object RunGenerator {
             toTail(prefix.size + body.size + end)
             toHead(start - prefix.size - body.size)
             val fragments = listOf(prefix, body, postfix)
-            return joinFragments(fragments)
+            return fragments.join()
         } else if (instruction is CommandInstruction) {
             val codeWithFrames = when (instruction.command) {
                 LEFT -> emitMove(instruction.times, false)
@@ -275,12 +195,6 @@ object RunGenerator {
         invokevirtual(method(clazz("java/io/OutputStream"), "write", "(I)V"))
     }
 
-    private data class LoopBoundary(
-        val fragment: Fragment,
-        val exit: (Int) -> Unit,
-        val entry: Int
-    )
-
     private fun ClassFileBuilder.emitPrefix(): LoopBoundary {
         val exit: (Int) -> Unit
         val entry: Int
@@ -324,4 +238,25 @@ object RunGenerator {
         }
         return LoopBoundary(fragment, exit, entry)
     }
+
+    private fun ClassFileBuilder.emitCall(method: Pair<String, String>) = emitFragment {
+        val (name, descriptor) = method
+        aload(0)
+        aload(1)
+        iload(2)
+        aload(3)
+        aload(4)
+        invokestatic(method(self(), name, descriptor))
+    }
+
+    private fun ClassFileBuilder.emitMethodPrefix() = emitFragment {
+        iconst(0)
+        istore(readIndex)
+        frameAppend(IntInfo)
+    }
+
+    private fun ClassFileBuilder.emitMethodPostfix() = emitFragment { `return`() }
+
+    private fun ClassFileBuilder.bodyLengthLimit() =
+        methodLengthLimit - emitMethodPrefix().size - emitMethodPostfix().size
 }
