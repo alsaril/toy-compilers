@@ -1,6 +1,7 @@
 package com.alsaril.bf
 
 import com.alsaril.bf.Compiler.compile
+import com.alsaril.bf.generator.ClassGenerator.generate
 import org.assertj.core.api.Assertions.*
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
@@ -235,6 +236,36 @@ class ProgramTest {
             val padding = "+-".repeat(400)
 
             assertThat(run(padding + ",." + padding + ",.", input = "hi").text()).isEqualTo("hi")
+        }
+
+        @Test
+        fun `compiles a loop that lands right on the chunk budget`() {
+            // a loop body of 265 pairs plus one move used to make a fragment of 7997,
+            // one byte past the chunk budget, leaving collect with nothing to take
+            val source = "[" + "+-".repeat(265) + ">" + "]" + "+-".repeat(10)
+
+            assertThat(run(source)).isEmpty()
+        }
+
+        @Test
+        fun `keeps every method inside the method length limit`() {
+            // 8000 is hotspot's threshold for compiling a method at all, so a method
+            // past it would silently stay interpreted
+            val sources = listOf(
+                "+".repeat(65) + ".",
+                "+-".repeat(350),
+                "+-".repeat(2500),
+                "[" + "+-".repeat(265) + ">" + "]",
+                "[" + "+-".repeat(265) + ">" + "]" + "+-".repeat(10),
+                "+++[->" + "+-".repeat(400) + "<]",
+            )
+
+            sources.forEach { source ->
+                val (_, bytes) = generate(Parser.parse(source))
+
+                assertThat(methodCodeLengths(bytes))
+                    .allSatisfy { assertThat(it).isLessThanOrEqualTo(8000) }
+            }
         }
 
         @Test
