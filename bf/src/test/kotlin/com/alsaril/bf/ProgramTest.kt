@@ -186,6 +186,76 @@ class ProgramTest {
         }
     }
 
+    /**
+     * A folded run is a single fragment, so a long program needs many *distinct*
+     * instructions to grow the method. "+-" alternates, defeating the folding.
+     */
+    @Nested
+    inner class Splitting {
+
+        @Test
+        fun `runs a program small enough to stay in one method`() {
+            assertThat(run("+".repeat(65) + ".").text()).isEqualTo("A")
+        }
+
+        @Test
+        fun `runs a program past the method length threshold`() {
+            // ~700 instructions is beyond the 8000 byte budget for a single method
+            val padding = "+-".repeat(350)
+
+            assertThat(run(padding + "+".repeat(65) + ".").text()).isEqualTo("A")
+        }
+
+        @Test
+        fun `runs a program past the hard method length limit`() {
+            // a single method cannot exceed 65535 bytes of bytecode, so without
+            // splitting the class would be rejected at load time
+            val padding = "+-".repeat(2500)
+
+            assertThat(run(padding + "+".repeat(65) + ".").text()).isEqualTo("A")
+        }
+
+        @Test
+        fun `keeps a loop working when its body is split`() {
+            // the body is long enough to be outlined, and runs three times
+            val body = "+-".repeat(400) + ">+<"
+
+            assertThat(run("+++[-" + body + "]>.").text()).isEqualTo("\u0003")
+        }
+
+        @Test
+        fun `keeps a loop working when the program around it is split`() {
+            val padding = "+-".repeat(400)
+
+            assertThat(run(padding + "+++[->+<]" + padding + ">.")).containsExactly(3)
+        }
+
+        @Test
+        fun `keeps input and output working across a split`() {
+            val padding = "+-".repeat(400)
+
+            assertThat(run(padding + ",." + padding + ",.", input = "hi").text()).isEqualTo("hi")
+        }
+
+        @Test
+        fun `keeps the cycle limit working across a split`() {
+            val padding = "+-".repeat(400)
+
+            assertThatExceptionOfType(IllegalStateException::class.java)
+                .isThrownBy { run(padding + "+[]", cycles = 100) }
+                .withMessage("Cycles overflow")
+        }
+
+        @Test
+        fun `keeps the bounds check working across a split`() {
+            val padding = "+-".repeat(400)
+
+            assertThatExceptionOfType(IllegalStateException::class.java)
+                .isThrownBy { run(padding + "<.") }
+                .withMessage("Buffer overflow")
+        }
+    }
+
     @Nested
     inner class Parsing {
 
