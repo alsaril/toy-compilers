@@ -25,8 +25,8 @@ object RunGenerator {
     private val readIndex = 5
 
     fun ClassFileBuilder.generateRun(instructions: List<Instruction>) = apply {
-        val counter = MutableInt() // TODO fix reverse order
-        val body = materialize(instructions, methodLengthLimit, counter)
+        val counter = MutableInt()
+        val body = materialize(instructions, bodyLengthLimit(), counter)
         val (name, descriptor) = defineMethod(body, counter)
         method("run", "(Ljava/io/InputStream;Ljava/io/OutputStream;II)V", maxStack = 5, maxLocals = 6, PUBLIC, FINAL) {
             // input: in, out, size, cycles
@@ -55,15 +55,22 @@ object RunGenerator {
         }
     }
 
+    private fun ClassFileBuilder.emitMethodPrefix() = emitFragment {
+        iconst(0)
+        istore(readIndex)
+        frameAppend(IntInfo)
+    }
+
+    private fun ClassFileBuilder.emitMethodPostfix() = emitFragment { `return`() }
+
+    private fun ClassFileBuilder.bodyLengthLimit() =
+        methodLengthLimit - emitMethodPrefix().size - emitMethodPostfix().size
+
     private fun ClassFileBuilder.defineMethod(fragment: Fragment, counter: MutableInt): Pair<String, String> {
         val name = "f${counter.inc()}"
         val descriptor = "(Ljava/io/InputStream;Ljava/io/OutputStream;I[B[I)V"
-        val prefix = emitFragment {
-            iconst(0) // 1 byte
-            istore(readIndex) // 2 bytes
-            frameAppend(IntInfo)
-        }
-        val postfix = emitFragment { `return`() }
+        val prefix = emitMethodPrefix()
+        val postfix = emitMethodPostfix()
         val body = joinFragments(listOf(prefix, fragment, postfix))
         method(name, descriptor, body, 5, 6, PRIVATE, STATIC, FINAL)
         return name to descriptor
@@ -85,11 +92,21 @@ object RunGenerator {
 
     private data class Chunk(val fragments: List<Fragment>, val size: Int, val next: Int?)
 
-    private fun collect(fragments: List<Fragment>, start: Int, maxsize: Int): Chunk {
+    private fun collect(
+        fragments: List<Fragment>,
+        start: Int,
+        maxsize: Int,
+        allowSingleFragmentSpill: Boolean = false
+    ): Chunk {
         val result = mutableListOf<Fragment>()
         var size = 0
         fragments.asSequence().drop(start).forEachIndexed { index, fragment ->
-            if (size + fragment.size > maxsize) return Chunk(result, size, start + index)
+            if (size + fragment.size > maxsize) {
+                if (result.isEmpty() && allowSingleFragmentSpill) {
+                    return Chunk(listOf(fragment), fragment.size, if (fragments.size > start + 1) start + 1 else null)
+                }
+                return Chunk(result, size, start + index)
+            }
             result.add(fragment)
             size += fragment.size
         }
@@ -148,8 +165,9 @@ object RunGenerator {
         var start: Int? = 0
         var size = 0
         val result = mutableListOf<ByteArray>()
-        while (start != null) { // TODO inline last part if within the budget
-            val chunk = collect(fragments, start, methodLengthLimit - 4) // TODO extract this from define method
+        val chunkBudget = bodyLengthLimit()
+        while (start != null) {
+            val chunk = collect(fragments, start, chunkBudget, allowSingleFragmentSpill = true)
             val ref = defineMethod(joinFragments(chunk.fragments), counter)
             val (call, frames, s) = emitCall(ref)
             require(frames.isEmpty())
@@ -167,7 +185,7 @@ object RunGenerator {
             val (prefix, toTail, start) = emitPrefix()
             val (postfix, toHead, end) = emitPostfix()
             val overhead = prefix.size + postfix.size
-            val body = materialize(instruction.instructions, methodLengthLimit - overhead, counter)
+            val body = materialize(instruction.instructions, bodyLengthLimit() - overhead, counter)
             toTail(prefix.size + body.size + end)
             toHead(start - prefix.size - body.size)
             val fragments = listOf(prefix, body, postfix)
