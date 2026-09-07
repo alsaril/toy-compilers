@@ -23,9 +23,6 @@ Kotlin, JDK 21, Gradle wrapper. Generated classes target Java 8 (major version 5
 ./gradlew :codegen:test    # one module
 ```
 
-`codegen` has JaCoCo wired in, so `./gradlew :codegen:test` also writes
-`codegen/build/reports/jacoco/test/html/index.html`.
-
 Run a Brainfuck program:
 
 ```bash

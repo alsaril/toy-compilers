@@ -68,7 +68,7 @@ class ProgramTest {
 
         @Test
         fun `compiles a pointer move longer than one instruction can hold`() {
-            // 70000 is past Short.MAX_VALUE, so each move is emitted as several iincs
+            // 70000 is past Short.MAX_VALUE, so the move is added in several iconst steps
             val n = 70_000
 
             // mark a far cell, walk all the way back, then read both ends
@@ -152,6 +152,13 @@ class ProgramTest {
         @Test
         fun `uses the whole tape it is given`() {
             assertThatNoException().isThrownBy { run(">.", memsize = 2) }
+        }
+
+        @Test
+        fun `allows the pointer to leave the tape and come back`() {
+            assertThat(run("><.", memsize = 1)).containsExactly(0)
+            assertThat(run(">>>>><<<<<.", memsize = 1)).containsExactly(0)
+            assertThat(run("<>.")).containsExactly(0)
         }
     }
 

@@ -91,25 +91,20 @@ object RunGenerator {
                 continue
             }
 
-            val instruction = input[output.size]
-            if (instruction is CommandInstruction) {
-                val fragment = when (instruction.command) {
-                    LEFT -> emitMove(instruction.times, false)
-                    RIGHT -> emitMove(instruction.times, true)
-                    INC -> emitAdd(instruction.times, true)
-                    DEC -> emitAdd(instruction.times, false)
-                    IN -> emitRead()
-                    OUT -> emitWrite()
-                }
-                output.add(fragment)
-                continue
-            }
-            if (instruction is Loop) {
-                stack.add(instruction.instructions to mutableListOf())
-                continue
-            }
+            when (val instruction = input[output.size]) {
+                is CommandInstruction -> output.add(
+                    when (instruction.command) {
+                        LEFT -> emitMove(instruction.times, false)
+                        RIGHT -> emitMove(instruction.times, true)
+                        INC -> emitAdd(instruction.times, true)
+                        DEC -> emitAdd(instruction.times, false)
+                        IN -> emitRead()
+                        OUT -> emitWrite()
+                    }
+                )
 
-            throw IllegalStateException()
+                is Loop -> stack.add(instruction.instructions to mutableListOf())
+            }
         }
     }
 

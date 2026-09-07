@@ -20,10 +20,16 @@ private fun CodeBuilder.jumpTemplate(opcode: Int, dest: Int?): (Int) -> Unit {
     b1(opcode)
     val pos = loc()
     if (dest != null) {
-        b2(dest - start)
+        b2(offset(dest, start))
         return {}
     } else {
         b2(0) // placeholder
-        return { target -> b2At(target - start, pos) }
+        return { target -> b2At(offset(target, start), pos) }
     }
+}
+
+private fun offset(target: Int, start: Int): Int {
+    val offset = target - start
+    require(offset in Short.MIN_VALUE..Short.MAX_VALUE) { "branch offset $offset is out of range" }
+    return offset
 }

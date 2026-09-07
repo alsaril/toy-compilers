@@ -43,6 +43,20 @@ Fragments are packed into chunks; a chunk that does not fit becomes its own `sta
 method `fN`, and the parent emits a call. A loop body too big to inline is outlined the
 same way, with loop control staying in the parent.
 
+Packing then runs again **on the calls themselves**, so a program large enough that even
+the calls overflow a method gets another level of dispatch rather than an oversized
+parent. That recursion is over the packed output rather than the source, so its depth is
+logarithmic in program length — a program of four million instructions compiles to ~15 000
+methods, none over the budget, at a cost of seventeen dispatch methods.
+
+What splitting no longer bounds is the **constant pool**, which every outlined method
+adds about three entries to. Measured: ten million instructions compile to a 151 MB class
+with 56 403 pool entries and load fine; twelve million exhaust the 65 535 entry pool and
+fail during generation with `65536 does not fit a bytecode operand short`, pointing at the
+`invokestatic` that ran out of room. That is the practical ceiling, and it is a `codegen`
+limit rather than a `bf` one — see its
+[width checks](../codegen/README.md#width-checks).
+
 Budgets are **measured from the emitters rather than hardcoded**, so they follow any
 change to the code they account for, and are computed once per compilation into
 `Generation`:
@@ -65,7 +79,10 @@ interface ExtendedRunnable : Runnable {
 ```
 
 Streams and limits are parameters, which makes a program testable without touching
-`System.in`/`System.out`. The inherited no-arg `run()` delegates with defaults.
+`System.in`/`System.out`. The inherited no-arg `run()` delegates to it with `System.in`,
+`System.out`, a 30 000 cell tape and `Int.MAX_VALUE` cycles, which is what
+`./gradlew :bf:run` gets — the cycle limit is there to stop a runaway program, not to
+ration a real one.
 
 State shared across the split methods:
 
@@ -75,8 +92,10 @@ State shared across the split methods:
 | `int[2] state` | `[pointer, cycles]` |
 
 **Bounds guard.** A generated `static guard(pointer, memsize)` runs before every cell
-access and raises `Buffer overflow` if the pointer left the tape — deterministic instead
-of relying on where the JVM happens to notice.
+access and raises `Buffer overflow` if the pointer is off the tape at that moment —
+deterministic instead of relying on where the JVM happens to notice. The check is at the
+access, not at the move, so a pointer only has to be on the tape when a cell is read or
+written.
 
 **Cycle counter.** `cycles` is decremented once per loop-body *entry* and raises
 `Cycles overflow` at zero. Counting at body entry rather than at the condition means a
@@ -87,8 +106,11 @@ iterations. It also makes non-terminating programs testable.
 
 - **Cell arithmetic** reduces to `times and 0xff` — a cell is a byte and `bastore` keeps
   the low eight bits, so nothing wider is observable.
-- **Pointer moves** cannot reduce (every intermediate position matters for the guard), so
-  a long move is split into `iinc` steps of at most `Short.MAX_VALUE`.
+- **Pointer moves** fold into a single write to `state[0]`, accumulated on the operand
+  stack. `iconst` cannot encode past `Short.MAX_VALUE`, so a longer move is added in
+  several steps — an encoding limit, not a semantic one. Nothing observes the intermediate
+  positions: the guard runs at each cell *access*, so a pointer that leaves the tape and
+  comes back before the next access is not an error, and `><` on a one-cell tape is fine.
 - **EOF reads as 0**, not `-1`. `read()` returning `-1` is clamped, which is what the
   usual `,[.,]` idiom needs to terminate. A real `0xFF` input byte stays `0xFF`.
 - **Output is flushed** before returning, so a program without a trailing newline is not
@@ -96,7 +118,7 @@ iterations. It also makes non-terminating programs testable.
 
 ## Tests
 
-68 tests. `ParserTest` covers folding, the loop tree and deep nesting; `ProgramTest` runs
+`ParserTest` covers folding, the loop tree and deep nesting; `ProgramTest` runs
 compiled programs end to end and compares exact bytes — Hello World, a cat loop, cell
 wrapping, bounds and cycle errors, and programs large enough to force splitting past both
 the 8000 byte budget and the 65535 hard limit.

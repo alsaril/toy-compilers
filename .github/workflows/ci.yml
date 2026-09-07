@@ -28,9 +28,9 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      # builds and tests every module, and generates the codegen coverage report
+      # builds and tests every module, and generates the coverage reports
       - name: Build
-        run: ./gradlew build --stacktrace
+        run: ./gradlew build jacocoTestReport --stacktrace
 
       - name: Upload test reports
         if: always()
@@ -48,6 +48,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: coverage-report
-          path: codegen/build/reports/jacoco/
+          path: '**/build/reports/jacoco/'
           if-no-files-found: ignore
           retention-days: 7
