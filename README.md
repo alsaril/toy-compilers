@@ -8,8 +8,7 @@ bytecode backend plus one language front end per module.
 | Module | What it is | Docs |
 |---|---|---|
 | [`codegen`](codegen/README.md) | JVM class file writer: constant pool, stack map frames, a bytecode DSL | [README](codegen/README.md) |
-| [`bf`](bf/README.md) | Brainfuck compiler — parses to an instruction tree and generates a `Runnable` class | [README](bf/README.md) |
-| `math` | Placeholder for the next front end | — |
+| [`bf`](bf/README.md) | Brainfuck compiler — parses to an instruction tree and generates a `Program` class | [README](bf/README.md) |
 
 `codegen` knows nothing about any source language; a front end depends on it and does
 nothing but build class files.
@@ -26,7 +25,7 @@ Kotlin, JDK 21, Gradle wrapper. Generated classes target Java 8 (major version 5
 Run a Brainfuck program:
 
 ```bash
-./gradlew :bf:run --args=path/to/program.bf
+./gradlew :bf:run --args="--memsize=65536 --cycles=1000000 path/to/program.bf"
 ```
 
 ## CI

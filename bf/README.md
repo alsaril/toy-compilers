@@ -4,20 +4,20 @@ A Brainfuck compiler. Source goes in, a JVM class comes out, the JVM runs it —
 interpreted. Built on [`codegen`](../codegen/README.md).
 
 ```bash
-./gradlew :bf:run --args=program.bf
+./gradlew :bf:run --args="--memsize=65536 --cycles=1000000 program.bf"
 ```
 
 ## Pipeline
 
 ```
-source ──> Parser ──> List<Instruction> ──> ClassGenerator ──> class bytes ──> ExtendedRunnable
+source ──> Parser ──> List<Instruction> ──> ClassGenerator ──> class bytes ──> Program
                        (folded tree)         + RunGenerator      ByteClassLoader
 ```
 
 - **`Parser`** — hand-written, no parser generator.
 - **`instructions.kt`** — `CommandInstruction(command, times)` and `Loop(body)`, a tree.
-- **`ClassGenerator`** — the class shell: constructor, `guard`, the no-arg `run()`.
-- **`RunGenerator`** — the program body, including all method splitting.
+- **`ClassGenerator`** — the class shell: constructor and the `guard` helper.
+- **`RunGenerator`** — the entry point and the program body, including all method splitting.
 
 ## Parser
 
@@ -70,19 +70,33 @@ stalling the packer, so splitting always makes progress.
 
 ## Runtime model
 
-The generated class implements `ExtendedRunnable`:
+The generated class implements `Program`, and that is its whole surface:
 
 ```kotlin
-interface ExtendedRunnable : Runnable {
-    fun run(`in`: InputStream, `out`: OutputStream, memsize: Int, cycles: Int)
+interface Program {
+    fun run(`in`: InputStream, out: OutputStream, memsize: Int, cycles: Int)
 }
 ```
 
-Streams and limits are parameters, which makes a program testable without touching
-`System.in`/`System.out`. The inherited no-arg `run()` delegates to it with `System.in`,
-`System.out`, a 30 000 cell tape and `Int.MAX_VALUE` cycles, which is what
-`./gradlew :bf:run` gets — the cycle limit is there to stop a runaway program, not to
-ration a real one.
+Streams and limits are always arguments, so a program reaches `System.in`/`System.out`
+only when a caller hands them over — which is what makes one testable against byte arrays.
+Defaults live in exactly one place, the CLI:
+
+```
+Usage: bf [<options>] <source>
+
+Options:
+  --memsize=<int>  tape length in cells (default: 30000)
+  --cycles=<int>   loop iterations allowed before the program is stopped
+                   (default: 2147483647)
+```
+
+Argument parsing is [Clikt](https://github.com/ajalt/clikt), the one dependency either
+module has; the compiler and `codegen` behind it pull in nothing. The cycle limit is there
+to stop a runaway program rather than to ration a real one, hence the default.
+`Buffer overflow` and `Cycles overflow` reach the CLI as `IllegalStateException` and are
+reported as a message and exit status 1, with anything already written flushed first — the
+generated flush only runs on a normal return.
 
 State shared across the split methods:
 
@@ -118,7 +132,8 @@ iterations. It also makes non-terminating programs testable.
 
 ## Tests
 
-`ParserTest` covers folding, the loop tree and deep nesting; `ProgramTest` runs
-compiled programs end to end and compares exact bytes — Hello World, a cat loop, cell
-wrapping, bounds and cycle errors, and programs large enough to force splitting past both
-the 8000 byte budget and the 65535 hard limit.
+`ParserTest` covers folding, the loop tree and deep nesting; `MainTest` covers option
+parsing and every way a command line can be wrong; `ProgramTest` runs compiled programs
+end to end and compares exact bytes — Hello World, a cat loop, cell wrapping, bounds and
+cycle errors, and programs large enough to force splitting past both the 8000 byte budget
+and the 65535 hard limit.

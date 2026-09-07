@@ -61,7 +61,7 @@ object RunGenerator {
         val prefix = emitMethodPrefix()
         val postfix = emitMethodPostfix()
         val body = listOf(prefix, fragment, postfix).join()
-        method(name, descriptor, body, 5, 6, PRIVATE, STATIC, FINAL)
+        method(name, descriptor, body, maxStack = 5, maxLocals = 6, PRIVATE, STATIC, FINAL)
         return name to descriptor
     }
 
@@ -258,13 +258,13 @@ object RunGenerator {
         return LoopBoundary(fragment, exit, entry)
     }
 
-    private fun ClassFileBuilder.emitCall(method: Pair<String, String>) = emitFragment {
-        val (name, descriptor) = method
-        aload(0)
-        aload(1)
-        iload(2)
-        aload(3)
-        aload(4)
+    private fun ClassFileBuilder.emitCall(target: Pair<String, String>) = emitFragment {
+        val (name, descriptor) = target
+        aload(inIndex)
+        aload(outIndex)
+        iload(memsizeIndex)
+        aload(arrayIndex)
+        aload(stateIndex)
         invokestatic(method(self(), name, descriptor))
     }
 
