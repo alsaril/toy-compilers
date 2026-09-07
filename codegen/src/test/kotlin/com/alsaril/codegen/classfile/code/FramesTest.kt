@@ -65,6 +65,13 @@ class FramesTest {
     }
 
     @Test
+    fun `records one frame when two land on the same offset`() {
+        // two frames cannot share a bytecode offset, so the first one wins
+        assertThat(frames { nop(); frameSame(); frameSame() })
+            .containsExactly(SameFrame(1))
+    }
+
+    @Test
     fun `appends an integer local`() {
         assertThat(frames { frameAppend(IntInfo) })
             .containsExactly(AppendFrame(0, listOf(IntegerVariableInfo)))

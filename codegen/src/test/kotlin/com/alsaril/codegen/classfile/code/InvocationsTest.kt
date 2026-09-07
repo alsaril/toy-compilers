@@ -102,6 +102,8 @@ class InvocationsTest {
         fun `writes newarray with the type code`() {
             assertThat(bytecode { newarray(ArrayType.BYTE) })
                 .containsExactly(*bytesOf(0xBC, 0x08))
+            assertThat(bytecode { newarray(ArrayType.INT) })
+                .containsExactly(*bytesOf(0xBC, 0x0A))
         }
 
         @Test
