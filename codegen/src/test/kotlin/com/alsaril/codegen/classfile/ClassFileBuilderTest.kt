@@ -59,6 +59,21 @@ class ClassFileBuilderTest {
     }
 
     @Test
+    fun `emits a standalone fragment without adding a method`() {
+        // given
+        val builder = classFile("Fragments", "java/lang/Object")
+
+        // when
+        val fragment = builder.emitFragment { `return`() }
+
+        // then the fragment carries the code, and no method was declared for it
+        assertThat(fragment.bytecode()).containsExactly(*bytesOf(0xB1))
+        assertThat(builder.build().second).isEqualTo(
+            classFile("Fragments", "java/lang/Object").build().second
+        )
+    }
+
+    @Test
     fun `grows the output as methods are added`() {
         // given
         val bare = classFile("Bare", "java/lang/Object").build().second
