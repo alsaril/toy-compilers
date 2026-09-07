@@ -32,6 +32,36 @@ class CodeBuilderTest {
         assertThat(builder.loc()).isEqualTo(4)
     }
 
+    @Nested
+    inner class OperandWidths {
+
+        @Test
+        fun `rejects a byte operand outside the union of u1 and s1`() {
+            assertThatExceptionOfType(IllegalArgumentException::class.java)
+                .isThrownBy { builder().b1(0x100) }
+                .withMessageContaining("does not fit")
+
+            assertThatExceptionOfType(IllegalArgumentException::class.java)
+                .isThrownBy { builder().b1(-129) }
+        }
+
+        @Test
+        fun `rejects a short operand outside the union of u2 and s2`() {
+            assertThatExceptionOfType(IllegalArgumentException::class.java)
+                .isThrownBy { builder().b2(0x10000) }
+                .withMessageContaining("does not fit")
+
+            assertThatExceptionOfType(IllegalArgumentException::class.java)
+                .isThrownBy { builder().b2(-32769) }
+        }
+
+        @Test
+        fun `accepts the whole union at both ends`() {
+            assertThatNoException().isThrownBy { builder().b1(-128); builder().b1(0xff) }
+            assertThatNoException().isThrownBy { builder().b2(-32768); builder().b2(0xffff) }
+        }
+    }
+
     /**
      * Building freezes the code into an array the fragment holds, but a jump whose
      * target is only known later still has to be able to patch it. That deferred patch

@@ -88,9 +88,32 @@ patchable once a later fragment fixes its target.
 `ByteClassLoader.loadClass(name, bytes)` gives each class its own loader, so the same
 class name can be defined repeatedly — one compilation per program, not per JVM.
 
+## Width checks
+
+A class file is mostly `u1` and `u2` fields, and a value that outgrows one used to be
+truncated silently — the damage surfaced much later at class load, as an error naming
+whatever the truncated value happened to hit. Every width is now checked, and because
+there are only two ways a byte reaches the output there are only two funnels:
+
+- **`DosWriter.byte` / `short`** — the only `ClassWriter` implementation, so every
+  structural field passes through it: pool indices and `constant_pool_count`, member and
+  attribute counts, access flags, `maxStack`/`maxLocals`, frame offset deltas, tags. All
+  of them are unsigned, so the checks are just `0..0xff` and `0..0xffff`.
+- **`CodeBuilder.b1` / `b2`** — bytecode never touches `ClassWriter`; it accumulates in the
+  builder and leaves as a single `bytes(code)`. An operand here may be unsigned (an opcode,
+  a local index, a pool index) or signed (an `iinc` delta, a branch offset), so the range
+  is the union of the two.
+
+Two constraints no funnel can see get their own check. A branch offset must fit a *signed*
+short, which the union above is too wide to catch, so `Jumps` narrows it where the offset
+is computed. And `code_length` is a `u4` on the wire that the JVMS caps at 65535, so
+`CodeAttribute` checks it in its `init`.
+
+What is still not checked is whether `maxStack` and `maxLocals` are *correct* — they are
+declared by the caller, and only the JVM verifier will disagree.
+
 ## Tests
 
-179 tests. Byte-level expectations are written out literally from the JVMS rather than
-produced by a second copy of the encoder, and `GeneratedClassTest` loads and runs
-generated classes so the **JVM verifier** checks the pool, bytecode and frames.
-100% line and branch coverage.
+Byte-level expectations are written out literally from the JVMS rather than produced by a
+second copy of the encoder, and `GeneratedClassTest` loads and runs generated classes so
+the **JVM verifier** checks the pool, bytecode and frames.

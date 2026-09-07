@@ -34,10 +34,12 @@ class CodeBuilder(
     }
 
     internal fun b1(value: Int) {
+        require(value in Byte.MIN_VALUE..0xff) { "$value does not fit a bytecode operand byte" }
         b1(value.toByte())
     }
 
     internal fun b2(value: Int) {
+        require(value in Short.MIN_VALUE..0xffff) { "$value does not fit a bytecode operand short" }
         b1(value shr 8)
         b1(value and 0xff)
     }

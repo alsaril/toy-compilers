@@ -1,6 +1,7 @@
 package com.alsaril.codegen
 
 import org.assertj.core.api.Assertions.assertThat
+import org.assertj.core.api.Assertions.assertThatExceptionOfType
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
@@ -64,21 +65,32 @@ class ClassWriterTest {
     }
 
     @Nested
-    inner class Truncation {
+    inner class Overflow {
 
         @Test
-        fun `byte keeps only the low eight bits`() {
-            assertThat(toBytes { byte(0x1FF) }).containsExactly(*bytesOf(0xFF))
+        fun `byte rejects a value wider than a u1`() {
+            assertThatExceptionOfType(IllegalArgumentException::class.java)
+                .isThrownBy { toBytes { byte(0x1FF) } }
+                .withMessageContaining("does not fit a u1")
+
+            assertThatExceptionOfType(IllegalArgumentException::class.java)
+                .isThrownBy { toBytes { byte(-1) } }
         }
 
-        /**
-         * Nothing rejects an index past the constant pool limit, it is silently
-         * truncated, so a pool with more than 65535 entries would emit a broken file.
-         */
         @Test
-        fun `short keeps only the low sixteen bits`() {
-            assertThat(toBytes { short(0x10002) }).containsExactly(*bytesOf(0x00, 0x02))
-            assertThat(toBytes { short(65536) }).containsExactly(*bytesOf(0x00, 0x00))
+        fun `short rejects a value wider than a u2`() {
+            assertThatExceptionOfType(IllegalArgumentException::class.java)
+                .isThrownBy { toBytes { short(65536) } }
+                .withMessageContaining("does not fit a u2")
+
+            assertThatExceptionOfType(IllegalArgumentException::class.java)
+                .isThrownBy { toBytes { short(-1) } }
+        }
+
+        @Test
+        fun `accepts the widest value each still holds`() {
+            assertThat(toBytes { byte(0xFF) }).containsExactly(*bytesOf(0xFF))
+            assertThat(toBytes { short(0xFFFF) }).containsExactly(*bytesOf(0xFF, 0xFF))
         }
     }
 }

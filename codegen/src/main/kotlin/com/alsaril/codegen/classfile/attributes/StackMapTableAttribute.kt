@@ -47,7 +47,7 @@ data class AppendFrame(
     val locals: List<VerificationTypeInfo>,
 ) : StackMapFrame {
     init {
-        require(locals.size <= 3)
+        require(locals.size in 1..3)
     }
 
     override fun ClassWriter.write() {

@@ -2,6 +2,7 @@ package com.alsaril.codegen.classfile.code
 
 import com.alsaril.codegen.bytesOf
 import org.assertj.core.api.Assertions.assertThat
+import org.assertj.core.api.Assertions.assertThatExceptionOfType
 import org.junit.jupiter.api.Test
 
 class JumpsTest {
@@ -108,4 +109,28 @@ class JumpsTest {
         // then
         assertThat(code).containsExactly(*bytesOf(0xA7, 0x00, 0x00))
     }
+    /**
+     * A branch offset is the only signed two byte operand, so CodeBuilder's wider union
+     * range cannot catch a method that has outgrown it.
+     */
+    @Test
+    fun `rejects a branch offset past a signed short`() {
+        assertThatExceptionOfType(IllegalArgumentException::class.java)
+            .isThrownBy { builder().goto(dest = 40_000) }
+            .withMessageContaining("branch offset")
+
+        assertThatExceptionOfType(IllegalArgumentException::class.java)
+            .isThrownBy { builder().apply { repeat(3) { nop() } }.ifeq(dest = -40_000) }
+    }
+
+    @Test
+    fun `rejects a patched branch offset past a signed short`() {
+        val builder = builder()
+        val patch = builder.goto()
+
+        assertThatExceptionOfType(IllegalArgumentException::class.java)
+            .isThrownBy { patch(40_000) }
+            .withMessageContaining("branch offset")
+    }
+
 }

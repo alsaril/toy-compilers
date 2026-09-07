@@ -10,6 +10,10 @@ class CodeAttribute(
     private val code: ByteArray,
     private val attributes: List<AttributeInfo>,
 ) : AttributeInfo(nameIndex) {
+    init {
+        require(code.size <= 0xffff) { "method is ${code.size} bytes, over the 65535 limit" }
+    }
+
     override fun ClassWriter.writeContent() {
         short(maxStack)
         short(maxLocals)

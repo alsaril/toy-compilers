@@ -2,7 +2,7 @@ package com.alsaril.bf.generator
 
 import com.alsaril.codegen.classfile.Fragment
 
-data class MutableInt(var value: Int = 0) {
+class MutableInt(var value: Int = 0) {
     fun inc() = value++
 }
 
@@ -18,7 +18,7 @@ data class LoopBoundary(
     val entry: Int
 )
 
-data class Chunk(val fragments: List<Fragment>, val size: Int, val next: Int?)
+class Chunk(val fragments: List<Fragment>, val next: Int?)
 
 fun collect(
     fragments: List<Fragment>,
@@ -32,11 +32,11 @@ fun collect(
     while (i < fragments.size) {
         val fragment = fragments[i]
         if (size + fragment.size > maxsize && !(result.isEmpty() && allowSingleFragmentSpill)) {
-            return Chunk(result, size, i)
+            return Chunk(result, i)
         }
         result.add(fragment)
         size += fragment.size
         i++
     }
-    return Chunk(result, size, null)
+    return Chunk(result, null)
 }

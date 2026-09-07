@@ -17,6 +17,8 @@ import com.alsaril.codegen.constantpool.ConstantIntegerInfo
 import com.alsaril.codegen.constantpool.StaticConstantPool
 import com.alsaril.codegen.serialized
 import org.assertj.core.api.Assertions.assertThat
+import org.assertj.core.api.Assertions.assertThatNoException
+import org.assertj.core.api.Assertions.assertThatExceptionOfType
 import org.assertj.core.api.Assertions.assertThatIllegalArgumentException
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
@@ -71,6 +73,29 @@ class ClassFileSerializationTest {
                     0x00, 0x00,              // attributes_count
                 ),
             )
+        }
+
+        /**
+         * code_length is a u4 on the wire, so the writer cannot catch this; the JVMS caps
+         * a method at 65535 bytes and only the attribute itself knows that.
+         */
+        @Test
+        fun `rejects a method past the 65535 byte limit`() {
+            assertThatExceptionOfType(IllegalArgumentException::class.java)
+                .isThrownBy {
+                    CodeAttribute(
+                        nameIndex = 1,
+                        maxStack = 0,
+                        maxLocals = 0,
+                        code = ByteArray(65_536),
+                        attributes = emptyList(),
+                    )
+                }
+                .withMessageContaining("over the 65535 limit")
+
+            assertThatNoException().isThrownBy {
+                CodeAttribute(1, 0, 0, ByteArray(65_535), emptyList())
+            }
         }
 
         @Test
@@ -162,6 +187,11 @@ class ClassFileSerializationTest {
             assertThatIllegalArgumentException().isThrownBy {
                 AppendFrame(0, List(4) { IntegerVariableInfo })
             }
+        }
+
+        @Test
+        fun `rejects an append frame with no locals`() {
+            assertThatIllegalArgumentException().isThrownBy { AppendFrame(0, emptyList()) }
         }
 
         @Test
