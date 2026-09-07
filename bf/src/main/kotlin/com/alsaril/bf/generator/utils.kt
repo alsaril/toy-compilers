@@ -28,15 +28,15 @@ fun collect(
 ): Chunk {
     val result = mutableListOf<Fragment>()
     var size = 0
-    fragments.asSequence().drop(start).forEachIndexed { index, fragment ->
-        if (size + fragment.size > maxsize) {
-            if (result.isEmpty() && allowSingleFragmentSpill) {
-                return Chunk(listOf(fragment), fragment.size, if (fragments.size > start + 1) start + 1 else null)
-            }
-            return Chunk(result, size, start + index)
+    var i = start
+    while (i < fragments.size) {
+        val fragment = fragments[i]
+        if (size + fragment.size > maxsize && !(result.isEmpty() && allowSingleFragmentSpill)) {
+            return Chunk(result, size, i)
         }
         result.add(fragment)
         size += fragment.size
+        i++
     }
     return Chunk(result, size, null)
 }
