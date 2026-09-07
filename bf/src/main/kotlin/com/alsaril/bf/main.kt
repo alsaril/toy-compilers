@@ -50,7 +50,6 @@ internal class BfCommand : CliktCommand(name = "bf") {
         try {
             program.run(System.`in`, System.out, memsize, cycles)
         } catch (e: IllegalStateException) {
-            System.out.flush()
             fail(e.message)
         }
     }

@@ -1,16 +1,12 @@
 package com.alsaril.codegen.classfile
 
-import com.alsaril.codegen.classfile.attributes.AppendFrame
-import com.alsaril.codegen.classfile.attributes.FullFrame
-import com.alsaril.codegen.classfile.attributes.SameFrame
-import com.alsaril.codegen.classfile.attributes.SameFrameExtended
-import com.alsaril.codegen.classfile.attributes.StackMapFrame
-import com.alsaril.codegen.classfile.attributes.sameFrame
+import com.alsaril.codegen.classfile.attributes.*
 import java.nio.ByteBuffer
 
 data class Fragment(
     val content: List<ByteArray>,
     val frames: List<StackMapFrame>,
+    val exceptionHandlers: List<ExceptionHandler>,
     val size: Int, // the sum of lengths in content
 ) {
     fun bytecode(): ByteArray = if (content.size == 1) content.first() else
@@ -21,10 +17,11 @@ fun List<Fragment>.join(): Fragment {
     if (size == 1) return first()
     val result = mutableListOf<ByteArray>()
     val globalFrames = mutableListOf<StackMapFrame>()
+    val globalExceptionHandlers = mutableListOf<ExceptionHandler>()
     var globalBase = 0
     var globalSize = 0
 
-    forEach { (code, frames, size) ->
+    forEach { (code, frames, exceptionHandlers, size) ->
         result.addAll(code)
         if (frames.isNotEmpty()) {
             val frame = frames.first()
@@ -34,6 +31,7 @@ fun List<Fragment>.join(): Fragment {
                     is SameFrame, is SameFrameExtended -> sameFrame(patchedOffset)
                     is AppendFrame -> frame.copy(offsetDelta = patchedOffset)
                     is FullFrame -> frame.copy(offsetDelta = patchedOffset)
+                    is SameLocals1StackItemFrame -> sameLocals1StackItem(patchedOffset, frame.stack)
                 }
                 globalFrames.add(patched)
                 globalBase += patched.offsetDelta + 1
@@ -43,8 +41,15 @@ fun List<Fragment>.join(): Fragment {
             globalFrames.add(it)
             globalBase += it.offsetDelta + 1
         }
+        exceptionHandlers.asSequence().map {
+            it.copy(
+                startPc = it.startPc + globalSize,
+                endPc = it.endPc + globalSize,
+                handlerPc = it.handlerPc + globalSize,
+            )
+        }.forEach(globalExceptionHandlers::add)
         globalSize += size
     }
 
-    return Fragment(result, globalFrames, globalSize)
+    return Fragment(result, globalFrames, globalExceptionHandlers, globalSize)
 }

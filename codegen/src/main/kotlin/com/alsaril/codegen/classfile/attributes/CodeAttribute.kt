@@ -8,6 +8,7 @@ class CodeAttribute(
     private val maxStack: Int,
     private val maxLocals: Int,
     private val code: ByteArray,
+    private val exceptionHandlers: List<ExceptionHandler>,
     private val attributes: List<AttributeInfo>,
 ) : AttributeInfo(nameIndex) {
     init {
@@ -20,7 +21,8 @@ class CodeAttribute(
         short(maxLocals)
         int(code.size)
         bytes(code)
-        short(0) // no exception handling
+        short(exceptionHandlers.size)
+        exceptionHandlers.forEach(::write)
         short(attributes.size)
         attributes.forEach(::write)
     }

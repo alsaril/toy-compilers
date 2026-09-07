@@ -53,6 +53,7 @@ class ClassFileBuilder {
             maxStack,
             maxLocals,
             fragment.bytecode(),
+            fragment.exceptionHandlers,
             listOf(StackMapTableAttribute(cp.putUtf8("StackMapTable"), fragment.frames)),
         )
         val methodInfo = MethodInfo(

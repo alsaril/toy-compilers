@@ -8,6 +8,7 @@ import com.alsaril.codegen.classfile.MethodAccessFlag.STATIC
 import com.alsaril.codegen.classfile.code.*
 import org.assertj.core.api.Assertions.*
 import org.junit.jupiter.api.Test
+import java.lang.reflect.InvocationTargetException
 import java.util.function.IntUnaryOperator
 
 class GeneratedClassTest {
@@ -148,5 +149,117 @@ class GeneratedClassTest {
 
         // then
         assertThatNoException().isThrownBy { instance.run() }
+    }
+
+    @Test
+    fun `runs a body that catches what it throws`() {
+        // given a read that is in range for 0 and out of range for anything else
+        val (name, bytes) = classFile("GenCatch", "java/lang/Object")
+            .iface("java/util/function/IntUnaryOperator")
+            .withConstructor()
+            .method("applyAsInt", "(I)I", maxStack = 2, maxLocals = 3, PUBLIC) {
+                iconst(1)
+                newarray(ArrayType.BYTE)
+                iload(1)
+
+                val from = `try`()
+                baload()
+                val handler = `catch`(from, clazz("java/lang/ArrayIndexOutOfBoundsException"))
+                val done = goto()
+
+                handler(loc())
+                frameStack(objInfo("java/lang/Throwable"))
+                astore(2) // drop the throwable
+                iconst(-1)
+
+                done(loc())
+                frameStack(IntInfo)
+                ireturn()
+            }
+            .build()
+        val function = loadClass(name, bytes)
+            .getDeclaredConstructor().newInstance() as IntUnaryOperator
+
+        // then the handler replaces the failure with -1, and the good path is untouched
+        assertThat(function.applyAsInt(0)).isZero()
+        assertThat(function.applyAsInt(1)).isEqualTo(-1)
+        assertThat(function.applyAsInt(-1)).isEqualTo(-1)
+    }
+
+    @Test
+    fun `runs a body whose handler does not cover what it throws`() {
+        // given a range guarded against a different exception than the one raised
+        val (name, bytes) = classFile("GenCatchType", "java/lang/Object")
+            .iface("java/lang/Runnable")
+            .withConstructor()
+            .method("run", "()V", maxStack = 2, maxLocals = 2, PUBLIC) {
+                val from = `try`()
+                construct(clazz("java/lang/IllegalStateException"), "<init>", "()V")
+                athrow()
+                val handler = `catch`(from, clazz("java/lang/ArrayIndexOutOfBoundsException"))
+
+                handler(loc())
+                frameStack(objInfo("java/lang/Throwable"))
+                astore(1)
+                `return`()
+            }
+            .build()
+        val instance = loadClass(name, bytes).getDeclaredConstructor()
+            .newInstance() as Runnable
+
+        // then catch_type keeps the handler out of the way
+        assertThatExceptionOfType(IllegalStateException::class.java).isThrownBy { instance.run() }
+    }
+
+    /**
+     * The shape a finally block compiles to: one catch-all handler the normal path also
+     * falls into, telling the two apart by a null pushed where the throwable would be.
+     */
+    @Test
+    fun `runs a body that always reaches its handler`() {
+        // given f(log, n), which throws for n == 0 and writes to log[0] either way
+        val (name, bytes) = classFile("GenFinally", "java/lang/Object")
+            .method("f", "([II)V", maxStack = 4, maxLocals = 2, PUBLIC, STATIC) {
+                val from = `try`()
+                iload(1)
+                val ok = ifne()
+                construct(clazz("java/lang/IllegalStateException"), "<init>", "()V")
+                athrow()
+
+                ok(loc())
+                frameSame()
+                aconst_null() // the normal path arrives with nothing to rethrow
+                val handler = `catch`(from, type = null)
+
+                handler(loc())
+                frameStack(objInfo("java/lang/Throwable"))
+                aload(0)
+                iconst(0)
+                iconst(1)
+                iastore()
+
+                dup()
+                val exit = ifnull()
+                athrow()
+
+                exit(loc())
+                frameStack(objInfo("java/lang/Throwable"))
+                `return`()
+            }
+            .build()
+        val method = loadClass(name, bytes)
+            .getDeclaredMethod("f", IntArray::class.java, Int::class.javaPrimitiveType)
+
+        // then the handler runs when the body returns
+        val returned = IntArray(1)
+        assertThatNoException().isThrownBy { method.invoke(null, returned, 1) }
+        assertThat(returned).containsExactly(1)
+
+        // and when it throws, without swallowing the failure
+        val threw = IntArray(1)
+        assertThatExceptionOfType(InvocationTargetException::class.java)
+            .isThrownBy { method.invoke(null, threw, 0) }
+            .withCauseInstanceOf(IllegalStateException::class.java)
+        assertThat(threw).containsExactly(1)
     }
 }

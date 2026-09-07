@@ -1,6 +1,7 @@
 package com.alsaril.codegen.classfile.code
 
 import com.alsaril.codegen.classfile.Fragment
+import com.alsaril.codegen.classfile.attributes.ExceptionHandler
 import com.alsaril.codegen.classfile.attributes.StackMapFrame
 import com.alsaril.codegen.constantpool.UpdatableConstantPool
 
@@ -15,14 +16,15 @@ class CodeBuilder(
 ) {
     private val bytecode = mutableListOf<Byte>()
     private val frames = mutableListOf<StackMapFrame>()
+    private val exceptionHandlers = mutableListOf<ExceptionHandler>()
     private var base = 0
     private var frozen: ByteArray? = null
 
     fun build(): Fragment {
         frozen?.let { throw IllegalStateException() }
-        with (bytecode.toByteArray()) {
+        with(bytecode.toByteArray()) {
             frozen = this
-            return Fragment(listOf(this), frames, this.size)
+            return Fragment(listOf(this), frames, exceptionHandlers, this.size)
         }
     }
 
@@ -75,5 +77,16 @@ class CodeBuilder(
         if (frames.isNotEmpty() && l == base - 1) return
         frames.add(build(l - base))
         base = l + 1
+    }
+
+    fun `try`() = TryPointer(loc())
+
+    fun `catch`(from: TryPointer, type: ClassPointer?): (Int) -> Unit {
+        val to = loc()
+        return {
+            exceptionHandlers.add(
+                ExceptionHandler(from.index, to, it, type?.index ?: 0)
+            )
+        }
     }
 }

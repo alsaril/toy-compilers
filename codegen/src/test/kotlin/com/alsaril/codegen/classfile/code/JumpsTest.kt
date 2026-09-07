@@ -16,6 +16,8 @@ class JumpsTest {
         assertThat(bytecode { ifgt(0) }).startsWith(*bytesOf(0x9D))
         assertThat(bytecode { if_icmplt(0) }).startsWith(*bytesOf(0xA1))
         assertThat(bytecode { if_icmpge(0) }).startsWith(*bytesOf(0xA2))
+        assertThat(bytecode { ifnull(0) }).startsWith(*bytesOf(0xC6))
+        assertThat(bytecode { ifnotnull(0) }).startsWith(*bytesOf(0xC7))
     }
 
     @Test
@@ -39,6 +41,8 @@ class JumpsTest {
         assertThat(bytecode { ifgt() }).containsExactly(*bytesOf(0x9D, 0x00, 0x00))
         assertThat(bytecode { if_icmplt() }).containsExactly(*bytesOf(0xA1, 0x00, 0x00))
         assertThat(bytecode { if_icmpge() }).containsExactly(*bytesOf(0xA2, 0x00, 0x00))
+        assertThat(bytecode { ifnull() }).containsExactly(*bytesOf(0xC6, 0x00, 0x00))
+        assertThat(bytecode { ifnotnull() }).containsExactly(*bytesOf(0xC7, 0x00, 0x00))
     }
 
     @Test

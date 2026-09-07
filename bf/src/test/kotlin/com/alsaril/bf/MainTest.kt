@@ -114,7 +114,7 @@ class MainTest {
 
         @Test
         fun `output already written before a program was stopped`() {
-            // the generated flush only runs on a normal return
+            // the generated finally flushes on the way out, however the program ended
             assertThat(bf(source = "++++++++[>++++++++<-]>+.<<.").output).isEqualTo("A")
         }
     }

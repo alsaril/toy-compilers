@@ -2,10 +2,13 @@ package com.alsaril.codegen.classfile
 
 import com.alsaril.codegen.bytesOf
 import com.alsaril.codegen.classfile.attributes.AppendFrame
+import com.alsaril.codegen.classfile.attributes.ExceptionHandler
 import com.alsaril.codegen.classfile.attributes.FullFrame
 import com.alsaril.codegen.classfile.attributes.ObjectVariableInfo
 import com.alsaril.codegen.classfile.attributes.SameFrame
 import com.alsaril.codegen.classfile.attributes.SameFrameExtended
+import com.alsaril.codegen.classfile.attributes.SameLocals1StackItemFrameExtended
+import com.alsaril.codegen.classfile.attributes.SameLocals1StackItemFrameShort
 import com.alsaril.codegen.classfile.attributes.SimpleVerificationTypeInfo.IntegerVariableInfo
 import com.alsaril.codegen.classfile.attributes.StackMapFrame
 import org.assertj.core.api.Assertions.assertThat
@@ -15,11 +18,16 @@ import org.junit.jupiter.api.Test
 /**
  * A frame records how far it sits from the previous one, so joining fragments has to
  * rewrite the first frame of each against the offsets it lands on in the joined code.
+ * An exception handler names absolute offsets instead, so all three of its locations
+ * move by however far its fragment was pushed along.
  */
 class FragmentTest {
 
     private fun fragment(size: Int, vararg frames: StackMapFrame) =
-        Fragment(listOf(ByteArray(size)), frames.toList(), size)
+        Fragment(listOf(ByteArray(size)), frames.toList(), emptyList(), size)
+
+    private fun guarded(size: Int, vararg handlers: ExceptionHandler) =
+        Fragment(listOf(ByteArray(size)), emptyList(), handlers.toList(), size)
 
     @Nested
     inner class Bytecode {
@@ -28,7 +36,7 @@ class FragmentTest {
         fun `hands back a single block without copying it`() {
             // given
             val block = bytesOf(0x01, 0x02)
-            val fragment = Fragment(listOf(block), emptyList(), 2)
+            val fragment = Fragment(listOf(block), emptyList(), emptyList(), 2)
 
             // then
             assertThat(fragment.bytecode()).isSameAs(block)
@@ -40,6 +48,7 @@ class FragmentTest {
             val fragment = Fragment(
                 listOf(bytesOf(0x01), bytesOf(0x02, 0x03), bytesOf(0x04)),
                 emptyList(),
+                emptyList(),
                 4,
             )
 
@@ -49,7 +58,7 @@ class FragmentTest {
 
         @Test
         fun `is empty when there is no content`() {
-            assertThat(Fragment(emptyList(), emptyList(), 0).bytecode()).isEmpty()
+            assertThat(Fragment(emptyList(), emptyList(), emptyList(), 0).bytecode()).isEmpty()
         }
     }
 
@@ -73,6 +82,7 @@ class FragmentTest {
             // then
             assertThat(joined.size).isZero()
             assertThat(joined.frames).isEmpty()
+            assertThat(joined.exceptionHandlers).isEmpty()
             assertThat(joined.content).isEmpty()
         }
 
@@ -80,8 +90,8 @@ class FragmentTest {
         fun `adds up the sizes and keeps the blocks in order`() {
             // given
             val joined = listOf(
-                Fragment(listOf(bytesOf(0x01, 0x02)), emptyList(), 2),
-                Fragment(listOf(bytesOf(0x03)), emptyList(), 1),
+                Fragment(listOf(bytesOf(0x01, 0x02)), emptyList(), emptyList(), 2),
+                Fragment(listOf(bytesOf(0x03)), emptyList(), emptyList(), 1),
             ).join()
 
             // then
@@ -152,6 +162,32 @@ class FragmentTest {
         }
 
         @Test
+        fun `patches a stack frame`() {
+            // given
+            val joined = listOf(
+                fragment(2),
+                fragment(1, SameLocals1StackItemFrameShort(0, IntegerVariableInfo)),
+            ).join()
+
+            // then
+            assertThat(joined.frames)
+                .containsExactly(SameLocals1StackItemFrameShort(2, IntegerVariableInfo))
+        }
+
+        @Test
+        fun `re-picks the compact form when patching an extended stack frame`() {
+            // given
+            val joined = listOf(
+                fragment(2),
+                fragment(1, SameLocals1StackItemFrameExtended(0, IntegerVariableInfo)),
+            ).join()
+
+            // then, as with a same frame, an offset that fits a byte goes back to the tag
+            assertThat(joined.frames)
+                .containsExactly(SameLocals1StackItemFrameShort(2, IntegerVariableInfo))
+        }
+
+        @Test
         fun `patches a full frame`() {
             // given
             val frame = FullFrame(0, listOf(IntegerVariableInfo), listOf(ObjectVariableInfo(3)))
@@ -172,6 +208,100 @@ class FragmentTest {
 
             // then the frameless fragment still advances the offset the last frame sees
             assertThat(joined.frames).containsExactly(SameFrame(0), SameFrame(4))
+        }
+    }
+
+    @Nested
+    inner class JoinedHandlers {
+
+        @Test
+        fun `hands back a lone fragment's handlers untouched`() {
+            // given
+            val handler = ExceptionHandler(1, 2, 2, catchType = 3)
+            val only = guarded(3, handler)
+
+            // then
+            assertThat(listOf(only).join().exceptionHandlers).containsExactly(handler)
+        }
+
+        @Test
+        fun `leaves the handlers of the first fragment where they are`() {
+            // given
+            val joined = listOf(
+                guarded(4, ExceptionHandler(0, 2, 3, catchType = 0)),
+                guarded(1),
+            ).join()
+
+            // then
+            assertThat(joined.exceptionHandlers)
+                .containsExactly(ExceptionHandler(0, 2, 3, catchType = 0))
+        }
+
+        @Test
+        fun `shifts every location by how far its fragment moved`() {
+            // given a handler covering the whole of a fragment that lands at offset 5
+            val joined = listOf(
+                guarded(5),
+                guarded(4, ExceptionHandler(0, 2, 3, catchType = 7)),
+            ).join()
+
+            // then the range and the handler move together, and the caught type does not
+            assertThat(joined.exceptionHandlers)
+                .containsExactly(ExceptionHandler(5, 7, 8, catchType = 7))
+        }
+
+        @Test
+        fun `collects the handlers of every fragment in order`() {
+            // given
+            val joined = listOf(
+                guarded(2, ExceptionHandler(0, 1, 1, catchType = 0)),
+                guarded(2, ExceptionHandler(0, 1, 1, catchType = 0)),
+                guarded(2, ExceptionHandler(0, 1, 1, catchType = 0)),
+            ).join()
+
+            // then the order the jvm searches them in survives the join
+            assertThat(joined.exceptionHandlers).containsExactly(
+                ExceptionHandler(0, 1, 1, catchType = 0),
+                ExceptionHandler(2, 3, 3, catchType = 0),
+                ExceptionHandler(4, 5, 5, catchType = 0),
+            )
+        }
+
+        @Test
+        fun `keeps several handlers of one fragment together`() {
+            // given
+            val joined = listOf(
+                guarded(1),
+                guarded(
+                    4,
+                    ExceptionHandler(0, 1, 2, catchType = 0),
+                    ExceptionHandler(1, 2, 3, catchType = 0),
+                ),
+            ).join()
+
+            // then
+            assertThat(joined.exceptionHandlers).containsExactly(
+                ExceptionHandler(1, 2, 3, catchType = 0),
+                ExceptionHandler(2, 3, 4, catchType = 0),
+            )
+        }
+
+        @Test
+        fun `moves handlers and frames by the same offsets`() {
+            // given a fragment carrying both
+            val body = Fragment(
+                listOf(ByteArray(3)),
+                listOf(SameLocals1StackItemFrameShort(1, IntegerVariableInfo)),
+                listOf(ExceptionHandler(0, 1, 1, catchType = 0)),
+                3,
+            )
+            val joined = listOf(fragment(2), body).join()
+
+            // then the frame delta counts from the previous frame and the handler from zero
+            assertThat(joined.frames)
+                .containsExactly(SameLocals1StackItemFrameShort(3, IntegerVariableInfo))
+            assertThat(joined.exceptionHandlers)
+                .containsExactly(ExceptionHandler(2, 3, 3, catchType = 0))
         }
     }
 }
