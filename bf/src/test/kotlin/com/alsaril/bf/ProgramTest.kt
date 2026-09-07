@@ -248,6 +248,44 @@ class ProgramTest {
         }
 
         @Test
+        fun `compiles a deeply nested program`() {
+            // generating recursively used to overflow the stack somewhere above 3000
+            val depth = 10_000
+
+            // the outer loop sees a zero cell, so the whole nest is skipped at runtime
+            assertThat(run("[".repeat(depth) + "+" + "]".repeat(depth))).isEmpty()
+        }
+
+        @Test
+        fun `compiles a program with tens of thousands of instructions`() {
+            val padding = "+-".repeat(20_000)
+
+            assertThat(run(padding + "+".repeat(65) + ".").text()).isEqualTo("A")
+        }
+
+        @Test
+        fun `compiles a loop whose body is far larger than one method`() {
+            // the body outlines into its own methods, called once per iteration
+            val body = "-" + "+-".repeat(10_000) + ">+<"
+
+            assertThat(run("+++[" + body + "]>.")).containsExactly(3)
+        }
+
+        @Test
+        fun `compiles a program with thousands of loops`() {
+            assertThat(run("[+-]".repeat(2_000) + "+".repeat(65) + ".").text()).isEqualTo("A")
+        }
+
+        @Test
+        fun `splits a large program into a proportional number of methods`() {
+            // the chunker once added the fragment count rather than the fragment size,
+            // which grew the method count with the square of the program
+            val (_, bytes) = generate(Parser.parse("+-".repeat(2_500)))
+
+            assertThat(methodCodeLengths(bytes)).hasSizeLessThan(50)
+        }
+
+        @Test
         fun `keeps every method inside the method length limit`() {
             // 8000 is hotspot's threshold for compiling a method at all, so a method
             // past it would silently stay interpreted

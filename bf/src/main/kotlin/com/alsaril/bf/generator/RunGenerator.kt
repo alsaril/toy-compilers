@@ -25,9 +25,9 @@ object RunGenerator {
     private val readIndex = 5
 
     fun ClassFileBuilder.generateRun(instructions: List<Instruction>) = apply {
-        val counter = MutableInt()
-        val body = materialize(instructions, bodyLengthLimit(), counter)
-        val (name, descriptor) = defineMethod(body, counter)
+        val generation = Generation(bodyLengthLimit(), loopOverhead())
+        val body = materializeNonrecursive(instructions, generation)
+        val (name, descriptor) = defineMethod(body, generation)
         method("run", "(Ljava/io/InputStream;Ljava/io/OutputStream;II)V", maxStack = 5, maxLocals = 6, PUBLIC, FINAL) {
             // input: in, out, size, cycles
             iconst(2)
@@ -55,8 +55,8 @@ object RunGenerator {
         }
     }
 
-    private fun ClassFileBuilder.defineMethod(fragment: Fragment, counter: MutableInt): Pair<String, String> {
-        val name = "f${counter.inc()}"
+    private fun ClassFileBuilder.defineMethod(fragment: Fragment, generation: Generation): Pair<String, String> {
+        val name = "f${generation.counter.inc()}"
         val descriptor = "(Ljava/io/InputStream;Ljava/io/OutputStream;I[B[I)V"
         val prefix = emitMethodPrefix()
         val postfix = emitMethodPostfix()
@@ -72,56 +72,80 @@ object RunGenerator {
         return chunk.fragments.join()
     }
 
-    private fun ClassFileBuilder.materialize(
+    private fun ClassFileBuilder.materializeNonrecursive(
         instructions: List<Instruction>,
-        budget: Int,
-        counter: MutableInt
+        generation: Generation
     ): Fragment {
-        val fragments: List<Fragment> = instructions.map { materialize(it, counter) }
+        val stack = mutableListOf<Pair<List<Instruction>, MutableList<Fragment>>>()
+        stack.add(instructions to mutableListOf())
+        while (true) {
+            val (input, output) = stack.last()
+            if (input.size == output.size) {
+                if (stack.size == 1) {
+                    val fragment = combine(output, generation, loop = false)
+                    return fragment
+                }
+                val fragment = combine(output, generation, loop = true)
+                stack.removeLast()
+                stack.last().second.add(fragment)
+                continue
+            }
 
-        tryInline(fragments, budget)?.let { return it }
+            val instruction = input[output.size]
+            if (instruction is CommandInstruction) {
+                val fragment = when (instruction.command) {
+                    LEFT -> emitMove(instruction.times, false)
+                    RIGHT -> emitMove(instruction.times, true)
+                    INC -> emitAdd(instruction.times, true)
+                    DEC -> emitAdd(instruction.times, false)
+                    IN -> emitRead()
+                    OUT -> emitWrite()
+                }
+                output.add(fragment)
+                continue
+            }
+            if (instruction is Loop) {
+                stack.add(instruction.instructions to mutableListOf())
+                continue
+            }
 
-        // will outline, actual sink
-        var start: Int? = 0
-        var size = 0
-        val result = mutableListOf<ByteArray>()
-        val chunkBudget = bodyLengthLimit()
-        while (start != null) {
-            val chunk = collect(fragments, start, chunkBudget, allowSingleFragmentSpill = true)
-            val ref = defineMethod(chunk.fragments.join(), counter)
-            val (call, frames, s) = emitCall(ref)
-            require(frames.isEmpty())
-            result.addAll(call)
-            size += s
-            start = chunk.next
+            throw IllegalStateException()
         }
-
-        return Fragment(result, emptyList(), size)
     }
 
-    private fun ClassFileBuilder.materialize(instruction: Instruction, counter: MutableInt): Fragment {
-        if (instruction is Loop) {
-            // warning: short jumps only!
-            val (prefix, toTail, start) = emitPrefix()
-            val (postfix, toHead, end) = emitPostfix()
-            val overhead = prefix.size + postfix.size
-            val body = materialize(instruction.instructions, bodyLengthLimit() - overhead, counter)
-            toTail(prefix.size + body.size + end)
-            toHead(start - prefix.size - body.size)
-            val fragments = listOf(prefix, body, postfix)
-            return fragments.join()
-        } else if (instruction is CommandInstruction) {
-            val codeWithFrames = when (instruction.command) {
-                LEFT -> emitMove(instruction.times, false)
-                RIGHT -> emitMove(instruction.times, true)
-                INC -> emitAdd(instruction.times, true)
-                DEC -> emitAdd(instruction.times, false)
-                IN -> emitRead()
-                OUT -> emitWrite()
+    private fun ClassFileBuilder.combine(
+        fragments: List<Fragment>,
+        generation: Generation,
+        loop: Boolean
+    ): Fragment {
+        val budget = generation.bodyLengthLimit - if (loop) generation.loopOverhead else 0
+
+        val body = tryInline(fragments, budget) ?: run {
+            var start: Int? = 0
+            var size = 0
+            val result = mutableListOf<ByteArray>()
+            val chunkBudget = generation.bodyLengthLimit
+            while (start != null) {
+                val chunk = collect(fragments, start, chunkBudget, allowSingleFragmentSpill = true)
+                val ref = defineMethod(chunk.fragments.join(), generation)
+                val (call, frames, s) = emitCall(ref)
+                require(frames.isEmpty())
+                result.addAll(call)
+                size += s
+                start = chunk.next
             }
-            return codeWithFrames
+
+            Fragment(result, emptyList(), size)
         }
-        throw IllegalArgumentException()
+
+        if (!loop) return body
+
+        val (prefix, toTail, start) = emitPrefix()
+        val (postfix, toHead, end) = emitPostfix()
+        toTail(prefix.size + body.size + end)
+        toHead(start - prefix.size - body.size)
+        val fragments = listOf(prefix, body, postfix)
+        return fragments.join()
     }
 
     private fun CodeBuilder.guard() {
@@ -259,4 +283,7 @@ object RunGenerator {
 
     private fun ClassFileBuilder.bodyLengthLimit() =
         methodLengthLimit - emitMethodPrefix().size - emitMethodPostfix().size
+
+    private fun ClassFileBuilder.loopOverhead() =
+        emitPrefix().fragment.size + emitPostfix().fragment.size
 }

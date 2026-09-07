@@ -6,6 +6,12 @@ data class MutableInt(var value: Int = 0) {
     fun inc() = value++
 }
 
+class Generation(
+    val bodyLengthLimit: Int,
+    val loopOverhead: Int,
+    val counter: MutableInt = MutableInt(),
+)
+
 data class LoopBoundary(
     val fragment: Fragment,
     val exit: (Int) -> Unit,
