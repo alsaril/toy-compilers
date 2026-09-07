@@ -76,8 +76,8 @@ class ClassFileSerializationTest {
         }
 
         /**
-         * code_length is a u4 on the wire, so the writer cannot catch this; the JVMS caps
-         * a method at 65535 bytes and only the attribute itself knows that.
+         * code_length is a u4 on the wire, so the writer cannot catch either bound; the
+         * JVMS caps a method at 1..65535 bytes and only the attribute itself knows that.
          */
         @Test
         fun `rejects a method past the 65535 byte limit`() {
@@ -99,13 +99,34 @@ class ClassFileSerializationTest {
         }
 
         @Test
+        fun `rejects a method with no code at all`() {
+            // the jvm rejects this at load time with a ClassFormatError, far from the
+            // emitter that produced it, so the attribute refuses it at construction
+            assertThatExceptionOfType(IllegalArgumentException::class.java)
+                .isThrownBy {
+                    CodeAttribute(
+                        nameIndex = 1,
+                        maxStack = 0,
+                        maxLocals = 0,
+                        code = bytesOf(),
+                        attributes = emptyList(),
+                    )
+                }
+                .withMessageContaining("code_length must be at least 1")
+
+            assertThatNoException().isThrownBy {
+                CodeAttribute(1, 0, 0, bytesOf(0xB1), emptyList())
+            }
+        }
+
+        @Test
         fun `grows the code attribute length to cover nested attributes`() {
             // given
             val code = CodeAttribute(
                 nameIndex = 1,
                 maxStack = 0,
                 maxLocals = 0,
-                code = bytesOf(),
+                code = bytesOf(0xB1),
                 attributes = listOf(RawAttribute(9, bytesOf(0x2A))),
             )
 
@@ -113,10 +134,11 @@ class ClassFileSerializationTest {
             assertThat(code.serialized()).containsExactly(
                 *bytesOf(
                     0x00, 0x01,
-                    0x00, 0x00, 0x00, 0x13,  // 12 fixed bytes plus the 7 byte nested attribute
+                    0x00, 0x00, 0x00, 0x14,  // 12 fixed bytes, one of code, and the 7 byte attribute
                     0x00, 0x00,
                     0x00, 0x00,
-                    0x00, 0x00, 0x00, 0x00,
+                    0x00, 0x00, 0x00, 0x01,
+                    0xB1,
                     0x00, 0x00,
                     0x00, 0x01,              // attributes_count
                     0x00, 0x09, 0x00, 0x00, 0x00, 0x01, 0x2A,

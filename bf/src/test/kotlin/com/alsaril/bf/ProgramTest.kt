@@ -387,8 +387,8 @@ class ProgramTest {
     inner class Compilation {
 
         @Test
-        fun `produces something runnable as a plain Runnable too`() {
-            assertThat(compile("")).isInstanceOf(Runnable::class.java)
+        fun `generates a class that implements Program and nothing else`() {
+            assertThat(compile("").javaClass.interfaces).containsExactly(Program::class.java)
         }
 
         @Test

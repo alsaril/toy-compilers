@@ -11,6 +11,7 @@ class CodeAttribute(
     private val attributes: List<AttributeInfo>,
 ) : AttributeInfo(nameIndex) {
     init {
+        require(code.isNotEmpty()) { "method has no code, code_length must be at least 1" }
         require(code.size <= 0xffff) { "method is ${code.size} bytes, over the 65535 limit" }
     }
 

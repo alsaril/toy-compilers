@@ -55,8 +55,11 @@ Frames are recorded as offsets *relative to the previous frame*, which `CodeBuil
 tracks so callers only say `frameSame()` or `frameAppend(...)`. It picks the compact or
 extended encoding automatically, and drops a frame that lands on an offset the previous
 one already covers — two frames may not share an offset, which happens naturally when a
-loop body is empty. All four frame types are supported: `SameFrame`, `SameFrameExtended`,
-`AppendFrame`, `FullFrame`.
+loop body is empty.
+
+Four of the seven frame kinds in JVMS §4.7.4 are implemented: `SameFrame`,
+`SameFrameExtended`, `AppendFrame` and `FullFrame`. `FullFrame` states the locals and the
+stack outright, so it covers any frame the other three cannot encode.
 
 ## Two ways to define a method
 
@@ -112,7 +115,8 @@ s1(value)  // its operand, a signed byte
 is known.
 
 One constraint neither place can express gets its own check: `code_length` is a `u4` on
-the wire that the JVMS caps at 65535, so `CodeAttribute` checks it in its `init`.
+the wire that the JVMS caps at `1..65535` — a method may be neither empty nor larger — so
+`CodeAttribute` checks both ends in its `init`.
 
 Each check raises an `IllegalArgumentException` naming the value and the width it did not
 fit, at the point the value is emitted.
