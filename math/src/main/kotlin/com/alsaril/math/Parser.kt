@@ -2,14 +2,13 @@ package com.alsaril.math
 
 import com.alsaril.math.BinaryKind.*
 import com.alsaril.math.Parser.BinaryOperator.Type.*
-import kotlin.math.exp
 
 object Parser {
     private sealed interface Token
 
     private class BinaryOperator(val type: Type) : Token {
         enum class Type(val priority: Int) {
-            PLUS(0), MINIS(0), TIMES(1), SLASH(1)
+            PLUS(0), MINUS(0), TIMES(1), SLASH(1)
         }
     }
 
@@ -19,81 +18,82 @@ object Parser {
         var index = 0
         val resultStack = mutableListOf<Node>()
         val operatorsStack = mutableListOf<Token>()
-        while (index != expr.length) {
 
-            if (expr[index].isDigit()) {
+        var operandExpected = true
+
+        while (index != expr.length) {
+            val symbol = expr[index]
+
+            if (symbol.isWhitespace()) {
+                ++index
+                continue
+            }
+
+            if (symbol.isDigit()) {
+                require(operandExpected) { "operator expected at $index" }
                 val start = index
                 var dot = false
                 while (index < expr.length && (expr[index].isDigit() || expr[index] == '.' && !dot)) {
-                    if (!dot && expr[index] == '.') {
+                    if (expr[index] == '.') {
                         dot = true
                     }
                     ++index
                 }
                 resultStack.add(Value(expr.substring(start, index).toFloat()))
+                operandExpected = false
                 continue
             }
 
-            if (expr[index].isWhitespace()) {
-                ++index
-                continue
-            }
-
-            if (expr[index].isLetter()) {
-                val sb = StringBuilder()
+            if (symbol.isLetter()) {
+                require(operandExpected) { "operator expected at $index" }
+                val start = index
                 while (index < expr.length && expr[index].isLetter()) {
-                    sb.append(expr[index])
                     ++index
                 }
-                resultStack.add(Var(sb.toString()))
+                resultStack.add(Var(expr.substring(start, index)))
+                operandExpected = false
                 continue
             }
 
-            if (expr[index].isOperator()) {
-                val type = when (expr[index]) {
-                    '+' -> PLUS
-                    '-' -> MINIS
-                    '*' -> TIMES
-                    '/' -> SLASH
-                    else -> throw IllegalStateException("This shouldn't happen")
-                }
+            val operator = symbol.operator()
+            if (operator != null) {
+                require(!operandExpected) { "operand expected at $index" }
                 ++index
-                reduceToPriority(resultStack, operatorsStack, type.priority)
-                operatorsStack.add(BinaryOperator(type))
+                reduceToPriority(resultStack, operatorsStack, operator.priority)
+                operatorsStack.add(BinaryOperator(operator))
+                operandExpected = true
                 continue
             }
 
-            if (expr[index] == '(') {
+            if (symbol == '(') {
+                require(operandExpected) { "operator expected at $index" }
                 ++index
                 operatorsStack.add(LeftBracket)
                 continue
             }
 
-            if (expr[index] == ')') {
+            if (symbol == ')') {
+                require(!operandExpected) { "operand expected at $index" }
+                reduceToBracket(resultStack, operatorsStack, index)
                 ++index
-                reduceToBracket(resultStack, operatorsStack)
                 continue
             }
 
-            throw IllegalArgumentException("Unexpected symbol: ${expr[index]}")
+            throw IllegalArgumentException("unexpected '$symbol' at $index")
         }
 
+        require(!operandExpected) { "operand expected at ${expr.length}" }
+
         while (operatorsStack.isNotEmpty()) {
+            require(operatorsStack.last() !is LeftBracket) { "')' expected at ${expr.length}" }
             reduce(resultStack, operatorsStack)
         }
 
-        if (resultStack.size != 1) {
-            throw IllegalArgumentException("Malformed expression")
-        }
 
-        return resultStack.first()
+        return resultStack.single()
     }
 
     private fun reduceToPriority(resultStack: MutableList<Node>, operatorsStack: MutableList<Token>, priority: Int) {
-        if (operatorsStack.isEmpty()) {
-            return
-        }
-
         while (operatorsStack.isNotEmpty()) {
             val top = operatorsStack.last()
             if (top !is BinaryOperator || top.type.priority < priority) {
@@ -103,36 +103,35 @@ object Parser {
         }
     }
 
-    private fun reduceToBracket(resultStack: MutableList<Node>, operatorsStack: MutableList<Token>) {
-        if (operatorsStack.isEmpty()) {
-            throw IllegalArgumentException("Left bracket isn't found")
-        }
-
+    private fun reduceToBracket(resultStack: MutableList<Node>, operatorsStack: MutableList<Token>, index: Int) {
         while (operatorsStack.isNotEmpty() && operatorsStack.last() is BinaryOperator) {
             reduce(resultStack, operatorsStack)
         }
 
-        if (operatorsStack.isEmpty() || operatorsStack.last() !is LeftBracket) {
-            throw IllegalArgumentException("Left bracket isn't found")
-        }
 
+        require(operatorsStack.isNotEmpty()) { "unexpected ')' at $index" }
         operatorsStack.removeLast()
     }
 
     private fun reduce(resultStack: MutableList<Node>, operatorsStack: MutableList<Token>) {
         val right = resultStack.removeLast()
         val left = resultStack.removeLast()
-        val op = operatorsStack.removeLast()
+        val op = operatorsStack.removeLast() as BinaryOperator
 
-        require(op is BinaryOperator)
         val result = when (op.type) {
             PLUS -> Op(ADD, left, right)
-            MINIS -> Op(SUB, left, right)
+            MINUS -> Op(SUB, left, right)
             TIMES -> Op(MUL, left, right)
             SLASH -> Op(DIV, left, right)
         }
         resultStack.add(result)
     }
 
-    private fun Char.isOperator() = this == '+' || this == '-' || this == '*' || this == '/'
+    private fun Char.operator() = when (this) {
+        '+' -> PLUS
+        '-' -> MINUS
+        '*' -> TIMES
+        '/' -> SLASH
+        else -> null
+    }
 }
