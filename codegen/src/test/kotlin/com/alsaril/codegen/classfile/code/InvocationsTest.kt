@@ -3,6 +3,7 @@ package com.alsaril.codegen.classfile.code
 import com.alsaril.codegen.bytesOf
 import com.alsaril.codegen.constantpool.ConstantClassInfo
 import com.alsaril.codegen.constantpool.ConstantFieldRefInfo
+import com.alsaril.codegen.constantpool.ConstantInterfaceMethodRefInfo
 import com.alsaril.codegen.constantpool.ConstantMethodRefInfo
 import com.alsaril.codegen.constantpool.ConstantNameAndTypeInfo
 import com.alsaril.codegen.constantpool.ConstantUtf8Info
@@ -34,6 +35,40 @@ class InvocationsTest {
                 ConstantUtf8Info("()V"),
                 ConstantNameAndTypeInfo(nameIndex = 3, descriptorIndex = 4),
                 ConstantMethodRefInfo(classNameIndex = 2, nameAndTypeIndex = 5),
+            )
+        }
+
+        @Test
+        fun `registers an interface method ref in the constant pool`() {
+            // given
+            val cp = UpdatableConstantPool()
+            val builder = builder(cp)
+
+            // when
+            val descriptor = builder.imethod(builder.clazz("A"), "f", "()V")
+
+            // then
+            assertThat(descriptor).isEqualTo(MethodDescriptor(6))
+            assertThat(cp.build().entries).last()
+                .isEqualTo(ConstantInterfaceMethodRefInfo(classNameIndex = 2, nameAndTypeIndex = 5))
+        }
+
+        @Test
+        fun `keeps a method and an interface method of the same name apart`() {
+            // given
+            val cp = UpdatableConstantPool()
+            val builder = builder(cp)
+            val clazz = builder.clazz("A")
+
+            // when
+            val method = builder.method(clazz, "f", "()V")
+            val imethod = builder.imethod(clazz, "f", "()V")
+
+            // then the two refs differ while sharing one name-and-type
+            assertThat(imethod).isNotEqualTo(method)
+            assertThat(cp.build().entries).endsWith(
+                ConstantMethodRefInfo(classNameIndex = 2, nameAndTypeIndex = 5),
+                ConstantInterfaceMethodRefInfo(classNameIndex = 2, nameAndTypeIndex = 5),
             )
         }
 
@@ -96,6 +131,12 @@ class InvocationsTest {
         @Test
         fun `writes new with the class index`() {
             assertThat(bytecode { new(ClassPointer(4)) }).containsExactly(*bytesOf(0xBB, 0x00, 0x04))
+        }
+
+        @Test
+        fun `writes checkcast with the class index`() {
+            assertThat(bytecode { checkcast(ClassPointer(4)) })
+                .containsExactly(*bytesOf(0xC0, 0x00, 0x04))
         }
 
         @Test

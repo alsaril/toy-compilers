@@ -74,6 +74,12 @@ class ConstantPoolSerializationTest {
         }
 
         @Test
+        fun `writes a float as its ieee 754 bit pattern`() {
+            assertThat(ConstantFloatInfo(1.5f).serialized())
+                .containsExactly(*bytesOf(0x04, 0x3F, 0xC0, 0x00, 0x00))
+        }
+
+        @Test
         fun `writes a long as eight big-endian bytes`() {
             assertThat(ConstantLongInfo(0x0102030405060708L).serialized())
                 .containsExactly(*bytesOf(0x05, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08))

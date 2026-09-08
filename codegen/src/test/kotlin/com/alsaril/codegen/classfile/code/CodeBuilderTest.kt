@@ -34,6 +34,31 @@ class CodeBuilderTest {
     }
 
     @Nested
+    inner class MaxStack {
+
+        @Test
+        fun `asks for no stack until a body declares a depth`() {
+            assertThat(builder().build().maxStack).isZero()
+        }
+
+        @Test
+        fun `carries the declared depth on the fragment`() {
+            // given
+            val builder = builder().apply { maxStack(3) }
+
+            // then
+            assertThat(builder.build().maxStack).isEqualTo(3)
+        }
+
+        // the last call wins rather than the largest, so a body that declares twice has
+        // to declare its own high water mark
+        @Test
+        fun `replaces a depth declared earlier`() {
+            assertThat(builder().apply { maxStack(4); maxStack(2) }.build().maxStack).isEqualTo(2)
+        }
+    }
+
+    @Nested
     inner class OperandWidths {
 
         @Test

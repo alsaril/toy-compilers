@@ -1,10 +1,14 @@
 package com.alsaril.codegen.classfile.code
 
-import com.alsaril.codegen.constantpool.UpdatableConstantPool.RefType.FIELD
-import com.alsaril.codegen.constantpool.UpdatableConstantPool.RefType.METHOD
+import com.alsaril.codegen.constantpool.UpdatableConstantPool.RefType.*
 
 fun CodeBuilder.method(classPointer: ClassPointer, name: String, descriptor: String): MethodDescriptor {
     val ref = cp.putRef(classPointer.index, name, descriptor, METHOD)
+    return MethodDescriptor(ref)
+}
+
+fun CodeBuilder.imethod(classPointer: ClassPointer, name: String, descriptor: String): MethodDescriptor {
+    val ref = cp.putRef(classPointer.index, name, descriptor, INTERFACE_METHOD)
     return MethodDescriptor(ref)
 }
 
@@ -42,7 +46,7 @@ fun CodeBuilder.invokeinterface(methodDescriptor: MethodDescriptor, count: Int) 
     u1(0)
 }
 
-// new
+// class
 fun CodeBuilder.new(classPointer: ClassPointer) {
     u1(0xbb)
     u2(classPointer.index)
@@ -55,6 +59,11 @@ enum class ArrayType(val index: Int) {
 fun CodeBuilder.newarray(type: ArrayType) {
     u1(0xbc)
     u1(type.index)
+}
+
+fun CodeBuilder.checkcast(classPointer: ClassPointer) {
+    u1(0xc0)
+    u2(classPointer.index)
 }
 
 fun CodeBuilder.construct(classPointer: ClassPointer, name: String, descriptor: String) {

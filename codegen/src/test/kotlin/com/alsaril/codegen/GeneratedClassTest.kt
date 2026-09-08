@@ -79,6 +79,73 @@ class GeneratedClassTest {
     }
 
     @Test
+    fun `computes a float expression`() {
+        // given ((6 + 2) * (6 - 2)) / 6, which pins each of the four float operations
+        val (name, bytes) = classFile("GenFloatMath", "java/lang/Object")
+            .method("f", "()F", maxStack = 3, maxLocals = 0, PUBLIC, STATIC) {
+                ldc(float(6.0f))
+                ldc(float(2.0f))
+                fadd()
+                ldc(float(6.0f))
+                ldc(float(2.0f))
+                fsub()
+                fmul()
+                ldc(float(6.0f))
+                fdiv()
+                freturn()
+            }
+            .build()
+
+        // when
+        val result = loadClass(name, bytes).getDeclaredMethod("f").invoke(null)
+
+        // then
+        assertThat(result).isEqualTo(32.0f / 6.0f)
+    }
+
+    @Test
+    fun `runs a body needing more stack than its method declared`() {
+        // given a method declaring no stack at all, with the depth coming from the body
+        val (name, bytes) = classFile("GenDeepStack", "java/lang/Object")
+            .method("f", "()F", maxStack = 0, maxLocals = 0, PUBLIC, STATIC) {
+                maxStack(3)
+                fconst(2)
+                fconst(2)
+                fconst(2)
+                fmul()
+                fmul()
+                freturn()
+            }
+            .build()
+
+        // then the verifier accepts it, so the declared max_stack was raised to 3
+        assertThat(loadClass(name, bytes).getDeclaredMethod("f").invoke(null)).isEqualTo(8.0f)
+    }
+
+    @Test
+    fun `casts an argument and calls through an interface`() {
+        // given size() reached on an Object that has to be narrowed to a List first
+        val (name, bytes) = classFile("GenCast", "java/lang/Object")
+            .method("f", "(Ljava/lang/Object;)I", maxStack = 1, maxLocals = 1, PUBLIC, STATIC) {
+                aload(0)
+                checkcast(clazz("java/util/List"))
+                invokeinterface(imethod(clazz("java/util/List"), "size", "()I"), count = 1)
+                ireturn()
+            }
+            .build()
+        val method = loadClass(name, bytes).getDeclaredMethod("f", Any::class.java)
+
+        // then the interface call lands on the object handed in
+        assertThat(method.invoke(null, listOf("a", "b"))).isEqualTo(2)
+        assertThat(method.invoke(null, emptyList<String>())).isEqualTo(0)
+
+        // and the cast is the one rejecting anything else
+        assertThatExceptionOfType(InvocationTargetException::class.java)
+            .isThrownBy { method.invoke(null, "not a list") }
+            .withCauseInstanceOf(ClassCastException::class.java)
+    }
+
+    @Test
     fun `reads an argument out of a local slot`() {
         // given
         val (name, bytes) = classFile("GenTwice", "java/lang/Object")

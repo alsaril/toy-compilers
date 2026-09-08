@@ -9,6 +9,7 @@ class UpdatableConstantPool {
     private val utf8Cache = mutableMapOf<String, Int>()
     private val stringCache = mutableMapOf<String, Int>()
     private val intCache = mutableMapOf<Int, Int>()
+    private val floatCache = mutableMapOf<Float, Int>()
     private val longCache = mutableMapOf<Long, Int>()
     private val doubleCache = mutableMapOf<Double, Int>()
     private val classCache = mutableMapOf<String, Int>()
@@ -26,6 +27,12 @@ class UpdatableConstantPool {
     fun putInt(value: Int) = intCache.computeIfAbsent(value) {
         if (built) throw IllegalStateException("built")
         entries.add(ConstantIntegerInfo(value))
+        index++
+    }
+
+    fun putFloat(value: Float) = floatCache.computeIfAbsent(value) {
+        if (built) throw IllegalStateException("built")
+        entries.add(ConstantFloatInfo(value))
         index++
     }
 

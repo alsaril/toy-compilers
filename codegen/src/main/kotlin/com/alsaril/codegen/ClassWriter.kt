@@ -8,6 +8,7 @@ interface ClassWriter {
     fun byte(value: Int)
     fun short(value: Int)
     fun int(value: Int)
+    fun float(value: Float)
     fun long(value: Long)
     fun double(value: Double)
     fun bytes(value: ByteArray)
@@ -37,6 +38,7 @@ class DosWriter(private val dos: DataOutput) : ClassWriter {
     }
 
     override fun int(value: Int) = dos.writeInt(value)
+    override fun float(value: Float) = dos.writeFloat(value)
     override fun long(value: Long) = dos.writeLong(value)
     override fun double(value: Double) = dos.writeDouble(value)
     override fun bytes(value: ByteArray) = dos.write(value)

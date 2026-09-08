@@ -76,6 +76,19 @@ class PointersTest {
         }
 
         @Test
+        fun `registers a float constant`() {
+            // given
+            val cp = UpdatableConstantPool()
+
+            // when
+            val pointer = builder(cp).float(1.5f)
+
+            // then
+            assertThat(pointer).isEqualTo(DataPointer(1))
+            assertThat(cp.build().entries).containsExactly(ConstantFloatInfo(1.5f))
+        }
+
+        @Test
         fun `registers a string constant behind its utf8`() {
             // given
             val cp = UpdatableConstantPool()
@@ -114,6 +127,15 @@ class PointersTest {
 
             // then
             assertThat(builder.int(1)).isNotEqualTo(builder.string("1"))
+        }
+
+        @Test
+        fun `keeps an integer and a float of the same value apart`() {
+            // given
+            val builder = builder()
+
+            // then
+            assertThat(builder.int(1)).isNotEqualTo(builder.float(1.0f))
         }
     }
 }
