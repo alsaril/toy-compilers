@@ -23,6 +23,14 @@ fun CodeBuilder.iconst(value: Int) {
     }
 }
 
+fun CodeBuilder.fconst(value: Int) {
+    if (value >= 0 && value <= 2) {
+        u1(0xb + value) // fconst
+    } else {
+        throw IllegalArgumentException("The value is out of range for fconst, ldc should be used")
+    }
+}
+
 fun CodeBuilder.ldc(pointer: DataPointer) {
     val index = pointer.index
     if (index < 0x100) {
@@ -106,6 +114,10 @@ fun CodeBuilder.dup_x2() {
 // return
 fun CodeBuilder.ireturn() {
     u1(0xac)
+}
+
+fun CodeBuilder.freturn() {
+    u1(0xae)
 }
 
 fun CodeBuilder.`return`() {

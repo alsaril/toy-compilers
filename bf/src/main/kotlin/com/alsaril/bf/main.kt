@@ -1,11 +1,7 @@
 package com.alsaril.bf
 
-import com.alsaril.bf.Compiler.compile
-import com.github.ajalt.clikt.core.CliktCommand
-import com.github.ajalt.clikt.core.CliktError
-import com.github.ajalt.clikt.core.Context
-import com.github.ajalt.clikt.core.context
-import com.github.ajalt.clikt.core.main
+import com.alsaril.bf.BfCompiler.compile
+import com.github.ajalt.clikt.core.*
 import com.github.ajalt.clikt.output.MordantHelpFormatter
 import com.github.ajalt.clikt.parameters.arguments.argument
 import com.github.ajalt.clikt.parameters.arguments.help
