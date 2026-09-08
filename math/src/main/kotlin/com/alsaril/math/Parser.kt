@@ -2,6 +2,7 @@ package com.alsaril.math
 
 import com.alsaril.math.BinaryKind.*
 import com.alsaril.math.Parser.BinaryOperator.Type.*
+import kotlin.math.exp
 
 object Parser {
     private sealed interface Token
@@ -20,14 +21,16 @@ object Parser {
         val operatorsStack = mutableListOf<Token>()
         while (index != expr.length) {
 
-            if (expr[index].isDigit()) { // add decimal point
-                var number = 0.0f
-                while (index < expr.length && expr[index].isDigit()) {
-                    number *= 10
-                    number += expr[index] - '0'
+            if (expr[index].isDigit()) {
+                val start = index
+                var dot = false
+                while (index < expr.length && (expr[index].isDigit() || expr[index] == '.' && !dot)) {
+                    if (!dot && expr[index] == '.') {
+                        dot = true
+                    }
                     ++index
                 }
-                resultStack.add(Value(number))
+                resultStack.add(Value(expr.substring(start, index).toFloat()))
                 continue
             }
 
@@ -72,7 +75,7 @@ object Parser {
                 continue
             }
 
-            throw IllegalArgumentException("Unrecognized symbol: ${expr[index]}")
+            throw IllegalArgumentException("Unexpected symbol: ${expr[index]}")
         }
 
         while (operatorsStack.isNotEmpty()) {
