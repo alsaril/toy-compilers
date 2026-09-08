@@ -286,10 +286,10 @@ class ParserTest {
      * before the parser reaches the end, and is named at the index it was due.
      */
     @Nested
-    inner class ReportsAMissing {
+    inner class Reports {
 
         @Test
-        fun `operand after a trailing operator`() {
+        fun `a missing operand after a trailing operator`() {
             assertThatIllegalArgumentException()
                 .isThrownBy { parse("1+") }
                 .withMessage("operand expected at 2")
@@ -299,7 +299,7 @@ class ParserTest {
         }
 
         @Test
-        fun `operand before a leading operator, so there is no unary minus`() {
+        fun `a missing operand before a leading operator, so there is no unary minus`() {
             assertThatIllegalArgumentException()
                 .isThrownBy { parse("-1") }
                 .withMessage("operand expected at 0")
@@ -309,7 +309,7 @@ class ParserTest {
         }
 
         @Test
-        fun `operand where a closing bracket appears instead`() {
+        fun `a missing operand where a closing bracket appears instead`() {
             assertThatIllegalArgumentException()
                 .isThrownBy { parse("()") }
                 .withMessage("operand expected at 1")
@@ -321,7 +321,7 @@ class ParserTest {
         }
 
         @Test
-        fun `operator between two operands`() {
+        fun `a missing operator between two operands`() {
             assertThatIllegalArgumentException()
                 .isThrownBy { parse("1 2") }
                 .withMessage("operator expected at 2")
@@ -334,7 +334,7 @@ class ParserTest {
         }
 
         @Test
-        fun `operator before a bracket standing next to an operand`() {
+        fun `a missing operator before a bracket standing next to an operand`() {
             assertThatIllegalArgumentException()
                 .isThrownBy { parse("(1)(2)") }
                 .withMessage("operator expected at 3")
