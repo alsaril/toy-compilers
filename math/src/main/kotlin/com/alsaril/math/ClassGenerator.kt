@@ -48,7 +48,7 @@ object ClassGenerator {
                     }
                     is Var -> {
                         variable(node.name)
-                        depth = max(depth, before + 1)
+                        depth = max(depth, before + 2)
                         before + 1
                     }
                     is Op ->  {
