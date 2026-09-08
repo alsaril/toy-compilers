@@ -62,6 +62,23 @@ class GeneratedClassTest {
     }
 
     @Test
+    fun `returns a float value from a static method`() {
+        // given
+        val (name, bytes) = classFile("GenFloat", "java/lang/Object")
+            .method("f", "()F", maxStack = 1, maxLocals = 0, PUBLIC, STATIC) {
+                fconst(2)
+                freturn()
+            }
+            .build()
+
+        // when the verifier has accepted fconst as a float on a method returning one
+        val result = loadClass(name, bytes).getDeclaredMethod("f").invoke(null)
+
+        // then
+        assertThat(result).isEqualTo(2.0f)
+    }
+
+    @Test
     fun `reads an argument out of a local slot`() {
         // given
         val (name, bytes) = classFile("GenTwice", "java/lang/Object")

@@ -1,9 +1,7 @@
 package com.alsaril.codegen.classfile.code
 
 import com.alsaril.codegen.bytesOf
-import org.assertj.core.api.Assertions.assertThat
-import org.assertj.core.api.Assertions.assertThatExceptionOfType
-import org.assertj.core.api.Assertions.assertThatIllegalArgumentException
+import org.assertj.core.api.Assertions.*
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
@@ -24,8 +22,26 @@ class OpcodesTest {
         assertThat(bytecode { iadd() }).containsExactly(*bytesOf(0x60))
         assertThat(bytecode { isub() }).containsExactly(*bytesOf(0x64))
         assertThat(bytecode { ireturn() }).containsExactly(*bytesOf(0xAC))
+        assertThat(bytecode { freturn() }).containsExactly(*bytesOf(0xAE))
         assertThat(bytecode { `return`() }).containsExactly(*bytesOf(0xB1))
         assertThat(bytecode { athrow() }).containsExactly(*bytesOf(0xBF))
+    }
+
+    @Nested
+    inner class Fconst {
+
+        @Test
+        fun `writes the compact float constants`() {
+            assertThat(bytecode { fconst(0) }).containsExactly(*bytesOf(0x0B))
+            assertThat(bytecode { fconst(1) }).containsExactly(*bytesOf(0x0C))
+            assertThat(bytecode { fconst(2) }).containsExactly(*bytesOf(0x0D))
+        }
+
+        @Test
+        fun `rejects a float constant that needs a constant pool entry`() {
+            assertThatIllegalArgumentException().isThrownBy { bytecode { fconst(3) } }
+            assertThatIllegalArgumentException().isThrownBy { bytecode { fconst(-1) } }
+        }
     }
 
     @Test

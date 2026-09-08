@@ -4,3 +4,4 @@ plugins {
 rootProject.name = "toy-compilers"
 include("codegen")
 include("bf")
+include("math")

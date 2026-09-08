@@ -1,6 +1,6 @@
 package com.alsaril.bf
 
-import com.alsaril.bf.Compiler.compile
+import com.alsaril.bf.BfCompiler.compile
 import com.alsaril.bf.generator.ClassGenerator.generate
 import org.assertj.core.api.Assertions.*
 import org.junit.jupiter.api.Nested
