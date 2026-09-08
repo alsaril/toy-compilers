@@ -96,6 +96,59 @@ class UpdatableConstantPoolTest {
     }
 
     @Nested
+    inner class PutFloat {
+
+        @Test
+        fun `stores the value and returns its index`() {
+            // when
+            val index = pool.putFloat(1.5f)
+
+            // then
+            assertThat(index).isEqualTo(1)
+            assertThat(pool.build().entries).containsExactly(ConstantFloatInfo(1.5f))
+        }
+
+        @Test
+        fun `occupies a single constant pool slot`() {
+            // when a float is one slot wide, unlike a long or a double
+            val float = pool.putFloat(1.5f)
+            val next = pool.putUtf8("after")
+
+            // then
+            assertThat(float).isEqualTo(1)
+            assertThat(next).isEqualTo(2)
+            assertThat(pool.build().size).isEqualTo(3)
+        }
+
+        @Test
+        fun `returns the existing index for a duplicate value`() {
+            // given
+            val first = pool.putFloat(2.5f)
+
+            // when
+            val second = pool.putFloat(2.5f)
+
+            // then
+            assertThat(second).isEqualTo(first)
+            assertThat(pool.build().entries).containsExactly(ConstantFloatInfo(2.5f))
+        }
+
+        @Test
+        fun `keeps a float apart from an integer of the same value`() {
+            // when
+            val int = pool.putInt(1)
+            val float = pool.putFloat(1.0f)
+
+            // then
+            assertThat(float).isNotEqualTo(int)
+            assertThat(pool.build().entries).containsExactly(
+                ConstantIntegerInfo(1),
+                ConstantFloatInfo(1.0f),
+            )
+        }
+    }
+
+    @Nested
     inner class PutLong {
 
         @Test
@@ -510,6 +563,7 @@ class UpdatableConstantPoolTest {
             // then
             assertThatIllegalStateException().isThrownBy { pool.putUtf8("late") }
             assertThatIllegalStateException().isThrownBy { pool.putInt(1) }
+            assertThatIllegalStateException().isThrownBy { pool.putFloat(1.0f) }
             assertThatIllegalStateException().isThrownBy { pool.putLong(1L) }
             assertThatIllegalStateException().isThrownBy { pool.putDouble(1.0) }
             assertThatIllegalStateException().isThrownBy { pool.putClass("A") }

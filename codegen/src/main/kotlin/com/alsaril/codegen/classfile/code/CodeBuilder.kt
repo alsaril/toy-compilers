@@ -19,12 +19,13 @@ class CodeBuilder(
     private val exceptionHandlers = mutableListOf<ExceptionHandler>()
     private var base = 0
     private var frozen: ByteArray? = null
+    private var maxStack = 0
 
     fun build(): Fragment {
         frozen?.let { throw IllegalStateException() }
         with(bytecode.toByteArray()) {
             frozen = this
-            return Fragment(listOf(this), frames, exceptionHandlers, this.size)
+            return Fragment(listOf(this), frames, exceptionHandlers, maxStack, this.size)
         }
     }
 
@@ -88,5 +89,9 @@ class CodeBuilder(
                 ExceptionHandler(from.index, to, it, type?.index ?: 0)
             )
         }
+    }
+
+    fun maxStack(depth: Int) {
+        maxStack = depth
     }
 }

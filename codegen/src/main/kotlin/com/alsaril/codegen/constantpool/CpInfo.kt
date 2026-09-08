@@ -24,6 +24,12 @@ data class ConstantIntegerInfo(
     override fun ClassWriter.writeInfo() = int(value)
 }
 
+data class ConstantFloatInfo(
+    val value: Float
+) : CpInfo(tag = 4) {
+    override fun ClassWriter.writeInfo() = float(value)
+}
+
 data class ConstantLongInfo(
     val value: Long
 ) : CpInfo(tag = 5) {

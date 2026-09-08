@@ -40,6 +40,12 @@ class ClassWriterTest {
         }
 
         @Test
+        fun `float writes its ieee 754 bit pattern`() {
+            assertThat(toBytes { float(1.5f) })
+                .containsExactly(*bytesOf(0x3F, 0xC0, 0x00, 0x00))
+        }
+
+        @Test
         fun `long writes eight big-endian bytes`() {
             assertThat(toBytes { long(0x0102030405060708L) })
                 .containsExactly(*bytesOf(0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08))

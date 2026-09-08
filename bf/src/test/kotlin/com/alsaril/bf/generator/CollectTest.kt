@@ -13,7 +13,7 @@ import org.junit.jupiter.api.Test
 class CollectTest {
 
     private fun of(vararg sizes: Int) =
-        sizes.map { Fragment(listOf(ByteArray(it)), emptyList(), emptyList(), it) }
+        sizes.map { Fragment(listOf(ByteArray(it)), emptyList(), emptyList(), maxStack = 0, size = it) }
 
     private fun Chunk.sizes() = fragments.map { it.size }
 

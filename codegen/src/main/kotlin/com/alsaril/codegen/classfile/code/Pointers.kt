@@ -18,4 +18,6 @@ fun CodeBuilder.clazz(name: String) = ClassPointer(cp.putClass(name))
 
 fun CodeBuilder.int(value: Int) = DataPointer(cp.putInt(value))
 
+fun CodeBuilder.float(value: Float) = DataPointer(cp.putFloat(value))
+
 fun CodeBuilder.string(value: String) = DataPointer(cp.putString(value))

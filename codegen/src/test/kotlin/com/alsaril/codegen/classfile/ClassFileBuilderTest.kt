@@ -5,6 +5,7 @@ import com.alsaril.codegen.classfile.ClassFileBuilder.Companion.classFile
 import com.alsaril.codegen.classfile.MethodAccessFlag.PUBLIC
 import com.alsaril.codegen.classfile.MethodAccessFlag.STATIC
 import com.alsaril.codegen.classfile.code.`return`
+import com.alsaril.codegen.classfile.code.nop
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatNoException
 import org.junit.jupiter.api.Test
@@ -71,6 +72,67 @@ class ClassFileBuilderTest {
         assertThat(builder.build().second).isEqualTo(
             classFile("Fragments", "java/lang/Object").build().second
         )
+    }
+
+    @Test
+    fun `raises the declared stack depth to what the body needs`() {
+        // given a body asking for more stack than the method declared
+        val declared = classFile("Stack", "java/lang/Object")
+            .method("f", "()V", maxStack = 0, maxLocals = 0, PUBLIC) { maxStack(3); nop(); `return`() }
+            .build().second
+
+        // when the same body declares the depth up front instead
+        val expected = classFile("Stack", "java/lang/Object")
+            .method("f", "()V", maxStack = 3, maxLocals = 0, PUBLIC) { maxStack(3); nop(); `return`() }
+            .build().second
+
+        // then
+        assertThat(declared).isEqualTo(expected)
+    }
+
+    @Test
+    fun `keeps the declared stack depth when the body needs less`() {
+        // given
+        val withBody = classFile("Stack", "java/lang/Object")
+            .method("f", "()V", maxStack = 5, maxLocals = 0, PUBLIC) { maxStack(3); nop(); `return`() }
+            .build().second
+
+        // when the body asks for nothing at all
+        val withoutBody = classFile("Stack", "java/lang/Object")
+            .method("f", "()V", maxStack = 5, maxLocals = 0, PUBLIC) { nop(); `return`() }
+            .build().second
+
+        // then the larger declared value survives
+        assertThat(withBody).isEqualTo(withoutBody)
+    }
+
+    // both overloads raise the declared depth, so a caller assembling fragments itself is
+    // treated the same as one handing over a body
+    @Test
+    fun `raises the declared stack depth when handed a fragment`() {
+        // given a fragment needing more stack than the method declares
+        val builder = classFile("Stack", "java/lang/Object")
+        val fragment = builder.emitFragment { maxStack(3); nop(); `return`() }
+        val declared = builder
+            .method("f", "()V", fragment, maxStack = 0, maxLocals = 0, PUBLIC)
+            .build().second
+
+        // when the same fragment is given the depth up front
+        val expected = classFile("Stack", "java/lang/Object")
+            .let {
+                it.method(
+                    "f",
+                    "()V",
+                    it.emitFragment { maxStack(3); nop(); `return`() },
+                    maxStack = 3,
+                    maxLocals = 0,
+                    PUBLIC,
+                )
+            }
+            .build().second
+
+        // then
+        assertThat(declared).isEqualTo(expected)
     }
 
     @Test

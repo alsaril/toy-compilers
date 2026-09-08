@@ -9,6 +9,7 @@ import com.alsaril.codegen.write
 import kotlin.contracts.ExperimentalContracts
 import kotlin.contracts.InvocationKind
 import kotlin.contracts.contract
+import kotlin.math.max
 
 class ClassFileBuilder {
     private val thisName: String
@@ -37,7 +38,7 @@ class ClassFileBuilder {
         codeBuilder: CodeBuilder.() -> Unit,
     ): ClassFileBuilder {
         val fragment = CodeBuilder(cp, thisName, parentName).apply { codeBuilder() }.build()
-        return method(name, descriptor, fragment, maxStack, maxLocals, *accessFlags)
+        return method(name, descriptor, fragment, max(maxStack, fragment.maxStack), maxLocals, *accessFlags)
     }
 
     fun method(
@@ -50,7 +51,7 @@ class ClassFileBuilder {
     ): ClassFileBuilder {
         val code = CodeAttribute(
             cp.putUtf8("Code"),
-            maxStack,
+            max(maxStack, fragment.maxStack),
             maxLocals,
             fragment.bytecode(),
             fragment.exceptionHandlers,

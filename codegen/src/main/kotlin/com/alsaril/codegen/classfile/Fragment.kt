@@ -2,11 +2,13 @@ package com.alsaril.codegen.classfile
 
 import com.alsaril.codegen.classfile.attributes.*
 import java.nio.ByteBuffer
+import kotlin.math.max
 
 data class Fragment(
     val content: List<ByteArray>,
     val frames: List<StackMapFrame>,
     val exceptionHandlers: List<ExceptionHandler>,
+    val maxStack: Int,
     val size: Int, // the sum of lengths in content
 ) {
     fun bytecode(): ByteArray = if (content.size == 1) content.first() else
@@ -20,8 +22,9 @@ fun List<Fragment>.join(): Fragment {
     val globalExceptionHandlers = mutableListOf<ExceptionHandler>()
     var globalBase = 0
     var globalSize = 0
+    var globalMaxStack = 0
 
-    forEach { (code, frames, exceptionHandlers, size) ->
+    forEach { (code, frames, exceptionHandlers, maxStack, size) ->
         result.addAll(code)
         if (frames.isNotEmpty()) {
             val frame = frames.first()
@@ -48,8 +51,9 @@ fun List<Fragment>.join(): Fragment {
                 handlerPc = it.handlerPc + globalSize,
             )
         }.forEach(globalExceptionHandlers::add)
+        globalMaxStack = max(globalMaxStack, maxStack)
         globalSize += size
     }
 
-    return Fragment(result, globalFrames, globalExceptionHandlers, globalSize)
+    return Fragment(result, globalFrames, globalExceptionHandlers, globalMaxStack, globalSize)
 }

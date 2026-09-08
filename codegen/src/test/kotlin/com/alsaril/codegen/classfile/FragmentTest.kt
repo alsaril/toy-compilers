@@ -24,10 +24,13 @@ import org.junit.jupiter.api.Test
 class FragmentTest {
 
     private fun fragment(size: Int, vararg frames: StackMapFrame) =
-        Fragment(listOf(ByteArray(size)), frames.toList(), emptyList(), size)
+        Fragment(listOf(ByteArray(size)), frames.toList(), emptyList(), maxStack = 0, size = size)
 
     private fun guarded(size: Int, vararg handlers: ExceptionHandler) =
-        Fragment(listOf(ByteArray(size)), emptyList(), handlers.toList(), size)
+        Fragment(listOf(ByteArray(size)), emptyList(), handlers.toList(), maxStack = 0, size = size)
+
+    private fun stacked(maxStack: Int, size: Int = 1) =
+        Fragment(listOf(ByteArray(size)), emptyList(), emptyList(), maxStack, size)
 
     @Nested
     inner class Bytecode {
@@ -36,7 +39,7 @@ class FragmentTest {
         fun `hands back a single block without copying it`() {
             // given
             val block = bytesOf(0x01, 0x02)
-            val fragment = Fragment(listOf(block), emptyList(), emptyList(), 2)
+            val fragment = Fragment(listOf(block), emptyList(), emptyList(), maxStack = 0, size = 2)
 
             // then
             assertThat(fragment.bytecode()).isSameAs(block)
@@ -49,7 +52,8 @@ class FragmentTest {
                 listOf(bytesOf(0x01), bytesOf(0x02, 0x03), bytesOf(0x04)),
                 emptyList(),
                 emptyList(),
-                4,
+                maxStack = 0,
+                size = 4,
             )
 
             // then
@@ -58,7 +62,8 @@ class FragmentTest {
 
         @Test
         fun `is empty when there is no content`() {
-            assertThat(Fragment(emptyList(), emptyList(), emptyList(), 0).bytecode()).isEmpty()
+            assertThat(Fragment(emptyList(), emptyList(), emptyList(), maxStack = 0, size = 0).bytecode())
+                .isEmpty()
         }
     }
 
@@ -87,11 +92,30 @@ class FragmentTest {
         }
 
         @Test
+        fun `takes the largest stack requirement of the fragments it joins`() {
+            // given code laid out so the deepest body is neither first nor last
+            val joined = listOf(stacked(1), stacked(4), stacked(2)).join()
+
+            // then
+            assertThat(joined.maxStack).isEqualTo(4)
+        }
+
+        @Test
+        fun `keeps the stack requirement of a lone fragment`() {
+            assertThat(listOf(stacked(3)).join().maxStack).isEqualTo(3)
+        }
+
+        @Test
+        fun `asks for no stack when none of the fragments do`() {
+            assertThat(listOf(fragment(1), fragment(2)).join().maxStack).isZero()
+        }
+
+        @Test
         fun `adds up the sizes and keeps the blocks in order`() {
             // given
             val joined = listOf(
-                Fragment(listOf(bytesOf(0x01, 0x02)), emptyList(), emptyList(), 2),
-                Fragment(listOf(bytesOf(0x03)), emptyList(), emptyList(), 1),
+                Fragment(listOf(bytesOf(0x01, 0x02)), emptyList(), emptyList(), maxStack = 0, size = 2),
+                Fragment(listOf(bytesOf(0x03)), emptyList(), emptyList(), maxStack = 0, size = 1),
             ).join()
 
             // then
@@ -293,7 +317,8 @@ class FragmentTest {
                 listOf(ByteArray(3)),
                 listOf(SameLocals1StackItemFrameShort(1, IntegerVariableInfo)),
                 listOf(ExceptionHandler(0, 1, 1, catchType = 0)),
-                3,
+                maxStack = 0,
+                size = 3,
             )
             val joined = listOf(fragment(2), body).join()
 

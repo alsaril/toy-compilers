@@ -85,6 +85,22 @@ fun CodeBuilder.isub() {
     u1(0x64)
 }
 
+fun CodeBuilder.fadd() {
+    u1(0x62)
+}
+
+fun CodeBuilder.fsub() {
+    u1(0x66)
+}
+
+fun CodeBuilder.fmul() {
+    u1(0x6a)
+}
+
+fun CodeBuilder.fdiv() {
+    u1(0x6e)
+}
+
 fun CodeBuilder.iinc(index: Int, const: Int) {
     if (index < 0x100 && const in Byte.MIN_VALUE..Byte.MAX_VALUE) {
         u1(0x84)
