@@ -14,6 +14,16 @@ import java.lang.reflect.Modifier
 
 class ClassGeneratorTest {
 
+    /** records what the generated preamble asks the map for, and in which order */
+    private class CountingMap(private val backing: Map<String, Float>) : Map<String, Float> by backing {
+        val lookups = mutableListOf<String>()
+
+        override fun get(key: String): Float? {
+            lookups.add(key)
+            return backing[key]
+        }
+    }
+
     private fun program(ast: Node): Program {
         val (name, bytes) = generate(ast)
         return loadClass(name, bytes).getDeclaredConstructor().newInstance() as Program
@@ -76,10 +86,74 @@ class ClassGeneratorTest {
         }
 
         @Test
-        fun `fails on a variable the map does not hold`() {
-            // get() returns null, which passes the cast and then has no floatValue
-            assertThatExceptionOfType(NullPointerException::class.java)
+        fun `names the variable the map does not hold`() {
+            // the preamble tests each value before storing it, so the failure can say which
+            assertThatExceptionOfType(NoSuchElementException::class.java)
                 .isThrownBy { eval(Var("missing")) }
+                .withMessage("missing")
+        }
+
+        @Test
+        fun `names the first missing variable, in the order they appear`() {
+            val ast = Op(ADD, Var("a"), Op(MUL, Var("b"), Var("c")))
+
+            assertThatExceptionOfType(NoSuchElementException::class.java)
+                .isThrownBy { eval(ast, mapOf("a" to 1.0f)) }
+                .withMessage("b")
+        }
+
+        @Test
+        fun `ignores entries the expression never names`() {
+            assertThat(eval(Var("x"), mapOf("x" to 1.0f, "unused" to 2.0f))).isEqualTo(1.0f)
+        }
+
+        @Test
+        fun `looks a variable up once however often the expression uses it`() {
+            // given x used three times over
+            val variables = CountingMap(mapOf("x" to 3.0f))
+
+            // when
+            val result = program(Op(ADD, Op(MUL, Var("x"), Var("x")), Var("x"))).eval(variables)
+
+            // then the value was read into a slot once and reused from there
+            assertThat(result).isEqualTo(12.0f)
+            assertThat(variables.lookups).containsExactly("x")
+        }
+
+        @Test
+        fun `looks each variable up in the order it appears`() {
+            // given
+            val variables = CountingMap(mapOf("a" to 1.0f, "b" to 1.0f, "c" to 1.0f))
+
+            // when c is named first in the tree even though the map lists it last
+            program(Op(ADD, Var("c"), Op(ADD, Var("a"), Var("b")))).eval(variables)
+
+            // then
+            assertThat(variables.lookups).containsExactly("c", "a", "b")
+        }
+
+        @Test
+        fun `looks them up again on the next call`() {
+            // given the slots are filled per call, not held between them
+            val variables = CountingMap(mapOf("x" to 1.0f))
+            val program = program(Var("x"))
+
+            // when
+            program.eval(variables)
+            program.eval(variables)
+
+            // then
+            assertThat(variables.lookups).containsExactly("x", "x")
+        }
+
+        @Test
+        fun `reads variables from slots past the compact opcodes`() {
+            // given ten variables, so the later slots need the operand form of fstore
+            val names = ('a'..'j').map { it.toString() }
+            val ast = names.map { Var(it) as Node }.reduce { left, right -> Op(ADD, left, right) }
+
+            // then
+            assertThat(eval(ast, names.associateWith { 1.0f })).isEqualTo(10.0f)
         }
     }
 
@@ -168,6 +242,21 @@ class ClassGeneratorTest {
             val variables = mapOf("a" to 1.0f, "b" to 2.0f, "c" to 3.0f, "d" to 4.0f)
 
             assertThat(eval(ast, variables)).isEqualTo(10.0f)
+        }
+
+        @Test
+        fun `covers a tree that reaches deeper than the preamble does`() {
+            // seven values nested to the right outgrow the four slots the preamble needs
+            var ast: Node = Value(1.0f)
+            repeat(6) { ast = Op(ADD, Value(1.0f), ast) }
+
+            assertThat(eval(ast)).isEqualTo(7.0f)
+        }
+
+        @Test
+        fun `covers a preamble deeper than the expression that follows it`() {
+            // a lone variable leaves a one deep expression behind a four deep preamble
+            assertThat(eval(Var("x"), mapOf("x" to 1.0f))).isEqualTo(1.0f)
         }
     }
 

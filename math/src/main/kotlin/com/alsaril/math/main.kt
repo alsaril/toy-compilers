@@ -9,23 +9,34 @@ fun main(): Unit = exitProcess(run())
 internal fun run(): Int {
     val scanner = Scanner(System.`in`)
 
-    return try {
-        val calculator = compile(scanner.nextLine())
-        while (scanner.hasNextLine()) {
-            println(calculator.eval(readVariables(scanner)))
-        }
-        0
+    val expr = try {
+        print("expr> ")
+        scanner.nextLine()
     } catch (_: NoSuchElementException) {
-        fail("no expression given")
-    } catch (_: NullPointerException) {
-        fail("the expression uses a variable the line does not give a value")
+        return fail("no expression given")
+    }
+
+    val program = try {
+        compile(expr)
     } catch (e: IllegalArgumentException) {
-        fail(e.message)
+        return fail("could not compile expression: ${e.message}")
+    }
+
+    while (true) {
+        try {
+            print("vars> ")
+            if (!scanner.hasNextLine()) return 0
+            println(program.eval(readVariables(scanner)))
+        } catch (e: NoSuchElementException) {
+            println("no variable with name ${e.message} is found")
+        } catch (e: IllegalArgumentException) {
+            println("error: ${e.message}")
+        }
     }
 }
 
 private fun fail(message: String?): Int {
-    System.err.println("Error: $message")
+    System.err.println(message)
     return 1
 }
 
@@ -34,9 +45,9 @@ private fun readVariables(scanner: Scanner): Map<String, Float> {
     return line.split(";")
         .asSequence()
         .filterNot { it.isBlank() }
-        .associate {
-            val parts = it.split("=")
-            require(parts.size == 2) { "'$it' is not an assignment" }
-            parts[0] to requireNotNull(parts[1].toFloatOrNull()) { "'${parts[1]}' is not a number" }
+        .associate { assigment ->
+            val parts = assigment.split("=")
+            require(parts.size == 2) { "'$assigment' is not an assignment" }
+            parts[0].trim() to parts[1].trim().let { requireNotNull(it.toFloatOrNull()) { "'$it' is not a number" } }
         }
 }
