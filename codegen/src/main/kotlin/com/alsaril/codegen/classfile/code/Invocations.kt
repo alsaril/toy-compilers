@@ -66,6 +66,11 @@ fun CodeBuilder.checkcast(classPointer: ClassPointer) {
     u2(classPointer.index)
 }
 
+fun CodeBuilder.instanceof(classPointer: ClassPointer) {
+    u1(0xc1)
+    u2(classPointer.index)
+}
+
 fun CodeBuilder.construct(classPointer: ClassPointer, name: String, descriptor: String) {
     new(classPointer)
     dup()

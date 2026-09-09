@@ -7,6 +7,7 @@ import com.alsaril.codegen.classfile.attributes.SameFrame
 import com.alsaril.codegen.classfile.attributes.SameFrameExtended
 import com.alsaril.codegen.classfile.attributes.SameLocals1StackItemFrameExtended
 import com.alsaril.codegen.classfile.attributes.SameLocals1StackItemFrameShort
+import com.alsaril.codegen.classfile.attributes.SimpleVerificationTypeInfo.FloatVariableInfo
 import com.alsaril.codegen.classfile.attributes.SimpleVerificationTypeInfo.IntegerVariableInfo
 import com.alsaril.codegen.constantpool.ConstantClassInfo
 import com.alsaril.codegen.constantpool.ConstantUtf8Info
@@ -78,6 +79,30 @@ class FramesTest {
     fun `appends an integer local`() {
         assertThat(frames { frameAppend(IntInfo) })
             .containsExactly(AppendFrame(0, listOf(IntegerVariableInfo)))
+    }
+
+    @Test
+    fun `appends a float local`() {
+        assertThat(frames { frameAppend(FloatInfo) })
+            .containsExactly(AppendFrame(0, listOf(FloatVariableInfo)))
+    }
+
+    @Test
+    fun `describes a float on the stack`() {
+        assertThat(frames { frameStack(FloatInfo) })
+            .containsExactly(SameLocals1StackItemFrameShort(0, FloatVariableInfo))
+    }
+
+    @Test
+    fun `keeps the local types apart in one frame`() {
+        assertThat(frames { frameFull(listOf(IntInfo, FloatInfo, objInfo("[B")), listOf(FloatInfo)) })
+            .containsExactly(
+                FullFrame(
+                    offsetDelta = 0,
+                    locals = listOf(IntegerVariableInfo, FloatVariableInfo, ObjectVariableInfo(2)),
+                    stack = listOf(FloatVariableInfo),
+                ),
+            )
     }
 
     @Test

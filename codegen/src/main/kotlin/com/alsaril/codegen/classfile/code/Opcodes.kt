@@ -47,6 +47,10 @@ fun CodeBuilder.iload(index: Int) {
     instructionFamily(index, 0x1a, 0x15)
 }
 
+fun CodeBuilder.fload(index: Int) {
+    instructionFamily(index, 0x22, 0x17)
+}
+
 fun CodeBuilder.aload(index: Int) {
     instructionFamily(index, 0x2a, 0x19)
 }
@@ -62,6 +66,10 @@ fun CodeBuilder.baload() {
 // store
 fun CodeBuilder.istore(index: Int) {
     instructionFamily(index, 0x3b, 0x36)
+}
+
+fun CodeBuilder.fstore(index: Int) {
+    instructionFamily(index, 0x43, 0x38)
 }
 
 fun CodeBuilder.astore(index: Int) {
