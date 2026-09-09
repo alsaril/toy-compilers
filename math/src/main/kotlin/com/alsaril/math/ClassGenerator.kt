@@ -66,7 +66,7 @@ object ClassGenerator {
             }
 
             fun value(value: Float) {
-                if (value == 0.0f || value == 1.0f || value == 2.0f) {
+                if (value.toRawBits() == 0 || value == 1.0f || value == 2.0f) {
                     fconst(value.toInt())
                 } else {
                     ldc(float(value))
@@ -86,15 +86,15 @@ object ClassGenerator {
                     }
 
                     is Op -> {
-                        val (hr, maxL) = walk(node.left, before, max)
-                        val (hl, maxR) = walk(node.right, hr, maxL)
+                        val (hl, maxL) = walk(node.left, before, max)
+                        val (hr, maxR) = walk(node.right, hl, maxL)
                         when (node.kind) {
                             ADD -> fadd()
                             SUB -> fsub()
                             MUL -> fmul()
                             DIV -> fdiv()
                         }
-                        (hl - 1) to max(max, maxR)
+                        (hr - 1) to maxR
                     }
 
                     is Neg -> {

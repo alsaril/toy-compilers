@@ -107,7 +107,7 @@ object Parser {
     private fun reduceToPriority(resultStack: MutableList<Node>, operatorsStack: MutableList<Token>, priority: Int) {
         while (operatorsStack.isNotEmpty()) {
             val top = operatorsStack.last()
-            if (top is BinaryOperator && top.type.priority >= priority || top is UnaryMinus) {
+            if ((top is BinaryOperator && top.type.priority >= priority) || top is UnaryMinus) {
                 reduce(resultStack, operatorsStack)
             } else {
                 break
