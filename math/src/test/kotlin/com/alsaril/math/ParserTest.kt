@@ -40,11 +40,40 @@ class ParserTest {
         }
 
         @Test
+        fun `reads a number that starts with a decimal point`() {
+            assertThat(parse(".5")).isEqualTo(Value(0.5f))
+            assertThat(parse(".25")).isEqualTo(Value(0.25f))
+        }
+
+        @Test
+        fun `takes a number starting with a point as an operand like any other`() {
+            assertThat(parse(".25+1")).isEqualTo(Op(ADD, Value(0.25f), Value(1.0f)))
+            assertThat(parse("2*.5")).isEqualTo(Op(MUL, Value(2.0f), Value(0.5f)))
+            assertThat(parse("(.5)")).isEqualTo(Value(0.5f))
+        }
+
+        @Test
         fun `takes only the first decimal point of a number`() {
-            // the scan stops at the second point, which then has nothing to belong to
+            // the scan stops at the second point, which then reads as a second operand
             assertThatIllegalArgumentException()
                 .isThrownBy { parse("1.2.3") }
-                .withMessage("unexpected '.' at 3")
+                .withMessage("operator expected at 3")
+            assertThatIllegalArgumentException()
+                .isThrownBy { parse("1..2") }
+                .withMessage("operator expected at 2")
+            assertThatIllegalArgumentException()
+                .isThrownBy { parse(".5.5") }
+                .withMessage("operator expected at 2")
+        }
+
+        @Test
+        fun `rejects a decimal point with no digits of its own`() {
+            assertThatIllegalArgumentException()
+                .isThrownBy { parse(".") }
+                .withMessage("unexpected '.' at 0")
+            assertThatIllegalArgumentException()
+                .isThrownBy { parse("1+.") }
+                .withMessage("unexpected '.' at 2")
         }
     }
 
@@ -349,7 +378,7 @@ class ParserTest {
         val malformed = listOf(
             "", "   ", "()", "1 2", "x y", "x1", "2(3)", "(1)(2)", "(1 2",
             "-1", "2*-3", "1+", "1*2-", "(1", "(1+2", "1)", "1+2)", "(1+2))",
-            ")", "1^2", "1 # 2", "1.2.3",
+            ")", "1^2", "1 # 2", "1.2.3", ".", "..", ".+1", "1+.",
         )
 
         malformed.forEach { source ->

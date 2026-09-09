@@ -29,7 +29,7 @@ object Parser {
                 continue
             }
 
-            if (symbol.isDigit()) {
+            if (symbol.isDigit() || symbol == '.') {
                 require(operandExpected) { "operator expected at $index" }
                 val start = index
                 var dot = false
@@ -39,7 +39,12 @@ object Parser {
                     }
                     ++index
                 }
-                resultStack.add(Value(expr.substring(start, index).toFloat()))
+                val number = expr.substring(start, index)
+                if (dot) {
+                    require(number.length > 1) { "unexpected '.' at $start" }
+                }
+
+                resultStack.add(Value(number.toFloat()))
                 operandExpected = false
                 continue
             }
