@@ -6,6 +6,7 @@ import com.alsaril.codegen.classfile.MethodAccessFlag.FINAL
 import com.alsaril.codegen.classfile.MethodAccessFlag.PUBLIC
 import com.alsaril.codegen.classfile.code.*
 import com.alsaril.math.BinaryKind.*
+import kotlin.math.abs
 import kotlin.math.max
 
 object ClassGenerator {
@@ -19,22 +20,57 @@ object ClassGenerator {
         .generateEval(ast)
         .build()
 
+    private fun variables(ast: Node): Map<String, Int> {
+        val n2i = mutableMapOf<String, Int>()
+        fun visit(node: Node) {
+            when (node) {
+                is Op -> {
+                    visit(node.left)
+                    visit(node.right)
+                }
+
+                is Value -> {}
+                is Var -> n2i.putIfAbsent(node.name, n2i.size)
+            }
+        }
+        visit(ast)
+        return n2i
+    }
+
     private fun ClassFileBuilder.generateEval(ast: Node) = apply {
-        method("eval", "(Ljava/util/Map;)F", maxStack = -1, maxLocals = 2, PUBLIC, FINAL) {
+        val n2i = variables(ast)
+        method("eval", "(Ljava/util/Map;)F", maxStack = 4, maxLocals = 2 + n2i.size, PUBLIC, FINAL) {
+            val locals = mutableListOf<VarInfo>().apply {
+                add(objInfo(self())); add(objInfo(clazz("java/util/Map")))
+            }
+            n2i.forEach { (name, index) ->
+                aload(1)
+                ldc(string(name))
+                invokeinterface(imethod(clazz("java/util/Map"), "get", "(Ljava/lang/Object;)Ljava/lang/Object;"), 2)
+                dup()
+                instanceof(clazz("java/lang/Float"))
+                val exists = ifne()
+
+                new(clazz("java/util/NoSuchElementException"))
+                dup()
+                ldc(string(name))
+                invokespecial(method(clazz("java/util/NoSuchElementException"), "<init>", "(Ljava/lang/String;)V"))
+                athrow()
+
+                exists(loc())
+                frameFull(locals, listOf(objInfo("java/lang/Object")))
+                checkcast(clazz("java/lang/Float"))
+                invokevirtual(method(clazz("java/lang/Float"), "floatValue", "()F"))
+                fstore(index + 2)
+                locals.add(FloatInfo)
+            }
+
             fun value(value: Float) {
-                if (value == 0.0f || value == 1.0f || value == 2.0f) {
+                if (abs(value) == 0.0f || value == 1.0f || value == 2.0f) {
                     fconst(value.toInt())
                 } else {
                     ldc(float(value))
                 }
-            }
-
-            fun variable(name: String) {
-                aload(1)
-                ldc(string(name))
-                invokeinterface(imethod(clazz("java/util/Map"), "get", "(Ljava/lang/Object;)Ljava/lang/Object;"), 2)
-                checkcast(clazz("java/lang/Float"))
-                invokevirtual(method(clazz("java/lang/Float"), "floatValue", "()F"))
             }
 
             var depth = 0
@@ -46,12 +82,14 @@ object ClassGenerator {
                         depth = max(depth, before + 1)
                         before + 1
                     }
+
                     is Var -> {
-                        variable(node.name)
+                        fload(n2i[node.name]!! + 2)
                         depth = max(depth, before + 2)
                         before + 1
                     }
-                    is Op ->  {
+
+                    is Op -> {
                         val ld = walk(node.left, before)
                         depth = max(depth, ld)
                         val rd = walk(node.right, ld)

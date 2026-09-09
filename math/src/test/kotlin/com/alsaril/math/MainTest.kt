@@ -8,13 +8,18 @@ import java.io.ByteArrayOutputStream
 import java.io.PrintStream
 
 /**
- * The entry point reads an expression, compiles it once, then evaluates it against a map
- * per line until the input runs out. Anything raised on the way out is turned into one
- * line on standard error and a non-zero status, which is what the Rejects group checks.
+ * The entry point prompts for an expression, compiles it once, then evaluates it against
+ * a map per line until the input runs out. Only the two things that leave nothing to do -
+ * no expression, or one that will not compile - end the run; anything a later line gets
+ * wrong is reported and the loop carries on.
  */
 class MainTest {
 
     private class Invocation(val output: String, val error: String, val statusCode: Int)
+
+    /** the output with the prompts taken out, so a test can be about what was evaluated */
+    private val Invocation.printed: String
+        get() = output.replace("expr> ", "").replace("vars> ", "")
 
     private fun math(input: String): Invocation {
         val written = ByteArrayOutputStream()
@@ -41,41 +46,66 @@ class MainTest {
     }
 
     @Nested
+    inner class Prompts {
+
+        @Test
+        fun `for the expression, then for every variable line it tries to read`() {
+            // the last prompt is the one that finds the input has run out
+            assertThat(math("x+1\nx=1\n").output).isEqualTo("expr> vars> 2.0\nvars> ")
+        }
+
+        @Test
+        fun `for the expression alone when nothing follows it`() {
+            assertThat(math("1+2\n").output).isEqualTo("expr> vars> ")
+        }
+
+        @Test
+        fun `for the expression even when there is none to read`() {
+            assertThat(math("").output).isEqualTo("expr> ")
+        }
+    }
+
+    @Nested
     inner class Runs {
 
         @Test
         fun `compiles the first line and evaluates what follows`() {
             val result = math("x+1\nx=1\n")
 
-            assertThat(result.output).isEqualTo("2.0\n")
+            assertThat(result.printed).isEqualTo("2.0\n")
             assertThat(result.error).isEmpty()
             assertThat(result.statusCode).isZero()
         }
 
         @Test
         fun `evaluates the same expression once per line`() {
-            assertThat(math("x*2\nx=1\nx=2\nx=3\n").output).isEqualTo("2.0\n4.0\n6.0\n")
+            assertThat(math("x*2\nx=1\nx=2\nx=3\n").printed).isEqualTo("2.0\n4.0\n6.0\n")
         }
 
         @Test
         fun `takes several variables from one line`() {
-            assertThat(math("x*y\nx=2;y=3\n").output).isEqualTo("6.0\n")
+            assertThat(math("x*y\nx=2;y=3\n").printed).isEqualTo("6.0\n")
+        }
+
+        @Test
+        fun `allows spaces around the equals sign`() {
+            assertThat(math("x*y\nx = 2 ; y = 3\n").printed).isEqualTo("6.0\n")
         }
 
         @Test
         fun `prints what the expression evaluates to, however it turns out`() {
-            assertThat(math("x/y\nx=1;y=0\n").output).isEqualTo("Infinity\n")
-            assertThat(math("x/y\nx=0;y=0\n").output).isEqualTo("NaN\n")
+            assertThat(math("x/y\nx=1;y=0\n").printed).isEqualTo("Infinity\n")
+            assertThat(math("x/y\nx=0;y=0\n").printed).isEqualTo("NaN\n")
         }
 
         @Test
         fun `ignores a trailing separator on a variable line`() {
-            assertThat(math("x\nx=1;\n").output).isEqualTo("1.0\n")
+            assertThat(math("x\nx=1;\n").printed).isEqualTo("1.0\n")
         }
 
         @Test
         fun `keeps the last value when a line repeats a variable`() {
-            assertThat(math("x\nx=1;x=2\n").output).isEqualTo("2.0\n")
+            assertThat(math("x\nx=1;x=2\n").printed).isEqualTo("2.0\n")
         }
     }
 
@@ -84,17 +114,17 @@ class MainTest {
 
         @Test
         fun `as a map with nothing in it`() {
-            assertThat(math("1+2\n\n").output).isEqualTo("3.0\n")
+            assertThat(math("1+2\n\n").printed).isEqualTo("3.0\n")
         }
 
         @Test
         fun `the same way when it holds only whitespace`() {
-            assertThat(math("1+2\n   \n").output).isEqualTo("3.0\n")
+            assertThat(math("1+2\n   \n").printed).isEqualTo("3.0\n")
         }
 
         @Test
         fun `once per line, like any other`() {
-            assertThat(math("1+2\n\n\n\n").output).isEqualTo("3.0\n3.0\n3.0\n")
+            assertThat(math("1+2\n\n\n\n").printed).isEqualTo("3.0\n3.0\n3.0\n")
         }
     }
 
@@ -105,7 +135,7 @@ class MainTest {
         fun `when the input runs out`() {
             val result = math("x\nx=1\n")
 
-            assertThat(result.output).isEqualTo("1.0\n")
+            assertThat(result.printed).isEqualTo("1.0\n")
             assertThat(result.statusCode).isZero()
         }
 
@@ -113,7 +143,7 @@ class MainTest {
         fun `when the last line has no line break of its own`() {
             val result = math("x\nx=1")
 
-            assertThat(result.output).isEqualTo("1.0\n")
+            assertThat(result.printed).isEqualTo("1.0\n")
             assertThat(result.statusCode).isZero()
         }
 
@@ -121,7 +151,60 @@ class MainTest {
         fun `before evaluating anything when only the expression was given`() {
             val result = math("1+2\n")
 
-            assertThat(result.output).isEmpty()
+            assertThat(result.printed).isEmpty()
+            assertThat(result.statusCode).isZero()
+        }
+    }
+
+    @Nested
+    inner class Recovers {
+
+        @Test
+        fun `from a variable the line does not give, naming it`() {
+            val result = math("x+1\ny=1\nx=1\n")
+
+            assertThat(result.printed).isEqualTo("no variable with name x is found\n2.0\n")
+            assertThat(result.statusCode).isZero()
+        }
+
+        @Test
+        fun `from a line that is not an assignment`() {
+            assertThat(math("x\nzz\nx=1\n").printed)
+                .isEqualTo("error: 'zz' is not an assignment\n1.0\n")
+        }
+
+        @Test
+        fun `from a value that is not a number`() {
+            assertThat(math("x\nx=lots\nx=1\n").printed)
+                .isEqualTo("error: 'lots' is not a number\n1.0\n")
+        }
+
+        @Test
+        fun `from a value that is not a number, named without the spaces around it`() {
+            assertThat(math("x\nx =  lots \nx=1\n").printed)
+                .isEqualTo("error: 'lots' is not a number\n1.0\n")
+        }
+
+        @Test
+        fun `from one failure after another`() {
+            assertThat(math("x\nzz\nx=lots\nx=1\n").printed).isEqualTo(
+                "error: 'zz' is not an assignment\n" +
+                    "error: 'lots' is not a number\n" +
+                    "1.0\n"
+            )
+        }
+
+        @Test
+        fun `naming the first variable the line is missing`() {
+            assertThat(math("a+b*c\na=1\n").printed)
+                .isEqualTo("no variable with name b is found\n")
+        }
+
+        @Test
+        fun `writing what went wrong where the results go, not to the error stream`() {
+            val result = math("x\nzz\n")
+
+            assertThat(result.error).isEmpty()
             assertThat(result.statusCode).isZero()
         }
     }
@@ -130,54 +213,20 @@ class MainTest {
     inner class Rejects {
 
         @Test
-        fun `an expression that does not parse, naming the position`() {
-            val result = math("1+\n")
+        fun `an input holding no expression at all`() {
+            val result = math("")
 
-            assertThat(result.error).isEqualTo("Error: operand expected at 2\n")
-            assertThat(result.output).isEmpty()
+            assertThat(result.error).isEqualTo("no expression given\n")
             assertThat(result.statusCode).isOne()
         }
 
         @Test
-        fun `an input holding no expression at all`() {
-            assertThat(math("").error).isEqualTo("Error: no expression given\n")
-            assertThat(math("").statusCode).isOne()
-        }
+        fun `an expression that does not parse, naming the position`() {
+            val result = math("1+\nx=1\n")
 
-        @Test
-        fun `a variable the expression asks for and the line does not give`() {
-            assertThat(math("x+1\ny=1\n").error)
-                .isEqualTo("Error: the expression uses a variable the line does not give a value\n")
-            assertThat(math("x+1\n\n").error)
-                .contains("does not give a value")
-            assertThat(math("x+1\ny=1\n").statusCode).isOne()
-        }
-
-        @Test
-        fun `a variable line that is not an assignment, naming the part at fault`() {
-            assertThat(math("x\nx\n").error).isEqualTo("Error: 'x' is not an assignment\n")
-
-            // and the same for a part carrying more than one equals sign
-            assertThat(math("x\nx=1=2\n").error)
-                .isEqualTo("Error: 'x=1=2' is not an assignment\n")
-        }
-
-        @Test
-        fun `a value that is not a number`() {
-            assertThat(math("x\nx=lots\n").error).isEqualTo("Error: 'lots' is not a number\n")
-            assertThat(math("x\nx=lots\n").statusCode).isOne()
-        }
-    }
-
-    @Nested
-    inner class Reports {
-
-        @Test
-        fun `everything evaluated before a line brought the run down`() {
-            val result = math("x\nx=1\nx=2\nx=oops\n")
-
-            assertThat(result.output).isEqualTo("1.0\n2.0\n")
-            assertThat(result.error).isEqualTo("Error: 'oops' is not a number\n")
+            assertThat(result.error)
+                .isEqualTo("could not compile expression: operand expected at 2\n")
+            assertThat(result.printed).isEmpty()
             assertThat(result.statusCode).isOne()
         }
     }
