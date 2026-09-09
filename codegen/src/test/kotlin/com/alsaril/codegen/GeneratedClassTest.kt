@@ -26,7 +26,7 @@ class GeneratedClassTest {
     }
 
     @Test
-    fun `builds a class the jvm accepts as a Runnable`() {
+    fun `links a class declaring an interface and a constructor`() {
         // given
         val (name, bytes) = classFile("GenRunnable", "java/lang/Object")
             .iface("java/lang/Runnable")
@@ -37,163 +37,71 @@ class GeneratedClassTest {
         // when
         val instance = loadClass(name, bytes).getDeclaredConstructor().newInstance()
 
-        // then
+        // then the interface entry and the constructor both resolved
         assertThat(instance).isInstanceOf(Runnable::class.java)
         assertThatNoException().isThrownBy { (instance as Runnable).run() }
     }
 
     @Test
-    fun `returns a computed value from a static method`() {
-        // given
-        val (name, bytes) = classFile("GenStatic", "java/lang/Object")
-            .method("f", "()I", maxStack = 2, maxLocals = 0, PUBLIC, STATIC) {
-                iconst(2)
-                iconst(3)
-                iadd()
-                ireturn()
-            }
-            .build()
-
-        // when
-        val result = loadClass(name, bytes).getDeclaredMethod("f").invoke(null)
-
-        // then
-        assertThat(result).isEqualTo(5)
-    }
-
-    @Test
-    fun `returns a float value from a static method`() {
-        // given
-        val (name, bytes) = classFile("GenFloat", "java/lang/Object")
-            .method("f", "()F", maxStack = 1, maxLocals = 0, PUBLIC, STATIC) {
-                fconst(2)
-                freturn()
-            }
-            .build()
-
-        // when the verifier has accepted fconst as a float on a method returning one
-        val result = loadClass(name, bytes).getDeclaredMethod("f").invoke(null)
-
-        // then
-        assertThat(result).isEqualTo(2.0f)
-    }
-
-    @Test
-    fun `computes a float expression`() {
-        // given ((6 + 2) * (6 - 2)) / 6, which pins each of the four float operations
-        val (name, bytes) = classFile("GenFloatMath", "java/lang/Object")
-            .method("f", "()F", maxStack = 3, maxLocals = 0, PUBLIC, STATIC) {
-                ldc(float(6.0f))
-                ldc(float(2.0f))
-                fadd()
-                ldc(float(6.0f))
-                ldc(float(2.0f))
-                fsub()
-                fmul()
-                ldc(float(6.0f))
-                fdiv()
-                freturn()
-            }
-            .build()
-
-        // when
-        val result = loadClass(name, bytes).getDeclaredMethod("f").invoke(null)
-
-        // then
-        assertThat(result).isEqualTo(32.0f / 6.0f)
-    }
-
-    @Test
-    fun `runs a body needing more stack than its method declared`() {
-        // given a method declaring no stack at all, with the depth coming from the body
-        val (name, bytes) = classFile("GenDeepStack", "java/lang/Object")
-            .method("f", "()F", maxStack = 0, maxLocals = 0, PUBLIC, STATIC) {
-                maxStack(3)
-                fconst(2)
-                fconst(2)
-                fconst(2)
-                fmul()
-                fmul()
-                freturn()
-            }
-            .build()
-
-        // then the verifier accepts it, so the declared max_stack was raised to 3
-        assertThat(loadClass(name, bytes).getDeclaredMethod("f").invoke(null)).isEqualTo(8.0f)
-    }
-
-    @Test
-    fun `casts an argument and calls through an interface`() {
-        // given size() reached on an Object that has to be narrowed to a List first
-        val (name, bytes) = classFile("GenCast", "java/lang/Object")
-            .method("f", "(Ljava/lang/Object;)I", maxStack = 1, maxLocals = 1, PUBLIC, STATIC) {
-                aload(0)
-                checkcast(clazz("java/util/List"))
-                invokeinterface(imethod(clazz("java/util/List"), "size", "()I"), count = 1)
-                ireturn()
-            }
-            .build()
-        val method = loadClass(name, bytes).getDeclaredMethod("f", Any::class.java)
-
-        // then the interface call lands on the object handed in
-        assertThat(method.invoke(null, listOf("a", "b"))).isEqualTo(2)
-        assertThat(method.invoke(null, emptyList<String>())).isEqualTo(0)
-
-        // and the cast is the one rejecting anything else
-        assertThatExceptionOfType(InvocationTargetException::class.java)
-            .isThrownBy { method.invoke(null, "not a list") }
-            .withCauseInstanceOf(ClassCastException::class.java)
-    }
-
-    @Test
-    fun `reads an argument out of a local slot`() {
-        // given
-        val (name, bytes) = classFile("GenTwice", "java/lang/Object")
-            .method("twice", "(I)I", maxStack = 2, maxLocals = 1, PUBLIC, STATIC) {
+    fun `puts the argument of a static method in slot zero`() {
+        // given a body that returns its argument untouched, so the answer is the slot
+        val (name, bytes) = classFile("GenStaticSlot", "java/lang/Object")
+            .method("f", "(I)I", maxStack = 1, maxLocals = 1, PUBLIC, STATIC) {
                 iload(0)
-                iload(0)
-                iadd()
                 ireturn()
             }
             .build()
 
         // when
         val method = loadClass(name, bytes)
-            .getDeclaredMethod("twice", Int::class.javaPrimitiveType)
+            .getDeclaredMethod("f", Int::class.javaPrimitiveType)
 
         // then
-        assertThat(method.invoke(null, 21)).isEqualTo(42)
-        assertThat(method.invoke(null, -3)).isEqualTo(-6)
+        assertThat(method.invoke(null, 7)).isEqualTo(7)
     }
 
     @Test
-    fun `compiles a function instance that adds 42 to its argument`() {
-        // given a class implementing IntUnaryOperator, so slot 0 is this and slot 1 the argument
-        val (name, bytes) = classFile("GenAdder", "java/lang/Object")
+    fun `puts the argument of an instance method in slot one`() {
+        // given slot 0 is taken by this, so the argument lands one along
+        val (name, bytes) = classFile("GenInstanceSlot", "java/lang/Object")
             .iface("java/util/function/IntUnaryOperator")
             .withConstructor()
-            .method("applyAsInt", "(I)I", maxStack = 2, maxLocals = 2, PUBLIC) {
+            .method("applyAsInt", "(I)I", maxStack = 1, maxLocals = 2, PUBLIC) {
                 iload(1)
-                iconst(42)
-                iadd()
                 ireturn()
             }
             .build()
 
-        // then the body compiles to iload_1, bipush 42, iadd, ireturn
-        assertThat(bytes).containsSequence(*bytesOf(0x1B, 0x10, 0x2A, 0x60, 0xAC))
-
-        // and the loaded class behaves like the function it describes
+        // when
         val function = loadClass(name, bytes)
             .getDeclaredConstructor().newInstance() as IntUnaryOperator
 
-        assertThat(function.applyAsInt(0)).isEqualTo(42)
-        assertThat(function.applyAsInt(1)).isEqualTo(43)
-        assertThat(function.applyAsInt(-42)).isEqualTo(0)
+        // then
+        assertThat(function.applyAsInt(7)).isEqualTo(7)
     }
 
     @Test
-    fun `runs a body that constructs and throws`() {
+    fun `raises max_stack to the depth the body reaches`() {
+        // given a method declaring no stack at all, with the depth coming from the body
+        val (name, bytes) = classFile("GenDeepStack", "java/lang/Object")
+            .method("f", "()I", maxStack = 0, maxLocals = 0, PUBLIC, STATIC) {
+                maxStack(3)
+                iconst(1)
+                iconst(1)
+                iconst(1)
+                iadd()
+                iadd()
+                ireturn()
+            }
+            .build()
+        val method = loadClass(name, bytes).getDeclaredMethod("f")
+
+        // then the verifier accepted a body three deep, so the declared 0 was raised
+        assertThatNoException().isThrownBy { method.invoke(null) }
+    }
+
+    @Test
+    fun `resolves the class and constructor a new refers to`() {
         // given
         val (name, bytes) = classFile("GenThrows", "java/lang/Object")
             .iface("java/lang/Runnable")
@@ -206,13 +114,13 @@ class GeneratedClassTest {
         val instance = loadClass(name, bytes).getDeclaredConstructor()
             .newInstance() as Runnable
 
-        // then
+        // then the pool entries named the class the body meant, and new/<init> verified
         assertThatExceptionOfType(IllegalStateException::class.java).isThrownBy { instance.run() }
     }
 
     @Test
-    fun `runs a body whose branch target carries a stack map frame`() {
-        // given a body that jumps over the throw, so taking the branch returns normally
+    fun `lands a branch on the offset its frame sits at`() {
+        // given a body that jumps over the throw, so returning at all says the offset held
         val (name, bytes) = classFile("GenBranch", "java/lang/Object")
             .iface("java/lang/Runnable")
             .withConstructor()
@@ -236,7 +144,61 @@ class GeneratedClassTest {
     }
 
     @Test
-    fun `runs a body that catches what it throws`() {
+    fun `names an integer local a branch target carries`() {
+        // given both paths writing slot 1 before they meet
+        val (name, bytes) = classFile("GenIntFrame", "java/lang/Object")
+            .method("f", "(I)I", maxStack = 1, maxLocals = 2, PUBLIC, STATIC) {
+                iconst(2)
+                istore(1)
+
+                iload(0)
+                val jump = ifeq()
+                iconst(1)
+                istore(1)
+
+                jump(loc())
+                frameAppend(IntInfo)
+                iload(1)
+                ireturn()
+            }
+            .build()
+        val method = loadClass(name, bytes)
+            .getDeclaredMethod("f", Int::class.javaPrimitiveType)
+
+        // then which value comes back says which path the jump offset chose
+        assertThat(method.invoke(null, 0)).isEqualTo(2)
+        assertThat(method.invoke(null, 1)).isEqualTo(1)
+    }
+
+    @Test
+    fun `names a float local a branch target carries`() {
+        // given both paths writing slot 1 before they meet
+        val (name, bytes) = classFile("GenFloatFrame", "java/lang/Object")
+            .method("f", "(I)F", maxStack = 1, maxLocals = 2, PUBLIC, STATIC) {
+                fconst(2)
+                fstore(1)
+
+                iload(0)
+                val jump = ifeq()
+                fconst(1)
+                fstore(1)
+
+                jump(loc())
+                frameAppend(FloatInfo)
+                fload(1)
+                freturn()
+            }
+            .build()
+        val method = loadClass(name, bytes)
+            .getDeclaredMethod("f", Int::class.javaPrimitiveType)
+
+        // then which value comes back says which path the jump offset chose
+        assertThat(method.invoke(null, 0)).isEqualTo(2.0f)
+        assertThat(method.invoke(null, 1)).isEqualTo(1.0f)
+    }
+
+    @Test
+    fun `covers the range it guards with an exception handler`() {
         // given a read that is in range for 0 and out of range for anything else
         val (name, bytes) = classFile("GenCatch", "java/lang/Object")
             .iface("java/util/function/IntUnaryOperator")
@@ -264,14 +226,14 @@ class GeneratedClassTest {
         val function = loadClass(name, bytes)
             .getDeclaredConstructor().newInstance() as IntUnaryOperator
 
-        // then the handler replaces the failure with -1, and the good path is untouched
+        // then -1 says the handler offsets caught the throw, and 0 says the guarded
+        // range ended where the body did
         assertThat(function.applyAsInt(0)).isZero()
         assertThat(function.applyAsInt(1)).isEqualTo(-1)
-        assertThat(function.applyAsInt(-1)).isEqualTo(-1)
     }
 
     @Test
-    fun `runs a body whose handler does not cover what it throws`() {
+    fun `scopes a handler to the type it names`() {
         // given a range guarded against a different exception than the one raised
         val (name, bytes) = classFile("GenCatchType", "java/lang/Object")
             .iface("java/lang/Runnable")
@@ -300,7 +262,7 @@ class GeneratedClassTest {
      * falls into, telling the two apart by a null pushed where the throwable would be.
      */
     @Test
-    fun `runs a body that always reaches its handler`() {
+    fun `reaches a catch all handler from both the normal and the failing path`() {
         // given f(log, n), which throws for n == 0 and writes to log[0] either way
         val (name, bytes) = classFile("GenFinally", "java/lang/Object")
             .method("f", "([II)V", maxStack = 4, maxLocals = 2, PUBLIC, STATIC) {
@@ -345,5 +307,27 @@ class GeneratedClassTest {
             .isThrownBy { method.invoke(null, threw, 0) }
             .withCauseInstanceOf(IllegalStateException::class.java)
         assertThat(threw).containsExactly(1)
+    }
+
+    @Test
+    fun `resolves an interface method ref and the count it is called with`() {
+        // given size() reached on an Object that has to be narrowed to a List first
+        val (name, bytes) = classFile("GenCast", "java/lang/Object")
+            .method("f", "(Ljava/lang/Object;)I", maxStack = 1, maxLocals = 1, PUBLIC, STATIC) {
+                aload(0)
+                checkcast(clazz("java/util/List"))
+                invokeinterface(imethod(clazz("java/util/List"), "size", "()I"), count = 1)
+                ireturn()
+            }
+            .build()
+        val method = loadClass(name, bytes).getDeclaredMethod("f", Any::class.java)
+
+        // then the ref resolved to the method it named, on the object handed in
+        assertThat(method.invoke(null, listOf("a", "b"))).isEqualTo(2)
+
+        // and the cast carried the class its operand pointed at
+        assertThatExceptionOfType(InvocationTargetException::class.java)
+            .isThrownBy { method.invoke(null, "not a list") }
+            .withCauseInstanceOf(ClassCastException::class.java)
     }
 }

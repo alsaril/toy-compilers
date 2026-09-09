@@ -1,15 +1,14 @@
 package com.alsaril.codegen.classfile.code
 
-import com.alsaril.codegen.classfile.attributes.AppendFrame
-import com.alsaril.codegen.classfile.attributes.FullFrame
-import com.alsaril.codegen.classfile.attributes.ObjectVariableInfo
+import com.alsaril.codegen.classfile.attributes.*
+import com.alsaril.codegen.classfile.attributes.SimpleVerificationTypeInfo.FloatVariableInfo
 import com.alsaril.codegen.classfile.attributes.SimpleVerificationTypeInfo.IntegerVariableInfo
-import com.alsaril.codegen.classfile.attributes.sameFrame
-import com.alsaril.codegen.classfile.attributes.sameLocals1StackItem
 
 sealed interface VarInfo
 
 data object IntInfo : VarInfo
+
+data object FloatInfo : VarInfo
 
 fun CodeBuilder.objInfo(pointer: ClassPointer): VarInfo = ObjInfo(pointer.index)
 fun CodeBuilder.objInfo(name: String): VarInfo = ObjInfo(clazz(name).index)
@@ -32,5 +31,6 @@ fun CodeBuilder.frameFull(locals: List<VarInfo>, stack: List<VarInfo>) = frame {
 
 private fun varInfo2Writable(varInfo: VarInfo) = when (varInfo) {
     IntInfo -> IntegerVariableInfo
+    FloatInfo -> FloatVariableInfo
     is ObjInfo -> ObjectVariableInfo(varInfo.index)
 }

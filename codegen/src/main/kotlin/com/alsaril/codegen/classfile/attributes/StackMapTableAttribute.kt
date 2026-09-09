@@ -112,7 +112,8 @@ enum class SimpleVerificationTypeInfo(
     private val tag: Int,
 ) : VerificationTypeInfo {
     TopVariableInfo(0),
-    IntegerVariableInfo(1);
+    IntegerVariableInfo(1),
+    FloatVariableInfo(2);
 
     override fun ClassWriter.write() = byte(tag)
 }

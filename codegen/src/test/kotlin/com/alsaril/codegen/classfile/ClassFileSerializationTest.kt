@@ -12,6 +12,7 @@ import com.alsaril.codegen.classfile.attributes.SameFrame
 import com.alsaril.codegen.classfile.attributes.SameFrameExtended
 import com.alsaril.codegen.classfile.attributes.SameLocals1StackItemFrameExtended
 import com.alsaril.codegen.classfile.attributes.SameLocals1StackItemFrameShort
+import com.alsaril.codegen.classfile.attributes.SimpleVerificationTypeInfo.FloatVariableInfo
 import com.alsaril.codegen.classfile.attributes.SimpleVerificationTypeInfo.IntegerVariableInfo
 import com.alsaril.codegen.classfile.attributes.SimpleVerificationTypeInfo.TopVariableInfo
 import com.alsaril.codegen.classfile.attributes.StackMapTableAttribute
@@ -321,6 +322,7 @@ class ClassFileSerializationTest {
         fun `writes the simple types as their tag`() {
             assertThat(TopVariableInfo.serialized()).containsExactly(*bytesOf(0x00))
             assertThat(IntegerVariableInfo.serialized()).containsExactly(*bytesOf(0x01))
+            assertThat(FloatVariableInfo.serialized()).containsExactly(*bytesOf(0x02))
         }
 
         @Test

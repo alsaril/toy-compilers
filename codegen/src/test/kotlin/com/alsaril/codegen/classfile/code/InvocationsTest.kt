@@ -140,6 +140,12 @@ class InvocationsTest {
         }
 
         @Test
+        fun `writes instanceof with the class index`() {
+            assertThat(bytecode { instanceof(ClassPointer(4)) })
+                .containsExactly(*bytesOf(0xC1, 0x00, 0x04))
+        }
+
+        @Test
         fun `writes newarray with the type code`() {
             assertThat(bytecode { newarray(ArrayType.BYTE) })
                 .containsExactly(*bytesOf(0xBC, 0x08))

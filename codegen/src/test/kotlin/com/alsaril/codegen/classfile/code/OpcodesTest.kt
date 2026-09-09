@@ -112,10 +112,14 @@ class OpcodesTest {
         fun `uses the indexed opcodes for the first four slots`() {
             assertThat(bytecode { iload(0) }).containsExactly(*bytesOf(0x1A))
             assertThat(bytecode { iload(3) }).containsExactly(*bytesOf(0x1D))
+            assertThat(bytecode { fload(0) }).containsExactly(*bytesOf(0x22))
+            assertThat(bytecode { fload(3) }).containsExactly(*bytesOf(0x25))
             assertThat(bytecode { aload(0) }).containsExactly(*bytesOf(0x2A))
             assertThat(bytecode { aload(3) }).containsExactly(*bytesOf(0x2D))
             assertThat(bytecode { istore(0) }).containsExactly(*bytesOf(0x3B))
             assertThat(bytecode { istore(3) }).containsExactly(*bytesOf(0x3E))
+            assertThat(bytecode { fstore(0) }).containsExactly(*bytesOf(0x43))
+            assertThat(bytecode { fstore(3) }).containsExactly(*bytesOf(0x46))
             assertThat(bytecode { astore(0) }).containsExactly(*bytesOf(0x4B))
             assertThat(bytecode { astore(3) }).containsExactly(*bytesOf(0x4E))
         }
@@ -123,8 +127,10 @@ class OpcodesTest {
         @Test
         fun `switches to the operand form from the fifth slot`() {
             assertThat(bytecode { iload(4) }).containsExactly(*bytesOf(0x15, 0x04))
+            assertThat(bytecode { fload(4) }).containsExactly(*bytesOf(0x17, 0x04))
             assertThat(bytecode { aload(4) }).containsExactly(*bytesOf(0x19, 0x04))
             assertThat(bytecode { istore(4) }).containsExactly(*bytesOf(0x36, 0x04))
+            assertThat(bytecode { fstore(4) }).containsExactly(*bytesOf(0x38, 0x04))
             assertThat(bytecode { astore(4) }).containsExactly(*bytesOf(0x3A, 0x04))
         }
 
