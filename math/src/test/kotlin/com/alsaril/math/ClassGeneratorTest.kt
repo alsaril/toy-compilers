@@ -133,6 +133,33 @@ class ClassGeneratorTest {
         }
 
         @Test
+        fun `looks up a variable a negation stands in front of`() {
+            // given b under two negations and a beside them, so collecting has to come
+            // back out of the nesting to reach a
+            val variables = CountingMap(mapOf("a" to 1.0f, "b" to 2.0f))
+
+            // when
+            val result = program(Op(SUB, Neg(Neg(Var("b"))), Var("a"))).eval(variables)
+
+            // then neither the order nor the count changed for being wrapped
+            assertThat(result).isEqualTo(1.0f)
+            assertThat(variables.lookups).containsExactly("b", "a")
+        }
+
+        @Test
+        fun `counts a variable once across a negation and a plain use`() {
+            // given
+            val variables = CountingMap(mapOf("x" to 2.0f))
+
+            // when
+            val result = program(Op(ADD, Var("x"), Neg(Var("x")))).eval(variables)
+
+            // then
+            assertThat(result).isEqualTo(0.0f)
+            assertThat(variables.lookups).containsExactly("x")
+        }
+
+        @Test
         fun `looks them up again on the next call`() {
             // given the slots are filled per call, not held between them
             val variables = CountingMap(mapOf("x" to 1.0f))

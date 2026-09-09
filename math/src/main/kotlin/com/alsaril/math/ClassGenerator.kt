@@ -21,19 +21,22 @@ object ClassGenerator {
 
     private fun variables(ast: Node): Map<String, Int> {
         val n2i = mutableMapOf<String, Int>()
-        fun visit(node: Node) {
-            when (node) {
-                is Op -> {
-                    visit(node.left)
-                    visit(node.right)
-                }
+        val stack = ArrayDeque<Node>()
+        stack.addLast(ast)
 
+        while (stack.isNotEmpty()) {
+            when (val node = stack.removeLast()) {
                 is Value -> {}
                 is Var -> n2i.putIfAbsent(node.name, n2i.size)
-                is Neg -> visit(node.arg)
+                is Neg -> stack.addLast(node.arg)
+
+                is Op -> {
+                    stack.addLast(node.right)
+                    stack.addLast(node.left)
+                }
             }
         }
-        visit(ast)
+
         return n2i
     }
 

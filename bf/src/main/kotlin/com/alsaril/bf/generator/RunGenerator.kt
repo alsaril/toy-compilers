@@ -80,7 +80,7 @@ object RunGenerator {
     }
 
     private fun ClassFileBuilder.defineMethod(fragment: Fragment, generation: Generation): Pair<String, String> {
-        val name = "f${generation.counter.inc()}"
+        val name = "f${generation.nextIndex()}"
         val descriptor = "(Ljava/io/InputStream;Ljava/io/OutputStream;I[B[I)V"
         val prefix = emitMethodPrefix()
         val postfix = emitMethodPostfix()

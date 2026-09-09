@@ -2,15 +2,13 @@ package com.alsaril.bf.generator
 
 import com.alsaril.codegen.classfile.Fragment
 
-class MutableInt(var value: Int = 0) {
-    fun inc() = value++
-}
-
 class Generation(
     val bodyLengthLimit: Int,
     val loopOverhead: Int,
-    val counter: MutableInt = MutableInt(),
-)
+    private var counter: Int = 0,
+) {
+    fun nextIndex() = counter++
+}
 
 data class LoopBoundary(
     val fragment: Fragment,
