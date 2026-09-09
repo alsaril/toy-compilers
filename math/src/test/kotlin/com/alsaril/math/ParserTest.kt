@@ -124,6 +124,50 @@ class ParserTest {
     }
 
     @Nested
+    inner class UnaryMinus {
+
+        @Test
+        fun `negates the operand that follows it`() {
+            assertThat(parse("-1")).isEqualTo(Neg(Value(1.0f)))
+            assertThat(parse("-x")).isEqualTo(Neg(Var("x")))
+            assertThat(parse("-.5")).isEqualTo(Neg(Value(0.5f)))
+        }
+
+        @Test
+        fun `negates a whole bracketed expression`() {
+            assertThat(parse("-(1+2)")).isEqualTo(Neg(Op(ADD, Value(1.0f), Value(2.0f))))
+        }
+
+        @Test
+        fun `applies wherever an operand is due rather than only at the start`() {
+            assertThat(parse("2*-3")).isEqualTo(Op(MUL, Value(2.0f), Neg(Value(3.0f))))
+            assertThat(parse("1--2")).isEqualTo(Op(SUB, Value(1.0f), Neg(Value(2.0f))))
+        }
+
+        @Test
+        fun `stacks`() {
+            assertThat(parse("--5")).isEqualTo(Neg(Neg(Value(5.0f))))
+            assertThat(parse("-(-4)")).isEqualTo(Neg(Neg(Value(4.0f))))
+        }
+
+        @Test
+        fun `binds tighter than any binary operator`() {
+            assertThat(parse("-2+3")).isEqualTo(Op(ADD, Neg(Value(2.0f)), Value(3.0f)))
+            assertThat(parse("-2*3")).isEqualTo(Op(MUL, Neg(Value(2.0f)), Value(3.0f)))
+        }
+
+        @Test
+        fun `is closed off by the bracket it sits inside`() {
+            // the bracket has to reduce the pending negation before it can be matched
+            assertThat(parse("(-3)")).isEqualTo(Neg(Value(3.0f)))
+            assertThat(parse("2*(-3)")).isEqualTo(Op(MUL, Value(2.0f), Neg(Value(3.0f))))
+            assertThat(parse("(1+-2)")).isEqualTo(Op(ADD, Value(1.0f), Neg(Value(2.0f))))
+            assertThat(parse("(-1)*(-2)"))
+                .isEqualTo(Op(MUL, Neg(Value(1.0f)), Neg(Value(2.0f))))
+        }
+    }
+
+    @Nested
     inner class Precedence {
 
         @Test
@@ -328,12 +372,26 @@ class ParserTest {
         }
 
         @Test
-        fun `a missing operand before a leading operator, so there is no unary minus`() {
+        fun `a missing operand before a leading operator`() {
+            // '-' is the only one with a unary form, so the others still need something first
             assertThatIllegalArgumentException()
-                .isThrownBy { parse("-1") }
+                .isThrownBy { parse("*2") }
                 .withMessage("operand expected at 0")
             assertThatIllegalArgumentException()
-                .isThrownBy { parse("2*-3") }
+                .isThrownBy { parse("+1") }
+                .withMessage("operand expected at 0")
+            assertThatIllegalArgumentException()
+                .isThrownBy { parse("2*/3") }
+                .withMessage("operand expected at 2")
+        }
+
+        @Test
+        fun `an operand for a unary minus that never arrives`() {
+            assertThatIllegalArgumentException()
+                .isThrownBy { parse("-") }
+                .withMessage("operand expected at 1")
+            assertThatIllegalArgumentException()
+                .isThrownBy { parse("(-)") }
                 .withMessage("operand expected at 2")
         }
 
@@ -377,7 +435,7 @@ class ParserTest {
     fun `reports every malformed expression the same way`() {
         val malformed = listOf(
             "", "   ", "()", "1 2", "x y", "x1", "2(3)", "(1)(2)", "(1 2",
-            "-1", "2*-3", "1+", "1*2-", "(1", "(1+2", "1)", "1+2)", "(1+2))",
+            "-", "(-)", "*2", "+1", "1+", "1*2-", "(1", "(1+2", "1)", "1+2)", "(1+2))",
             ")", "1^2", "1 # 2", "1.2.3", ".", "..", ".+1", "1+.",
         )
 

@@ -13,6 +13,7 @@ object Parser {
     }
 
     private object LeftBracket : Token
+    private object UnaryMinus : Token
 
     fun parse(expr: String): Node {
         var index = 0
@@ -46,6 +47,12 @@ object Parser {
 
                 resultStack.add(Value(number.toFloat()))
                 operandExpected = false
+                continue
+            }
+
+            if (symbol == '-' && operandExpected) { // unary minus
+                operatorsStack.add(UnaryMinus)
+                index++
                 continue
             }
 
@@ -100,15 +107,16 @@ object Parser {
     private fun reduceToPriority(resultStack: MutableList<Node>, operatorsStack: MutableList<Token>, priority: Int) {
         while (operatorsStack.isNotEmpty()) {
             val top = operatorsStack.last()
-            if (top !is BinaryOperator || top.type.priority < priority) {
+            if (top is BinaryOperator && top.type.priority >= priority || top is UnaryMinus) {
+                reduce(resultStack, operatorsStack)
+            } else {
                 break
             }
-            reduce(resultStack, operatorsStack)
         }
     }
 
     private fun reduceToBracket(resultStack: MutableList<Node>, operatorsStack: MutableList<Token>, index: Int) {
-        while (operatorsStack.isNotEmpty() && operatorsStack.last() is BinaryOperator) {
+        while (operatorsStack.isNotEmpty() && operatorsStack.last() !is LeftBracket) {
             reduce(resultStack, operatorsStack)
         }
 
@@ -117,9 +125,15 @@ object Parser {
     }
 
     private fun reduce(resultStack: MutableList<Node>, operatorsStack: MutableList<Token>) {
+        when (val op = operatorsStack.removeLast()) {
+            is BinaryOperator -> reduceBinary(resultStack, op)
+            else -> reduceUnary(resultStack)
+        }
+    }
+
+    private fun reduceBinary(resultStack: MutableList<Node>, op: BinaryOperator) {
         val right = resultStack.removeLast()
         val left = resultStack.removeLast()
-        val op = operatorsStack.removeLast() as BinaryOperator
 
         val result = when (op.type) {
             PLUS -> Op(ADD, left, right)
@@ -128,6 +142,11 @@ object Parser {
             SLASH -> Op(DIV, left, right)
         }
         resultStack.add(result)
+    }
+
+    private fun reduceUnary(resultStack: MutableList<Node>) {
+        val arg = resultStack.removeLast()
+        resultStack.add(Neg(arg))
     }
 
     private fun Char.operator() = when (this) {

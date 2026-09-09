@@ -30,6 +30,7 @@ object ClassGenerator {
 
                 is Value -> {}
                 is Var -> n2i.putIfAbsent(node.name, n2i.size)
+                is Neg -> visit(node.arg)
             }
         }
         visit(ast)
@@ -93,7 +94,13 @@ object ClassGenerator {
                             MUL -> fmul()
                             DIV -> fdiv()
                         }
-                        hl to max(max, maxR)
+                        (hl - 1) to max(max, maxR)
+                    }
+
+                    is Neg -> {
+                        val (h, maxA) = walk(node.arg, before, max)
+                        fneg()
+                        h to max(max, maxA)
                     }
                 }
             }
