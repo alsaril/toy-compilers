@@ -1,17 +1,16 @@
 package com.alsaril.math
 
+import com.github.ajalt.clikt.testing.test
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import java.io.ByteArrayInputStream
-import java.io.ByteArrayOutputStream
-import java.io.PrintStream
 
 /**
- * The entry point prompts for an expression, compiles it once, then evaluates it against
- * a map per line until the input runs out. Only the two things that leave nothing to do -
- * no expression, or one that will not compile - end the run; anything a later line gets
- * wrong is reported and the loop carries on.
+ * Two commands behind one name. Given --expr and --vars the whole job is known up front,
+ * so it answers once per set and says on the way out whether any of them failed. Given
+ * --interactive there is always a next line to read, so everything short of running out
+ * of input is reported and asked again.
  */
 class MainTest {
 
@@ -21,191 +20,101 @@ class MainTest {
     private val Invocation.printed: String
         get() = output.replace("expr> ", "").replace("vars> ", "")
 
-    private fun math(input: String): Invocation {
-        val written = ByteArrayOutputStream()
-        val failed = ByteArrayOutputStream()
-        val out = System.out
-        val err = System.err
+    private fun math(vararg args: String, input: String = ""): Invocation {
         val stdin = System.`in`
-        System.setOut(PrintStream(written, true))
-        System.setErr(PrintStream(failed, true))
         System.setIn(ByteArrayInputStream(input.toByteArray()))
         try {
-            // run rather than main, which would take the test jvm down with it
-            val statusCode = run()
-            return Invocation(
-                String(written.toByteArray()),
-                String(failed.toByteArray()),
-                statusCode,
-            )
+            val result = MathCommand().test(args.toList())
+            return Invocation(result.stdout, result.stderr, result.statusCode)
         } finally {
-            System.setOut(out)
-            System.setErr(err)
             System.setIn(stdin)
         }
     }
 
     @Nested
-    inner class Prompts {
+    inner class Evaluates {
 
         @Test
-        fun `for the expression, then for every variable line it tries to read`() {
-            // the last prompt is the one that finds the input has run out
-            assertThat(math("x+1\nx=1\n").output).isEqualTo("expr> vars> 2.0\nvars> ")
-        }
+        fun `one line per set of variables, in the order they were given`() {
+            val result = math("--expr", "x+1", "--vars", "x=1", "--vars", "x=10", "--vars", "x=2")
 
-        @Test
-        fun `for the expression alone when nothing follows it`() {
-            assertThat(math("1+2\n").output).isEqualTo("expr> vars> ")
-        }
-
-        @Test
-        fun `for the expression even when there is none to read`() {
-            assertThat(math("").output).isEqualTo("expr> ")
-        }
-    }
-
-    @Nested
-    inner class Runs {
-
-        @Test
-        fun `compiles the first line and evaluates what follows`() {
-            val result = math("x+1\nx=1\n")
-
-            assertThat(result.printed).isEqualTo("2.0\n")
+            assertThat(result.output).isEqualTo("2.0\n11.0\n3.0\n")
             assertThat(result.error).isEmpty()
             assertThat(result.statusCode).isZero()
         }
 
         @Test
-        fun `evaluates the same expression once per line`() {
-            assertThat(math("x*2\nx=1\nx=2\nx=3\n").printed).isEqualTo("2.0\n4.0\n6.0\n")
+        fun `several variables within one set`() {
+            assertThat(math("--expr", "x*y", "--vars", "x=2;y=3").output).isEqualTo("6.0\n")
         }
 
         @Test
-        fun `takes several variables from one line`() {
-            assertThat(math("x*y\nx=2;y=3\n").printed).isEqualTo("6.0\n")
+        fun `a set written with spaces around its separators`() {
+            assertThat(math("--expr", "x*y", "--vars", "x = 2 ; y = 3").output).isEqualTo("6.0\n")
         }
 
         @Test
-        fun `allows spaces around the equals sign`() {
-            assertThat(math("x*y\nx = 2 ; y = 3\n").printed).isEqualTo("6.0\n")
+        fun `an expression naming no variables at all`() {
+            assertThat(math("--expr", "1+2", "--vars", "").output).isEqualTo("3.0\n")
         }
 
         @Test
-        fun `prints what the expression evaluates to, however it turns out`() {
-            assertThat(math("x/y\nx=1;y=0\n").printed).isEqualTo("Infinity\n")
-            assertThat(math("x/y\nx=0;y=0\n").printed).isEqualTo("NaN\n")
+        fun `nothing when no set was given, having compiled the expression anyway`() {
+            val result = math("--expr", "1+2")
+
+            assertThat(result.output).isEmpty()
+            assertThat(result.statusCode).isZero()
         }
 
         @Test
-        fun `ignores a trailing separator on a variable line`() {
-            assertThat(math("x\nx=1;\n").printed).isEqualTo("1.0\n")
-        }
-
-        @Test
-        fun `keeps the last value when a line repeats a variable`() {
-            assertThat(math("x\nx=1;x=2\n").printed).isEqualTo("2.0\n")
+        fun `whatever the arithmetic comes to`() {
+            assertThat(math("--expr", "x/y", "--vars", "x=1;y=0").output).isEqualTo("Infinity\n")
+            assertThat(math("--expr", "x/y", "--vars", "x=0;y=0").output).isEqualTo("NaN\n")
         }
     }
 
+    /**
+     * A set that cannot be evaluated still takes up its line, so the results stay lined up
+     * with the sets they came from and the reason goes where it will not be mistaken for one.
+     */
     @Nested
-    inner class ReadsAnEmptyLine {
+    inner class Reports {
 
         @Test
-        fun `as a map with nothing in it`() {
-            assertThat(math("1+2\n\n").printed).isEqualTo("3.0\n")
+        fun `a failed set in its own place, with the reason on the error stream`() {
+            val result = math("--expr", "x+1", "--vars", "x=1", "--vars", "y=1", "--vars", "x=3")
+
+            assertThat(result.output).isEqualTo("2.0\nfailed\n4.0\n")
+            assertThat(result.error).isEqualTo("no variable with name x is found\n")
+            assertThat(result.statusCode).isOne()
         }
 
         @Test
-        fun `the same way when it holds only whitespace`() {
-            assertThat(math("1+2\n   \n").printed).isEqualTo("3.0\n")
+        fun `a set that is not an assignment`() {
+            val result = math("--expr", "x", "--vars", "zz")
+
+            assertThat(result.output).isEqualTo("failed\n")
+            assertThat(result.error).isEqualTo("'zz' is not an assignment\n")
+            assertThat(result.statusCode).isOne()
         }
 
         @Test
-        fun `once per line, like any other`() {
-            assertThat(math("1+2\n\n\n\n").printed).isEqualTo("3.0\n3.0\n3.0\n")
-        }
-    }
+        fun `a value that is not a number`() {
+            val result = math("--expr", "x", "--vars", "x=lots")
 
-    @Nested
-    inner class Stops {
-
-        @Test
-        fun `when the input runs out`() {
-            val result = math("x\nx=1\n")
-
-            assertThat(result.printed).isEqualTo("1.0\n")
-            assertThat(result.statusCode).isZero()
+            assertThat(result.output).isEqualTo("failed\n")
+            assertThat(result.error).isEqualTo("'lots' is not a number\n")
         }
 
         @Test
-        fun `when the last line has no line break of its own`() {
-            val result = math("x\nx=1")
+        fun `every set that failed, not just the first`() {
+            val result = math("--expr", "x", "--vars", "zz", "--vars", "x=1", "--vars", "y=1")
 
-            assertThat(result.printed).isEqualTo("1.0\n")
-            assertThat(result.statusCode).isZero()
-        }
-
-        @Test
-        fun `before evaluating anything when only the expression was given`() {
-            val result = math("1+2\n")
-
-            assertThat(result.printed).isEmpty()
-            assertThat(result.statusCode).isZero()
-        }
-    }
-
-    @Nested
-    inner class Recovers {
-
-        @Test
-        fun `from a variable the line does not give, naming it`() {
-            val result = math("x+1\ny=1\nx=1\n")
-
-            assertThat(result.printed).isEqualTo("no variable with name x is found\n2.0\n")
-            assertThat(result.statusCode).isZero()
-        }
-
-        @Test
-        fun `from a line that is not an assignment`() {
-            assertThat(math("x\nzz\nx=1\n").printed)
-                .isEqualTo("error: 'zz' is not an assignment\n1.0\n")
-        }
-
-        @Test
-        fun `from a value that is not a number`() {
-            assertThat(math("x\nx=lots\nx=1\n").printed)
-                .isEqualTo("error: 'lots' is not a number\n1.0\n")
-        }
-
-        @Test
-        fun `from a value that is not a number, named without the spaces around it`() {
-            assertThat(math("x\nx =  lots \nx=1\n").printed)
-                .isEqualTo("error: 'lots' is not a number\n1.0\n")
-        }
-
-        @Test
-        fun `from one failure after another`() {
-            assertThat(math("x\nzz\nx=lots\nx=1\n").printed).isEqualTo(
-                "error: 'zz' is not an assignment\n" +
-                    "error: 'lots' is not a number\n" +
-                    "1.0\n"
+            assertThat(result.output).isEqualTo("failed\n1.0\nfailed\n")
+            assertThat(result.error).isEqualTo(
+                "'zz' is not an assignment\nno variable with name x is found\n"
             )
-        }
-
-        @Test
-        fun `naming the first variable the line is missing`() {
-            assertThat(math("a+b*c\na=1\n").printed)
-                .isEqualTo("no variable with name b is found\n")
-        }
-
-        @Test
-        fun `writing what went wrong where the results go, not to the error stream`() {
-            val result = math("x\nzz\n")
-
-            assertThat(result.error).isEmpty()
-            assertThat(result.statusCode).isZero()
+            assertThat(result.statusCode).isOne()
         }
     }
 
@@ -213,21 +122,115 @@ class MainTest {
     inner class Rejects {
 
         @Test
-        fun `an input holding no expression at all`() {
-            val result = math("")
+        fun `no expression to evaluate`() {
+            val result = math("--vars", "x=1")
 
+            assertThat(result.error).contains("--expr is required unless --interactive is given")
+            assertThat(result.statusCode).isNotZero()
+        }
+
+        @Test
+        fun `an expression that does not compile, naming the position`() {
+            val result = math("--expr", "1+", "--vars", "x=1")
+
+            assertThat(result.error).isEqualTo("could not compile expression: operand expected at 2\n")
+            assertThat(result.output).isEmpty()
+            assertThat(result.statusCode).isOne()
+        }
+
+        @Test
+        fun `arguments that only make sense without prompting`() {
+            assertThat(math("--interactive", "--expr", "1+2").error)
+                .contains("--expr and --vars cannot be used with --interactive")
+            assertThat(math("--interactive", "--vars", "x=1").error)
+                .contains("--expr and --vars cannot be used with --interactive")
+        }
+
+        @Test
+        fun `an unknown option`() {
+            assertThat(math("--verbose", "--expr", "1+2").error).contains("no such option", "--verbose")
+        }
+    }
+
+    @Nested
+    inner class Interactive {
+
+        @Test
+        fun `prompts for the expression and for every line it tries to read`() {
+            val result = math("--interactive", input = "x+1\nx=1\n")
+
+            assertThat(result.output).isEqualTo("expr> vars> 2.0\nvars> ")
+            assertThat(result.statusCode).isZero()
+        }
+
+        @Test
+        fun `evaluates the expression once per line`() {
+            assertThat(math("--interactive", input = "x*2\nx=1\nx=2\n").printed)
+                .isEqualTo("2.0\n4.0\n")
+        }
+
+        @Test
+        fun `asks again for an expression that does not compile`() {
+            val result = math("--interactive", input = "1+\n))\nx+1\nx=1\n")
+
+            assertThat(result.printed).isEqualTo(
+                "could not compile expression: operand expected at 2\n" +
+                    "could not compile expression: operand expected at 0\n" +
+                    "2.0\n"
+            )
+            assertThat(result.statusCode).isZero()
+        }
+
+        @Test
+        fun `keeps reading after a line it could not evaluate`() {
+            assertThat(math("--interactive", input = "x\nzz\ny=1\nx=1\n").printed).isEqualTo(
+                "error: 'zz' is not an assignment\n" +
+                    "no variable with name x is found\n" +
+                    "1.0\n"
+            )
+        }
+
+        @Test
+        fun `takes a line naming no variable as a map with nothing in it`() {
+            assertThat(math("--interactive", input = "1+2\n\n\n").printed).isEqualTo("3.0\n3.0\n")
+        }
+
+        @Test
+        fun `stops when the input runs out`() {
+            val result = math("--interactive", input = "x\nx=1")
+
+            assertThat(result.printed).isEqualTo("1.0\n")
+            assertThat(result.statusCode).isZero()
+        }
+
+        @Test
+        fun `gives up when there is no expression to read at all`() {
+            val result = math("--interactive", input = "")
+
+            assertThat(result.output).isEqualTo("expr> ")
             assertThat(result.error).isEqualTo("no expression given\n")
             assertThat(result.statusCode).isOne()
         }
 
         @Test
-        fun `an expression that does not parse, naming the position`() {
-            val result = math("1+\nx=1\n")
+        fun `gives up when nothing that was typed ever compiled`() {
+            val result = math("--interactive", input = "1+\n")
 
-            assertThat(result.error)
-                .isEqualTo("could not compile expression: operand expected at 2\n")
-            assertThat(result.printed).isEmpty()
+            assertThat(result.error).isEqualTo("no expression given\n")
             assertThat(result.statusCode).isOne()
+        }
+    }
+
+    @Nested
+    inner class Help {
+
+        @Test
+        fun `lists both modes and what each needs`() {
+            assertThat(MathCommand().test("--help").output).contains(
+                "--interactive",
+                "--expr", "required unless --interactive",
+                "--vars", "Repeat for a line of output each",
+            )
         }
     }
 }
