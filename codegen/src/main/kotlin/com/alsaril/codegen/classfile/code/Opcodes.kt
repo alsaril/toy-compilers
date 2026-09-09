@@ -159,6 +159,8 @@ private fun CodeBuilder.instructionFamily(index: Int, short: Int, long: Int, lim
         u1(long)
         u1(index)
     } else {
-        throw NotImplementedError()
+        u1(0xc4)
+        u1(long)
+        u2(index)
     }
 }

@@ -140,11 +140,29 @@ class OpcodesTest {
         }
 
         @Test
-        fun `does not support an index beyond a single byte`() {
-            assertThatExceptionOfType(NotImplementedError::class.java)
-                .isThrownBy { bytecode { iload(256) } }
-            assertThatExceptionOfType(NotImplementedError::class.java)
-                .isThrownBy { bytecode { astore(256) } }
+        fun `switches to the wide form past a single byte index`() {
+            // wide, then the operand form of the opcode, then the index as a u2
+            assertThat(bytecode { iload(256) }).containsExactly(*bytesOf(0xC4, 0x15, 0x01, 0x00))
+            assertThat(bytecode { fload(256) }).containsExactly(*bytesOf(0xC4, 0x17, 0x01, 0x00))
+            assertThat(bytecode { aload(256) }).containsExactly(*bytesOf(0xC4, 0x19, 0x01, 0x00))
+            assertThat(bytecode { istore(256) }).containsExactly(*bytesOf(0xC4, 0x36, 0x01, 0x00))
+            assertThat(bytecode { fstore(256) }).containsExactly(*bytesOf(0xC4, 0x38, 0x01, 0x00))
+            assertThat(bytecode { astore(256) }).containsExactly(*bytesOf(0xC4, 0x3A, 0x01, 0x00))
+        }
+
+        @Test
+        fun `takes the widest index a local slot can have`() {
+            // max_locals is itself a u2, so this is as far as any of them go
+            assertThat(bytecode { iload(65535) }).containsExactly(*bytesOf(0xC4, 0x15, 0xFF, 0xFF))
+            assertThat(bytecode { astore(65535) }).containsExactly(*bytesOf(0xC4, 0x3A, 0xFF, 0xFF))
+        }
+
+        @Test
+        fun `rejects an index past what a local slot can hold`() {
+            assertThatIllegalArgumentException()
+                .isThrownBy { bytecode { iload(65536) } }
+                .withMessageContaining("does not fit a u2")
+            assertThatIllegalArgumentException().isThrownBy { bytecode { fstore(65536) } }
         }
     }
 

@@ -81,6 +81,26 @@ class GeneratedClassTest {
     }
 
     @Test
+    fun `reaches a local slot past the compact operand`() {
+        // given a slot only the wide form can address, inside a max_locals that covers it
+        val (name, bytes) = classFile("GenWideSlot", "java/lang/Object")
+            .method("f", "(I)I", maxStack = 1, maxLocals = 300, PUBLIC, STATIC) {
+                iload(0)
+                istore(258)
+                iload(258)
+                ireturn()
+            }
+            .build()
+
+        // when the round trip through slot 258 is all the body does, the answer is the slot
+        val method = loadClass(name, bytes)
+            .getDeclaredMethod("f", Int::class.javaPrimitiveType)
+
+        // then
+        assertThat(method.invoke(null, 7)).isEqualTo(7)
+    }
+
+    @Test
     fun `raises max_stack to the depth the body reaches`() {
         // given a method declaring no stack at all, with the depth coming from the body
         val (name, bytes) = classFile("GenDeepStack", "java/lang/Object")

@@ -85,7 +85,7 @@ object ClassGenerator {
 
                     is Var -> {
                         fload(n2i[node.name]!! + 2)
-                        depth = max(depth, before + 2)
+                        depth = max(depth, before + 1)
                         before + 1
                     }
 
