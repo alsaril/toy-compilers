@@ -25,6 +25,7 @@ class OpcodesTest {
         assertThat(bytecode { fsub() }).containsExactly(*bytesOf(0x66))
         assertThat(bytecode { fmul() }).containsExactly(*bytesOf(0x6A))
         assertThat(bytecode { fdiv() }).containsExactly(*bytesOf(0x6E))
+        assertThat(bytecode { fneg() }).containsExactly(*bytesOf(0x76))
         assertThat(bytecode { ireturn() }).containsExactly(*bytesOf(0xAC))
         assertThat(bytecode { freturn() }).containsExactly(*bytesOf(0xAE))
         assertThat(bytecode { `return`() }).containsExactly(*bytesOf(0xB1))

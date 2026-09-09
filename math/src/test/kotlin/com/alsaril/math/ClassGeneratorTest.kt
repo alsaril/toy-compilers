@@ -258,6 +258,56 @@ class ClassGeneratorTest {
             // a lone variable leaves a one deep expression behind a four deep preamble
             assertThat(eval(Var("x"), mapOf("x" to 1.0f))).isEqualTo(1.0f)
         }
+
+        @Test
+        fun `asks for no more depth than a chain of operators reaches`() {
+            // a left leaning chain never holds more than two values, however long it runs,
+            // and asking for more than that is legal and so invisible from running it
+            var ast: Node = Value(1.0f)
+            repeat(49) { ast = Op(ADD, ast, Value(1.0f)) }
+
+            // the preamble's own four is the floor, and 50 terms must not raise it
+            assertThat(maxStacks(generate(ast).second)).containsExactly(1, 4)
+        }
+    }
+
+    @Nested
+    inner class Negation {
+
+        @Test
+        fun `negates a value`() {
+            assertThat(eval(Neg(Value(3.0f)))).isEqualTo(-3.0f)
+        }
+
+        @Test
+        fun `negates a variable`() {
+            assertThat(eval(Neg(Var("x")), mapOf("x" to 2.0f))).isEqualTo(-2.0f)
+        }
+
+        @Test
+        fun `negates what a subtree came to`() {
+            assertThat(eval(Neg(Op(ADD, Value(1.0f), Value(2.0f))))).isEqualTo(-3.0f)
+        }
+
+        @Test
+        fun `negates twice back to where it started`() {
+            assertThat(eval(Neg(Neg(Value(3.0f))))).isEqualTo(3.0f)
+        }
+
+        @Test
+        fun `carries the sign of a negated zero`() {
+            // -0.0 and 0.0 compare equal, so the division is what tells them apart
+            assertThat(eval(Op(DIV, Value(1.0f), Neg(Value(0.0f)))))
+                .isEqualTo(Float.NEGATIVE_INFINITY)
+            assertThat(eval(Op(DIV, Value(1.0f), Value(0.0f))))
+                .isEqualTo(Float.POSITIVE_INFINITY)
+        }
+
+        @Test
+        fun `leaves the stack where it found it`() {
+            // negation replaces the value it is given, so the operand beside it is unaffected
+            assertThat(eval(Op(SUB, Neg(Value(1.0f)), Neg(Value(4.0f))))).isEqualTo(3.0f)
+        }
     }
 
     @Nested

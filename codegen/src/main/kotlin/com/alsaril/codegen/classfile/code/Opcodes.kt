@@ -109,6 +109,10 @@ fun CodeBuilder.fdiv() {
     u1(0x6e)
 }
 
+fun CodeBuilder.fneg() {
+    u1(0x76)
+}
+
 fun CodeBuilder.iinc(index: Int, const: Int) {
     if (index < 0x100 && const in Byte.MIN_VALUE..Byte.MAX_VALUE) {
         u1(0x84)
