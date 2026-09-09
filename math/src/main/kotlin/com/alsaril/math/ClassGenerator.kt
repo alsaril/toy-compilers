@@ -6,7 +6,6 @@ import com.alsaril.codegen.classfile.MethodAccessFlag.FINAL
 import com.alsaril.codegen.classfile.MethodAccessFlag.PUBLIC
 import com.alsaril.codegen.classfile.code.*
 import com.alsaril.math.BinaryKind.*
-import kotlin.math.abs
 import kotlin.math.max
 
 object ClassGenerator {
@@ -66,7 +65,7 @@ object ClassGenerator {
             }
 
             fun value(value: Float) {
-                if (abs(value) == 0.0f || value == 1.0f || value == 2.0f) {
+                if (value == 0.0f || value == 1.0f || value == 2.0f) {
                     fconst(value.toInt())
                 } else {
                     ldc(float(value))
