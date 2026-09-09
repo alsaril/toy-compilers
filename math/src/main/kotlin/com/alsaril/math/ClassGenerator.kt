@@ -72,40 +72,34 @@ object ClassGenerator {
                 }
             }
 
-            var depth = 0
-
-            fun walk(node: Node, before: Int): Int {
+            fun walk(node: Node, before: Int, max: Int): Pair<Int, Int>  /*height, max */ {
                 return when (node) {
                     is Value -> {
                         value(node.value)
-                        depth = max(depth, before + 1)
-                        before + 1
+                        (before + 1) to max(max, before + 1)
                     }
 
                     is Var -> {
                         fload(n2i[node.name]!! + 2)
-                        depth = max(depth, before + 1)
-                        before + 1
+                        (before + 1) to max(max, before + 1)
                     }
 
                     is Op -> {
-                        val ld = walk(node.left, before)
-                        depth = max(depth, ld)
-                        val rd = walk(node.right, ld)
-                        depth = max(depth, rd)
+                        val (hr, maxL) = walk(node.left, before, max)
+                        val (hl, maxR) = walk(node.right, hr, maxL)
                         when (node.kind) {
                             ADD -> fadd()
                             SUB -> fsub()
                             MUL -> fmul()
                             DIV -> fdiv()
                         }
-                        rd - 1
+                        hl to max(max, maxR)
                     }
                 }
             }
 
-            walk(ast, 0)
-            maxStack(depth)
+            val (_, max) = walk(ast, 0, 0)
+            maxStack(max)
             freturn()
         }
     }
