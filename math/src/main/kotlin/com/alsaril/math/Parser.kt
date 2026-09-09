@@ -89,7 +89,6 @@ object Parser {
             reduce(resultStack, operatorsStack)
         }
 
-
         return resultStack.single()
     }
 
@@ -107,7 +106,6 @@ object Parser {
         while (operatorsStack.isNotEmpty() && operatorsStack.last() is BinaryOperator) {
             reduce(resultStack, operatorsStack)
         }
-
 
         require(operatorsStack.isNotEmpty()) { "unexpected ')' at $index" }
         operatorsStack.removeLast()
