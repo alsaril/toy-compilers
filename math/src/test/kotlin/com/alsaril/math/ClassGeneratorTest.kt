@@ -287,6 +287,16 @@ class ClassGeneratorTest {
         }
 
         @Test
+        fun `asks for exactly the depth a right leaning tree reaches`() {
+            // each left operand stays on the stack while the right side is worked out,
+            // so this one genuinely needs a slot per term
+            var ast: Node = Value(1.0f)
+            repeat(9) { ast = Op(ADD, Value(1.0f), ast) }
+
+            assertThat(maxStacks(generate(ast).second)).containsExactly(1, 10)
+        }
+
+        @Test
         fun `asks for no more depth than a chain of operators reaches`() {
             // a left leaning chain never holds more than two values, however long it runs,
             // and asking for more than that is legal and so invisible from running it
@@ -362,6 +372,21 @@ class ClassGeneratorTest {
         fun `compiles a tree that grows the stack with its depth`() {
             // right leaning, so max_stack has to grow to the depth of the tree
             assertThat(eval(rightLeaning(1_000))).isEqualTo(1_000.0f)
+        }
+
+        @Test
+        fun `compiles a tree far deeper than a recursive walk managed`() {
+            // generating recursively used to overflow the stack somewhere above 5000
+            assertThat(eval(leftLeaning(20_000))).isEqualTo(20_000.0f)
+        }
+
+        @Test
+        fun `compiles a negation nested far deeper than that`() {
+            var ast: Node = Value(1.0f)
+            repeat(20_000) { ast = Neg(ast) }
+
+            // an even number of negations cancel out
+            assertThat(eval(ast)).isEqualTo(1.0f)
         }
     }
 

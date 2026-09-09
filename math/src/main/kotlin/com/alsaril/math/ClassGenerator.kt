@@ -68,48 +68,68 @@ object ClassGenerator {
                 locals.add(FloatInfo)
             }
 
-            fun value(value: Float) {
-                if (value.toRawBits() == 0 || value == 1.0f || value == 2.0f) {
-                    fconst(value.toInt())
-                } else {
-                    ldc(float(value))
-                }
+            class MutableInt(var value: Int = 0) {
+                fun inc() = value++
             }
 
-            fun walk(node: Node, before: Int, max: Int): Pair<Int, Int>  /*height, max */ {
-                return when (node) {
+            val stack = mutableListOf<Pair<Node, MutableInt>>()
+            stack.add(ast to MutableInt())
+
+            fun ret() {
+                stack.removeLast()
+                stack.lastOrNull()?.second?.inc()
+            }
+
+            var currStack = 0
+            var maxStack = 0
+
+            while (stack.isNotEmpty()) {
+                val (node, visited) = stack.last()
+                when (node) {
+                    is Neg -> if (visited.value == 0) {
+                        stack.add(node.arg to MutableInt())
+                    } else {
+                        fneg()
+                        ret()
+                    }
+
+                    is Op -> when (visited.value) {
+                        0 -> stack.add(node.left to MutableInt())
+                        1 -> stack.add(node.right to MutableInt())
+                        else -> {
+                            when (node.kind) {
+                                ADD -> fadd()
+                                SUB -> fsub()
+                                MUL -> fmul()
+                                DIV -> fdiv()
+                            }
+                            currStack--
+                            ret()
+                        }
+                    }
+
                     is Value -> {
-                        value(node.value)
-                        (before + 1) to max(max, before + 1)
+                        val value = node.value
+                        if (value.toRawBits() == 0 || value == 1.0f || value == 2.0f) {
+                            fconst(value.toInt())
+                        } else {
+                            ldc(float(value))
+                        }
+                        currStack++
+                        maxStack = max(maxStack, currStack)
+                        ret()
                     }
 
                     is Var -> {
                         fload(n2i[node.name]!! + 2)
-                        (before + 1) to max(max, before + 1)
-                    }
-
-                    is Op -> {
-                        val (hl, maxL) = walk(node.left, before, max)
-                        val (hr, maxR) = walk(node.right, hl, maxL)
-                        when (node.kind) {
-                            ADD -> fadd()
-                            SUB -> fsub()
-                            MUL -> fmul()
-                            DIV -> fdiv()
-                        }
-                        (hr - 1) to maxR
-                    }
-
-                    is Neg -> {
-                        val (h, maxA) = walk(node.arg, before, max)
-                        fneg()
-                        h to max(max, maxA)
+                        currStack++
+                        maxStack = max(maxStack, currStack)
+                        ret()
                     }
                 }
             }
 
-            val (_, max) = walk(ast, 0, 0)
-            maxStack(max)
+            maxStack(maxStack)
             freturn()
         }
     }
