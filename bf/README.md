@@ -11,7 +11,6 @@ interpreted. Built on [`codegen`](../codegen/README.md).
 
 ```
 source ──> Parser ──> List<Instruction> ──> ClassGenerator ──> class bytes ──> Program
-                       (folded tree)         + RunGenerator      ByteClassLoader
 ```
 
 - **`Parser`** — hand-written, no parser generator.
