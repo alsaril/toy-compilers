@@ -3,12 +3,13 @@ package com.alsaril.math
 import java.io.ByteArrayInputStream
 import java.io.DataInputStream
 
-/**
- * Reads the max_stack of every method in a class file, so a test can check the depth the
- * generator asked for rather than the depth it meant to ask for. Declaring more than a
- * body needs is legal, and therefore invisible from running the class.
- */
-fun maxStacks(classBytes: ByteArray): List<Int> {
+fun methodNames(classBytes: ByteArray): List<String> = methods(classBytes) { name, _ -> name }
+
+fun maxStacks(classBytes: ByteArray): List<Int> = methods(classBytes) { _, code ->
+    code?.let { DataInputStream(ByteArrayInputStream(it)).readUnsignedShort() } ?: -1
+}
+
+private fun <T> methods(classBytes: ByteArray, read: (name: String, code: ByteArray?) -> T): List<T> {
     val input = DataInputStream(ByteArrayInputStream(classBytes))
     input.skipNBytes(8) // magic, minor and major version
 
@@ -32,15 +33,15 @@ fun maxStacks(classBytes: ByteArray): List<Int> {
     require(input.readUnsignedShort() == 0) { "the generator does not emit fields" }
 
     return List(input.readUnsignedShort()) {
-        input.skipNBytes(6) // access flags, name, descriptor
-        var maxStack = -1
+        input.skipNBytes(2) // access flags
+        val name = utf8[input.readUnsignedShort()]!!
+        input.skipNBytes(2) // descriptor
+        var code: ByteArray? = null
         repeat(input.readUnsignedShort()) {
-            val name = utf8[input.readUnsignedShort()]
+            val attribute = utf8[input.readUnsignedShort()]
             val content = ByteArray(input.readInt()).also(input::readFully)
-            if (name == "Code") {
-                maxStack = DataInputStream(ByteArrayInputStream(content)).readUnsignedShort()
-            }
+            if (attribute == "Code") code = content
         }
-        maxStack
+        read(name, code)
     }
 }
