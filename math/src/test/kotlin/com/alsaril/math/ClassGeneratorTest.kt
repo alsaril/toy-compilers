@@ -5,7 +5,6 @@ import com.alsaril.math.BinaryKind.*
 import com.alsaril.math.ClassGenerator.generate
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatExceptionOfType
-import org.junit.jupiter.api.Disabled
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import java.lang.reflect.Modifier
@@ -230,6 +229,20 @@ class ClassGeneratorTest {
     @Nested
     inner class StackDepth {
 
+        /** the deepest stack any of the generated body methods asks for */
+        private fun bodyStack(ast: Node): Int {
+            val bytes = generate(ast).second
+            return methodNames(bytes).zip(maxStacks(bytes))
+                .filter { (name, _) -> name.startsWith("f") }
+                .maxOf { (_, stack) -> stack }
+        }
+
+        private fun rightLeaning(terms: Int): Node {
+            var node: Node = Value(1.0f)
+            repeat(terms - 1) { node = Op(ADD, Value(1.0f), node) }
+            return node
+        }
+
         @Test
         fun `covers a variable standing on its own`() {
             assertThat(eval(Var("x"), mapOf("x" to 7.0f))).isEqualTo(7.0f)
@@ -284,23 +297,56 @@ class ClassGeneratorTest {
             assertThat(eval(Var("x"), mapOf("x" to 1.0f))).isEqualTo(1.0f)
         }
 
-        @Disabled("every body declares a flat 1000 for now - see the todo in defineMethod")
         @Test
         fun `asks for no more depth than the body reaches`() {
-            // a left leaning chain never holds more than two values, however long it runs,
-            // and asking for more than that is legal and so invisible from running it
+            // a left leaning chain never holds more than two values, however long it runs
             var ast: Node = Value(1.0f)
-            repeat(49) { ast = Op(ADD, ast, Value(1.0f)) }
+            repeat(999) { ast = Op(ADD, ast, Value(1.0f)) }
 
-            assertThat(maxStacks(generate(ast).second))
-                .allSatisfy { assertThat(it).isLessThanOrEqualTo(10) }
+            assertThat(bodyStack(ast)).isEqualTo(2)
         }
 
-        @Disabled("a body needing more than the flat 1000 is rejected - see the todo in defineMethod")
         @Test
-        fun `compiles a tree needing more depth than the declared stack allows`() {
-            // right leaning, so it genuinely needs a slot per term. 1000 terms still load;
-            // 2000 fail the verifier with an operand stack overflow
+        fun `asks for exactly the depth a right leaning tree reaches`() {
+            // each left operand waits on the stack while the right side is worked out,
+            // so this one genuinely needs a slot per term
+            assertThat(bodyStack(rightLeaning(3))).isEqualTo(3)
+            assertThat(bodyStack(rightLeaning(10))).isEqualTo(10)
+            assertThat(bodyStack(rightLeaning(100))).isEqualTo(100)
+        }
+
+        @Test
+        fun `keeps the depth the preamble needs as a floor`() {
+            // reading a variable into its slot reaches two deep on its own
+            assertThat(bodyStack(Value(1.0f))).isEqualTo(2)
+            assertThat(bodyStack(Var("x"))).isEqualTo(2)
+        }
+
+        @Test
+        fun `counts a negation as leaving the stack where it found it`() {
+            assertThat(bodyStack(Neg(Neg(Neg(Value(1.0f)))))).isEqualTo(2)
+            assertThat(bodyStack(Op(ADD, Value(1.0f), Neg(rightLeaning(5))))).isEqualTo(6)
+        }
+
+        @Test
+        fun `deduces the depth of a body it outlined`() {
+            // 4000 terms spill into a second method, which then holds most of the chain
+            var ast: Node = Value(1.0f)
+            repeat(3_999) { ast = Op(ADD, Value(1.0f), ast) }
+
+            assertThat(eval(ast)).isEqualTo(4_000.0f)
+        }
+
+        @Test
+        fun `deduces the depth when neither side spills alone but the two together do`() {
+            // each half is under the budget on its own, so only their sum forces the split
+            val ast = Op(ADD, rightLeaning(2_000), rightLeaning(2_000))
+
+            assertThat(eval(ast)).isEqualTo(4_000.0f)
+        }
+
+        @Test
+        fun `compiles a tree far deeper than the old flat declaration allowed`() {
             var ast: Node = Value(1.0f)
             repeat(1_999) { ast = Op(ADD, Value(1.0f), ast) }
 

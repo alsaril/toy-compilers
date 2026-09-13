@@ -6,6 +6,7 @@ import com.alsaril.codegen.classfile.Fragment
 import com.alsaril.codegen.classfile.MethodAccessFlag.*
 import com.alsaril.codegen.classfile.code.*
 import com.alsaril.math.BinaryKind.*
+import kotlin.math.max
 
 object ClassGenerator {
 
@@ -75,6 +76,8 @@ object ClassGenerator {
             invokestatic(method(self(), "getFloat", "(Ljava/util/Map;Ljava/lang/String;)F"))
             fstore(index + callSlots)
         }
+
+        maxStack(2)
     }
 
     private fun ClassFileBuilder.generateEval(ast: Node) = apply {
@@ -101,7 +104,7 @@ object ClassGenerator {
         method(
             name,
             descriptor,
-            maxStack = 1000, // todo deduce
+            maxStack = 0,
             PUBLIC,
             STATIC,
             FINAL
@@ -113,6 +116,14 @@ object ClassGenerator {
         return name to descriptor
     }
 
+    private data class Context(
+        val codeBuilder: CodeBuilder,
+        val maxStack: Int,
+        val delta: Int
+    ) {
+        fun build(): Fragment = codeBuilder.apply { maxStack(maxStack) }.build()
+    }
+
     private fun ClassFileBuilder.materialize(
         ast: Node,
         variables: Map<String, Int>,
@@ -120,35 +131,33 @@ object ClassGenerator {
         callSlots: Int,
         count: MutableInt
     ): Fragment {
-        val stack = mutableListOf<Pair<Node, MutableList<CodeBuilder>>>()
+        val stack = mutableListOf<Pair<Node, MutableList<Context>>>()
         stack.add(ast to mutableListOf())
 
-        var result: CodeBuilder? = null
+        var result: Fragment? = null
 
-        fun ret(codeBuilder: CodeBuilder) {
+        fun ret(context: Context) {
             stack.removeLast()
             if (stack.isEmpty()) {
-                result = codeBuilder
+                result = context.build()
             } else {
-                stack.last().second.add(codeBuilder)
+                stack.last().second.add(context)
             }
         }
 
-        fun outline(codeBuilder: CodeBuilder): CodeBuilder {
-            val (name, descriptor) = defineMethod(accessor, codeBuilder.build(), count)
-            return newCodeBuilder().apply {
+        fun outline(fragment: Fragment): Context {
+            val (name, descriptor) = defineMethod(accessor, fragment, count)
+            return Context(newCodeBuilder().apply {
                 aload(0)
                 invokestatic(method(self(), name, descriptor))
-            }
+            }, 1, 1)
         }
 
-        fun outlineIfSpills(codeBuilder: CodeBuilder) = if (codeBuilder.loc() > loadFactor * methodLengthLimit) {
-            // todo actually it will be longer as there is accessor in the beginning of the method
-            // we can unpack only required variables and patch the body -- generate `iload 128` first
-            // or materialize already wellformed code
-            // but how to know the limits -- use ranges? and so that max < limit?
-            outline(codeBuilder)
-        } else codeBuilder
+        fun outlineIfSpills(context: Context): Context {
+            val (builder, maxStack) = context
+            if (builder.loc() < loadFactor * methodLengthLimit) return context
+            return outline(context.build())
+        }
 
         while (stack.isNotEmpty()) {
             val (node, results) = stack.last()
@@ -161,11 +170,11 @@ object ClassGenerator {
                             ldc(float(value))
                         }
                     }
-                }.let(::ret)
+                }.let { ret(Context(it, 1, 1)) }
 
                 is Var -> newCodeBuilder()
                     .apply { fload(variables[node.name]!! + callSlots) }
-                    .let(::ret)
+                    .let { ret(Context(it, 1, 1)) }
 
                 is Neg -> {
                     if (results.isEmpty()) {
@@ -173,9 +182,8 @@ object ClassGenerator {
                         continue
                     }
 
-                    outlineIfSpills(results.first())
-                        .apply { fneg() }
-                        .let(::ret)
+                    val result = results.first()
+                    ret(outlineIfSpills(result).apply { codeBuilder.fneg() })
                 }
 
                 is Op -> {
@@ -183,17 +191,18 @@ object ClassGenerator {
                         0 -> stack.add(node.left to mutableListOf())
                         1 -> stack.add(node.right to mutableListOf())
                         else -> {
-                            val (rawLeft, rawRight) = results
-                            val left: CodeBuilder
-                            val right: CodeBuilder
-                            if (rawLeft.loc() + rawRight.loc() > loadFactor * methodLengthLimit) {
-                                left = outline(rawLeft)
-                                right = outline(rawRight)
-                            } else {
-                                left = outlineIfSpills(rawLeft)
-                                right = outlineIfSpills(rawRight)
+                            val (leftContext, rightContext) = results
+
+                            var left = outlineIfSpills(leftContext)
+                            var right = outlineIfSpills(rightContext)
+
+                            // the sum can still overflow
+                            if (left.codeBuilder.loc() + right.codeBuilder.loc() > loadFactor * methodLengthLimit) {
+                                left = outline(left.build())
+                                right = outline(right.build())
                             }
-                            left.apply { // asymmetric
+
+                            val builder = left.codeBuilder.apply { // asymmetric
                                 fragment(right.build())
                                 when (node.kind) {
                                     ADD -> fadd()
@@ -201,13 +210,20 @@ object ClassGenerator {
                                     MUL -> fmul()
                                     DIV -> fdiv()
                                 }
-                            }.let(::ret)
+                            }
+                            ret(
+                                Context(
+                                    builder,
+                                    max(left.maxStack, left.delta + right.maxStack),
+                                    left.delta + right.delta - 1
+                                )
+                            )
                         }
                     }
                 }
             }
         }
 
-        return result!!.build()
+        return result!!
     }
 }
