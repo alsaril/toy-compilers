@@ -13,6 +13,7 @@ data class Fragment(
     val frames: List<StackMapFrame>,
     val exceptionHandlers: List<ExceptionHandler>,
     val maxStack: Int,
+    val maxLocals: Int,
     val size: Int, // the sum of lengths in content
 ) {
     internal var unpatchedJumps: () -> Int = { 0 }
@@ -20,7 +21,7 @@ data class Fragment(
     fun bytecode(): ByteArray = if (content.size == 1) content.first() else {
         require(unpatchedJumps() == 0) {
             "flattening several blocks copies them, so the ${unpatchedJumps()} outstanding " +
-                "jump patch(es) would not reach the result: patch before flattening"
+                    "jump patch(es) would not reach the result: patch before flattening"
         }
         ByteBuffer.allocate(size).apply { content.forEach(::put) }.array()
     }
@@ -76,14 +77,16 @@ fun List<Fragment>.join(): Fragment {
     var base = 0
     var totalSize = 0
     var maxStack = 0
+    var maxLocals = 0
 
     forEach { fragment ->
         content.addAll(fragment.content)
         base = fragment.recordAt(totalSize, base, frames, handlers)
         maxStack = max(maxStack, fragment.maxStack)
+        maxLocals = max(maxLocals, fragment.maxLocals)
         totalSize += fragment.size
     }
 
-    return Fragment(content, frames, handlers, maxStack, totalSize)
+    return Fragment(content, frames, handlers, maxStack, maxLocals, totalSize)
         .also { joined -> joined.unpatchedJumps = { sumOf { it.unpatchedJumps() } } }
 }

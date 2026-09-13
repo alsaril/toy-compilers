@@ -70,13 +70,13 @@ class CodeBuilderTest {
     inner class Splicing {
 
         private fun piece(vararg bytes: Int) =
-            Fragment(listOf(bytesOf(*bytes)), emptyList(), emptyList(), maxStack = 0, size = bytes.size)
+            Fragment(listOf(bytesOf(*bytes)), emptyList(), emptyList(), maxStack = 0, maxLocals = 0, size = bytes.size)
 
         private fun framed(size: Int, vararg frames: StackMapFrame) =
-            Fragment(listOf(ByteArray(size)), frames.toList(), emptyList(), maxStack = 0, size = size)
+            Fragment(listOf(ByteArray(size)), frames.toList(), emptyList(), maxStack = 0, maxLocals = 0, size = size)
 
         private fun guarded(size: Int, vararg handlers: ExceptionHandler) =
-            Fragment(listOf(ByteArray(size)), emptyList(), handlers.toList(), maxStack = 0, size = size)
+            Fragment(listOf(ByteArray(size)), emptyList(), handlers.toList(), maxStack = 0, maxLocals = 0, size = size)
 
         @Test
         fun `appends the bytes where the builder had got to`() {
@@ -199,14 +199,14 @@ class CodeBuilderTest {
 
         @Test
         fun `raises the stack requirement to what the fragment needs`() {
-            val deep = Fragment(listOf(ByteArray(1)), emptyList(), emptyList(), maxStack = 3, size = 1)
+            val deep = Fragment(listOf(ByteArray(1)), emptyList(), emptyList(), maxStack = 3, maxLocals = 0, size = 1)
 
             assertThat(builder().apply { fragment(deep) }.build().maxStack).isEqualTo(3)
         }
 
         @Test
         fun `keeps a larger requirement the builder already had`() {
-            val shallow = Fragment(listOf(ByteArray(1)), emptyList(), emptyList(), maxStack = 1, size = 1)
+            val shallow = Fragment(listOf(ByteArray(1)), emptyList(), emptyList(), maxStack = 1, maxLocals = 0, size = 1)
 
             assertThat(builder().apply { maxStack(5); fragment(shallow) }.build().maxStack)
                 .isEqualTo(5)

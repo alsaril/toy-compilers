@@ -24,7 +24,7 @@ fun CodeBuilder.iconst(value: Int) {
 }
 
 fun CodeBuilder.fconst(value: Int) {
-    if (value >= 0 && value <= 2) {
+    if (value in 0..2) {
         u1(0xb + value) // fconst
     } else {
         throw IllegalArgumentException("The value is out of range for fconst, ldc should be used")
@@ -45,14 +45,17 @@ fun CodeBuilder.ldc(pointer: DataPointer) {
 // load
 fun CodeBuilder.iload(index: Int) {
     instructionFamily(index, 0x1a, 0x15)
+    maxLocals(index)
 }
 
 fun CodeBuilder.fload(index: Int) {
     instructionFamily(index, 0x22, 0x17)
+    maxLocals(index)
 }
 
 fun CodeBuilder.aload(index: Int) {
     instructionFamily(index, 0x2a, 0x19)
+    maxLocals(index)
 }
 
 fun CodeBuilder.iaload() {
@@ -66,14 +69,17 @@ fun CodeBuilder.baload() {
 // store
 fun CodeBuilder.istore(index: Int) {
     instructionFamily(index, 0x3b, 0x36)
+    maxLocals(index)
 }
 
 fun CodeBuilder.fstore(index: Int) {
     instructionFamily(index, 0x43, 0x38)
+    maxLocals(index)
 }
 
 fun CodeBuilder.astore(index: Int) {
     instructionFamily(index, 0x4b, 0x3a)
+    maxLocals(index)
 }
 
 fun CodeBuilder.iastore() {
@@ -124,6 +130,7 @@ fun CodeBuilder.iinc(index: Int, const: Int) {
         u2(index)
         s2(const)
     }
+    maxLocals(index)
 }
 
 // stack

@@ -2,9 +2,9 @@ package com.alsaril.codegen.classfile.code
 
 import com.alsaril.codegen.classfile.Fragment
 import com.alsaril.codegen.classfile.UnpatchedJumps
-import com.alsaril.codegen.classfile.recordAt
 import com.alsaril.codegen.classfile.attributes.ExceptionHandler
 import com.alsaril.codegen.classfile.attributes.StackMapFrame
+import com.alsaril.codegen.classfile.recordAt
 import com.alsaril.codegen.constantpool.UpdatableConstantPool
 import kotlin.math.max
 
@@ -24,12 +24,13 @@ class CodeBuilder(
     private var frozen: ByteArray? = null
     private val unpatched = UnpatchedJumps()
     private var maxStack = 0
+    private var maxLocals = 0
 
     fun build(): Fragment {
         frozen?.let { throw IllegalStateException() }
         with(bytecode.toByteArray()) {
             frozen = this
-            return Fragment(listOf(this), frames, exceptionHandlers, maxStack, this.size)
+            return Fragment(listOf(this), frames, exceptionHandlers, maxStack, maxLocals, this.size)
                 .also { it.unpatchedJumps = unpatched::count }
         }
     }
@@ -97,13 +98,14 @@ class CodeBuilder(
     fun fragment(fragment: Fragment) {
         require(fragment.unpatchedJumps() == 0) {
             "splicing copies the bytes of a fragment, so its ${fragment.unpatchedJumps()} " +
-                "outstanding jump patch(es) would not reach the copy: patch before splicing"
+                    "outstanding jump patch(es) would not reach the copy: patch before splicing"
         }
 
         val pos = loc()
         fragment.content.forEach { chunk -> chunk.forEach(bytecode::add) }
         base = fragment.recordAt(pos, base, frames, exceptionHandlers)
         maxStack(fragment.maxStack)
+        maxLocals(fragment.maxLocals)
     }
 
     fun `try`() = TryPointer(loc())
@@ -119,5 +121,9 @@ class CodeBuilder(
 
     fun maxStack(depth: Int) {
         maxStack = max(maxStack, depth)
+    }
+
+    fun maxLocals(slot: Int, slots: Int = 1) {
+        maxLocals = max(maxLocals, slot + slots)
     }
 }

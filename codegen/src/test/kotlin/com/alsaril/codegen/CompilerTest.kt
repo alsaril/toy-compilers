@@ -30,7 +30,6 @@ class CompilerTest {
         "<init>",
         "()V",
         maxStack = 1,
-        maxLocals = 1,
         PUBLIC,
     ) {
         aload(0)
@@ -42,7 +41,6 @@ class CompilerTest {
         "count",
         "()I",
         maxStack = 1,
-        maxLocals = 1,
         PUBLIC,
         FINAL,
     ) {
@@ -132,7 +130,7 @@ class CompilerTest {
                     classFile("GenRunnable", "java/lang/Object")
                         .iface("java/lang/Runnable")
                         .withConstructor()
-                        .method("run", "()V", maxStack = 0, maxLocals = 1, PUBLIC) { `return`() }
+                        .method("run", "()V", maxStack = 0, PUBLIC) { `return`() }
                         .build()
                 },
                 Runnable::class.java,
@@ -175,7 +173,7 @@ class CompilerTest {
                             classFile("GenOther", "java/lang/Object")
                                 .iface("java/lang/Runnable")
                                 .withConstructor()
-                                .method("run", "()V", maxStack = 0, maxLocals = 1, PUBLIC) { `return`() }
+                                .method("run", "()V", maxStack = 0, PUBLIC) { `return`() }
                                 .build()
                         },
                         Counter::class.java,

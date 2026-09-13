@@ -8,8 +8,8 @@ import com.alsaril.codegen.classfile.ClassFileBuilder
 import com.alsaril.codegen.classfile.Fragment
 import com.alsaril.codegen.classfile.MethodAccessFlag.*
 import com.alsaril.codegen.classfile.code.*
-import com.alsaril.codegen.classfile.code.ArrayType.BYTE
-import com.alsaril.codegen.classfile.code.ArrayType.INT
+import com.alsaril.codegen.classfile.PrimitiveType.BYTE
+import com.alsaril.codegen.classfile.PrimitiveType.INT
 import com.alsaril.codegen.classfile.join
 import kotlin.math.min
 
@@ -28,7 +28,7 @@ object RunGenerator {
         val generation = Generation(bodyLengthLimit(), loopOverhead())
         val body = materializeNonrecursive(instructions, generation)
         val (name, descriptor) = defineMethod(body, generation)
-        method("run", "(Ljava/io/InputStream;Ljava/io/OutputStream;II)V", maxStack = 5, maxLocals = 6, PUBLIC, FINAL) {
+        method("run", "(Ljava/io/InputStream;Ljava/io/OutputStream;II)V", maxStack = 5, PUBLIC, FINAL) {
             // input: in, out, size, cycles
             iconst(2)
             newarray(INT)
@@ -85,7 +85,7 @@ object RunGenerator {
         val prefix = emitMethodPrefix()
         val postfix = emitMethodPostfix()
         val body = listOf(prefix, fragment, postfix).join()
-        method(name, descriptor, body, maxStack = 5, maxLocals = 6, PRIVATE, STATIC, FINAL)
+        method(name, descriptor, body, maxStack = 5, PRIVATE, STATIC, FINAL)
         return name to descriptor
     }
 

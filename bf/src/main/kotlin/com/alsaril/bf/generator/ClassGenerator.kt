@@ -11,12 +11,12 @@ object ClassGenerator {
 
     fun generate(instructions: List<Instruction>) = classFile("Impl", parent = "java/lang/Object")
         .iface("com/alsaril/bf/Program")
-        .method("<init>", "()V", maxStack = 1, maxLocals = 1, PUBLIC) {
+        .method("<init>", "()V", maxStack = 1, PUBLIC) {
             aload(0)
             invokespecial(method(parent(), "<init>", "()V"))
             `return`()
         }
-        .method("guard", "(II)V", maxStack = 3, maxLocals = 2, PRIVATE, FINAL, STATIC) {
+        .method("guard", "(II)V", maxStack = 3, PRIVATE, FINAL, STATIC) {
             iload(0)
             iconst(0)
             val j1 = if_icmplt()

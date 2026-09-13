@@ -1,6 +1,7 @@
 package com.alsaril.codegen.classfile.code
 
 import com.alsaril.codegen.bytesOf
+import com.alsaril.codegen.classfile.PrimitiveType.*
 import com.alsaril.codegen.constantpool.ConstantClassInfo
 import com.alsaril.codegen.constantpool.ConstantFieldRefInfo
 import com.alsaril.codegen.constantpool.ConstantInterfaceMethodRefInfo
@@ -9,6 +10,7 @@ import com.alsaril.codegen.constantpool.ConstantNameAndTypeInfo
 import com.alsaril.codegen.constantpool.ConstantUtf8Info
 import com.alsaril.codegen.constantpool.UpdatableConstantPool
 import org.assertj.core.api.Assertions.assertThat
+import org.assertj.core.api.Assertions.assertThatIllegalArgumentException
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
@@ -146,11 +148,23 @@ class InvocationsTest {
         }
 
         @Test
-        fun `writes newarray with the type code`() {
-            assertThat(bytecode { newarray(ArrayType.BYTE) })
-                .containsExactly(*bytesOf(0xBC, 0x08))
-            assertThat(bytecode { newarray(ArrayType.INT) })
-                .containsExactly(*bytesOf(0xBC, 0x0A))
+        fun `writes newarray with the atype of its element`() {
+            // the codes JVMS 6.5 lists for newarray, T_BOOLEAN through T_LONG
+            assertThat(bytecode { newarray(BOOLEAN) }).containsExactly(*bytesOf(0xBC, 0x04))
+            assertThat(bytecode { newarray(CHAR) }).containsExactly(*bytesOf(0xBC, 0x05))
+            assertThat(bytecode { newarray(FLOAT) }).containsExactly(*bytesOf(0xBC, 0x06))
+            assertThat(bytecode { newarray(DOUBLE) }).containsExactly(*bytesOf(0xBC, 0x07))
+            assertThat(bytecode { newarray(BYTE) }).containsExactly(*bytesOf(0xBC, 0x08))
+            assertThat(bytecode { newarray(SHORT) }).containsExactly(*bytesOf(0xBC, 0x09))
+            assertThat(bytecode { newarray(INT) }).containsExactly(*bytesOf(0xBC, 0x0A))
+            assertThat(bytecode { newarray(LONG) }).containsExactly(*bytesOf(0xBC, 0x0B))
+        }
+
+        @Test
+        fun `refuses an array of void, which has no element to hold`() {
+            assertThatIllegalArgumentException()
+                .isThrownBy { bytecode { newarray(VOID) } }
+                .withMessage("an array cannot hold void")
         }
 
         @Test

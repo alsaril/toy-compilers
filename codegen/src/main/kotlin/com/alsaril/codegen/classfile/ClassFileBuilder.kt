@@ -1,5 +1,6 @@
 package com.alsaril.codegen.classfile
 
+import com.alsaril.codegen.classfile.MethodAccessFlag.STATIC
 import com.alsaril.codegen.classfile.attributes.CodeAttribute
 import com.alsaril.codegen.classfile.attributes.StackMapTableAttribute
 import com.alsaril.codegen.classfile.code.CodeBuilder
@@ -33,12 +34,11 @@ class ClassFileBuilder {
         name: String,
         descriptor: String,
         maxStack: Int,
-        maxLocals: Int,
         vararg accessFlags: MethodAccessFlag,
         codeBuilder: CodeBuilder.() -> Unit,
     ): ClassFileBuilder {
         val fragment = CodeBuilder(cp, thisName, parentName).apply { codeBuilder() }.build()
-        return method(name, descriptor, fragment, max(maxStack, fragment.maxStack), maxLocals, *accessFlags)
+        return method(name, descriptor, fragment, max(maxStack, fragment.maxStack), *accessFlags)
     }
 
     fun method(
@@ -46,13 +46,15 @@ class ClassFileBuilder {
         descriptor: String,
         fragment: Fragment,
         maxStack: Int,
-        maxLocals: Int,
         vararg accessFlags: MethodAccessFlag,
     ): ClassFileBuilder {
+        val d = parseFunctionDescriptor(descriptor)
+        val static = accessFlags.contains(STATIC)
+
         val code = CodeAttribute(
             cp.putUtf8("Code"),
             max(maxStack, fragment.maxStack),
-            maxLocals,
+            max(d.args.sumOf { it.slots } + (if (static) 0 else 1), fragment.maxLocals),
             fragment.bytecode(),
             fragment.exceptionHandlers,
             listOf(StackMapTableAttribute(cp.putUtf8("StackMapTable"), fragment.frames)),

@@ -14,7 +14,7 @@ object ClassGenerator {
 
     fun generate(ast: Node) = classFile("Impl", parent = "java/lang/Object")
         .iface("com/alsaril/math/Program")
-        .method("<init>", "()V", maxStack = 1, maxLocals = 1, PUBLIC) {
+        .method("<init>", "()V", maxStack = 1, PUBLIC) {
             aload(0)
             invokespecial(method(parent(), "<init>", "()V"))
             `return`()
@@ -50,7 +50,7 @@ object ClassGenerator {
     }
 
     private fun ClassFileBuilder.emitAccessor(variables: Map<String, Int>, callSlots: Int) = emitFragment {
-        method("getFloat", "(Ljava/util/Map;Ljava/lang/String;)F", 4, 2, PRIVATE, STATIC, FINAL) {
+        method("getFloat", "(Ljava/util/Map;Ljava/lang/String;)F", 4, PRIVATE, STATIC, FINAL) {
             aload(0)
             aload(1)
             invokeinterface(imethod(clazz("java/util/Map"), "get", "(Ljava/lang/Object;)Ljava/lang/Object;"), 2)
@@ -83,8 +83,8 @@ object ClassGenerator {
         val accessor = emitAccessor(variables, callSlots)
         val count = MutableInt()
         val body = materialize(ast, variables, accessor, callSlots, count)
-        val (name, descriptor) = defineMethod(variables, accessor, body, callSlots, count)
-        method("eval", "(Ljava/util/Map;)F", maxStack = 1, maxLocals = 2, PUBLIC, FINAL) {
+        val (name, descriptor) = defineMethod(accessor, body, count)
+        method("eval", "(Ljava/util/Map;)F", maxStack = 1, PUBLIC, FINAL) {
             aload(1)
             invokestatic(method(self(), name, descriptor))
             freturn()
@@ -92,10 +92,8 @@ object ClassGenerator {
     }
 
     private fun ClassFileBuilder.defineMethod(
-        variables: Map<String, Int>,
         accessor: Fragment,
         body: Fragment,
-        callSlots: Int,
         count: MutableInt
     ): Pair<String, String> {
         val name = "f${count.inc()}"
@@ -104,7 +102,6 @@ object ClassGenerator {
             name,
             descriptor,
             maxStack = 1000, // todo deduce
-            maxLocals = variables.size + callSlots,
             PUBLIC,
             STATIC,
             FINAL
@@ -138,7 +135,7 @@ object ClassGenerator {
         }
 
         fun outline(codeBuilder: CodeBuilder): CodeBuilder {
-            val (name, descriptor) = defineMethod(variables, accessor, codeBuilder.build(), callSlots, count)
+            val (name, descriptor) = defineMethod(accessor, codeBuilder.build(), count)
             return newCodeBuilder().apply {
                 aload(0)
                 invokestatic(method(self(), name, descriptor))

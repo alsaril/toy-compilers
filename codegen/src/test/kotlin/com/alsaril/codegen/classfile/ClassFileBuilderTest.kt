@@ -1,6 +1,10 @@
 package com.alsaril.codegen.classfile
 
 import com.alsaril.codegen.bytesOf
+import com.alsaril.codegen.classfile.code.CodeBuilder
+import com.alsaril.codegen.classfile.code.iconst
+import com.alsaril.codegen.classfile.code.istore
+import com.alsaril.codegen.methodLimits
 import com.alsaril.codegen.classfile.ClassFileBuilder.Companion.classFile
 import com.alsaril.codegen.classfile.MethodAccessFlag.PUBLIC
 import com.alsaril.codegen.classfile.MethodAccessFlag.STATIC
@@ -11,6 +15,7 @@ import com.alsaril.codegen.classfile.code.`return`
 import com.alsaril.codegen.classfile.code.nop
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatNoException
+import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
 class ClassFileBuilderTest {
@@ -48,7 +53,7 @@ class ClassFileBuilderTest {
         // a package private method folds to no flags at all
         assertThatNoException().isThrownBy {
             classFile("NoFlags", "java/lang/Object")
-                .method("f", "()V", maxStack = 0, maxLocals = 0) { `return`() }
+                .method("f", "()V", maxStack = 0) { `return`() }
                 .build()
         }
     }
@@ -57,7 +62,7 @@ class ClassFileBuilderTest {
     fun `accepts several flags on one method`() {
         assertThatNoException().isThrownBy {
             classFile("ManyFlags", "java/lang/Object")
-                .method("f", "()V", maxStack = 0, maxLocals = 0, PUBLIC, STATIC) { `return`() }
+                .method("f", "()V", maxStack = 0, PUBLIC, STATIC) { `return`() }
                 .build()
         }
     }
@@ -104,12 +109,12 @@ class ClassFileBuilderTest {
     fun `raises the declared stack depth to what the body needs`() {
         // given a body asking for more stack than the method declared
         val declared = classFile("Stack", "java/lang/Object")
-            .method("f", "()V", maxStack = 0, maxLocals = 0, PUBLIC) { maxStack(3); nop(); `return`() }
+            .method("f", "()V", maxStack = 0, PUBLIC) { maxStack(3); nop(); `return`() }
             .build().second
 
         // when the same body declares the depth up front instead
         val expected = classFile("Stack", "java/lang/Object")
-            .method("f", "()V", maxStack = 3, maxLocals = 0, PUBLIC) { maxStack(3); nop(); `return`() }
+            .method("f", "()V", maxStack = 3, PUBLIC) { maxStack(3); nop(); `return`() }
             .build().second
 
         // then
@@ -120,12 +125,12 @@ class ClassFileBuilderTest {
     fun `keeps the declared stack depth when the body needs less`() {
         // given
         val withBody = classFile("Stack", "java/lang/Object")
-            .method("f", "()V", maxStack = 5, maxLocals = 0, PUBLIC) { maxStack(3); nop(); `return`() }
+            .method("f", "()V", maxStack = 5, PUBLIC) { maxStack(3); nop(); `return`() }
             .build().second
 
         // when the body asks for nothing at all
         val withoutBody = classFile("Stack", "java/lang/Object")
-            .method("f", "()V", maxStack = 5, maxLocals = 0, PUBLIC) { nop(); `return`() }
+            .method("f", "()V", maxStack = 5, PUBLIC) { nop(); `return`() }
             .build().second
 
         // then the larger declared value survives
@@ -140,7 +145,7 @@ class ClassFileBuilderTest {
         val builder = classFile("Stack", "java/lang/Object")
         val fragment = builder.emitFragment { maxStack(3); nop(); `return`() }
         val declared = builder
-            .method("f", "()V", fragment, maxStack = 0, maxLocals = 0, PUBLIC)
+            .method("f", "()V", fragment, maxStack = 0, PUBLIC)
             .build().second
 
         // when the same fragment is given the depth up front
@@ -151,7 +156,6 @@ class ClassFileBuilderTest {
                     "()V",
                     it.emitFragment { maxStack(3); nop(); `return`() },
                     maxStack = 3,
-                    maxLocals = 0,
                     PUBLIC,
                 )
             }
@@ -161,12 +165,85 @@ class ClassFileBuilderTest {
         assertThat(declared).isEqualTo(expected)
     }
 
+    @Nested
+    inner class MaxLocals {
+
+        private fun locals(descriptor: String, vararg flags: MethodAccessFlag, body: CodeBuilder.() -> Unit = { nop() }) =
+            classFile("Locals", "java/lang/Object")
+                .method("f", descriptor, maxStack = 2, *flags, codeBuilder = body)
+                .build().second
+                .let { methodLimits(it).single { method -> method.name == "f" }.maxLocals }
+
+        @Test
+        fun `counts the arguments a static method declares`() {
+            assertThat(locals("()V", STATIC)).isZero()
+            assertThat(locals("(I)V", STATIC)).isOne()
+            assertThat(locals("(II)V", STATIC)).isEqualTo(2)
+        }
+
+        @Test
+        fun `counts a long and a double argument as two slots each`() {
+            assertThat(locals("(J)V", STATIC)).isEqualTo(2)
+            assertThat(locals("(JD)V", STATIC)).isEqualTo(4)
+            assertThat(locals("(IJ)V", STATIC)).isEqualTo(3)
+        }
+
+        @Test
+        fun `counts a reference or an array argument as one`() {
+            assertThat(locals("(Ljava/lang/String;)V", STATIC)).isOne()
+            assertThat(locals("([J)V", STATIC)).isOne()
+        }
+
+        @Test
+        fun `counts this among the locals of an instance method`() {
+            assertThat(locals("()V", PUBLIC)).isOne()
+            assertThat(locals("(I)V", PUBLIC)).isEqualTo(2)
+            assertThat(locals("(J)V", PUBLIC)).isEqualTo(3)
+        }
+
+        @Test
+        fun `takes the slot the body reaches when it runs past the arguments`() {
+            // slot 5 is the sixth, so the method needs six
+            assertThat(locals("(I)V", STATIC) { iconst(0); istore(5) }).isEqualTo(6)
+        }
+
+        @Test
+        fun `does not count this twice when the body reaches past the arguments`() {
+            // a body's slots are already absolute - an instance method addresses this as
+            // slot 0 - so the room for this belongs to the descriptor's count alone
+            assertThat(locals("()V", PUBLIC) { iconst(0); istore(3) }).isEqualTo(4)
+            assertThat(locals("(I)V", PUBLIC) { iconst(0); istore(3) }).isEqualTo(4)
+        }
+
+        @Test
+        fun `keeps the arguments when the body stays inside them`() {
+            assertThat(locals("(JD)V", STATIC) { iconst(0); istore(0) }).isEqualTo(4)
+        }
+
+        @Test
+        fun `counts the slot a body reaches as an index, so one local needs one slot`() {
+            assertThat(locals("()V", STATIC) { iconst(0); istore(0) }).isOne()
+        }
+
+        @Test
+        fun `takes the slots of a fragment spliced into the body`() {
+            val builder = classFile("Locals", "java/lang/Object")
+            val piece = builder.emitFragment { iconst(0); istore(4) }
+
+            val bytes = builder
+                .method("f", "()V", piece, maxStack = 2, STATIC)
+                .build().second
+
+            assertThat(methodLimits(bytes).single { it.name == "f" }.maxLocals).isEqualTo(5)
+        }
+    }
+
     @Test
     fun `grows the output as methods are added`() {
         // given
         val bare = classFile("Bare", "java/lang/Object").build().second
         val withMethod = classFile("WithMethod", "java/lang/Object")
-            .method("f", "()V", maxStack = 0, maxLocals = 0, PUBLIC) { `return`() }
+            .method("f", "()V", maxStack = 0, PUBLIC) { `return`() }
             .build().second
 
         // then

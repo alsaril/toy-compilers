@@ -2,6 +2,7 @@ package com.alsaril.codegen
 
 import com.alsaril.codegen.ByteClassLoader.loadClass
 import com.alsaril.codegen.classfile.ClassFileBuilder
+import com.alsaril.codegen.classfile.PrimitiveType
 import com.alsaril.codegen.classfile.ClassFileBuilder.Companion.classFile
 import com.alsaril.codegen.classfile.MethodAccessFlag.PUBLIC
 import com.alsaril.codegen.classfile.MethodAccessFlag.STATIC
@@ -17,7 +18,6 @@ class GeneratedClassTest {
         "<init>",
         "()V",
         maxStack = 1,
-        maxLocals = 1,
         PUBLIC,
     ) {
         aload(0)
@@ -31,7 +31,7 @@ class GeneratedClassTest {
         val (name, bytes) = classFile("GenRunnable", "java/lang/Object")
             .iface("java/lang/Runnable")
             .withConstructor()
-            .method("run", "()V", maxStack = 0, maxLocals = 1, PUBLIC) { `return`() }
+            .method("run", "()V", maxStack = 0, PUBLIC) { `return`() }
             .build()
 
         // when
@@ -46,7 +46,7 @@ class GeneratedClassTest {
     fun `puts the argument of a static method in slot zero`() {
         // given a body that returns its argument untouched, so the answer is the slot
         val (name, bytes) = classFile("GenStaticSlot", "java/lang/Object")
-            .method("f", "(I)I", maxStack = 1, maxLocals = 1, PUBLIC, STATIC) {
+            .method("f", "(I)I", maxStack = 1, PUBLIC, STATIC) {
                 iload(0)
                 ireturn()
             }
@@ -66,7 +66,7 @@ class GeneratedClassTest {
         val (name, bytes) = classFile("GenInstanceSlot", "java/lang/Object")
             .iface("java/util/function/IntUnaryOperator")
             .withConstructor()
-            .method("applyAsInt", "(I)I", maxStack = 1, maxLocals = 2, PUBLIC) {
+            .method("applyAsInt", "(I)I", maxStack = 1, PUBLIC) {
                 iload(1)
                 ireturn()
             }
@@ -84,7 +84,7 @@ class GeneratedClassTest {
     fun `reaches a local slot past the compact operand`() {
         // given a slot only the wide form can address, inside a max_locals that covers it
         val (name, bytes) = classFile("GenWideSlot", "java/lang/Object")
-            .method("f", "(I)I", maxStack = 1, maxLocals = 300, PUBLIC, STATIC) {
+            .method("f", "(I)I", maxStack = 1, PUBLIC, STATIC) {
                 iload(0)
                 istore(258)
                 iload(258)
@@ -120,7 +120,7 @@ class GeneratedClassTest {
 
         // when it is spliced in behind something else, so it does not land at zero
         val (name, bytes) = builder
-            .method("f", "(I)I", maxStack = 1, maxLocals = 1, PUBLIC, STATIC) {
+            .method("f", "(I)I", maxStack = 1, PUBLIC, STATIC) {
                 nop()
                 fragment(chooses)
                 ireturn()
@@ -138,7 +138,7 @@ class GeneratedClassTest {
     fun `raises max_stack to the depth the body reaches`() {
         // given a method declaring no stack at all, with the depth coming from the body
         val (name, bytes) = classFile("GenDeepStack", "java/lang/Object")
-            .method("f", "()I", maxStack = 0, maxLocals = 0, PUBLIC, STATIC) {
+            .method("f", "()I", maxStack = 0, PUBLIC, STATIC) {
                 maxStack(3)
                 iconst(1)
                 iconst(1)
@@ -160,7 +160,7 @@ class GeneratedClassTest {
         val (name, bytes) = classFile("GenThrows", "java/lang/Object")
             .iface("java/lang/Runnable")
             .withConstructor()
-            .method("run", "()V", maxStack = 2, maxLocals = 1, PUBLIC) {
+            .method("run", "()V", maxStack = 2, PUBLIC) {
                 construct(clazz("java/lang/IllegalStateException"), "<init>", "()V")
                 athrow()
             }
@@ -178,7 +178,7 @@ class GeneratedClassTest {
         val (name, bytes) = classFile("GenBranch", "java/lang/Object")
             .iface("java/lang/Runnable")
             .withConstructor()
-            .method("run", "()V", maxStack = 2, maxLocals = 1, PUBLIC) {
+            .method("run", "()V", maxStack = 2, PUBLIC) {
                 iconst(0)
                 val jump = ifeq()
 
@@ -201,7 +201,7 @@ class GeneratedClassTest {
     fun `names an integer local a branch target carries`() {
         // given both paths writing slot 1 before they meet
         val (name, bytes) = classFile("GenIntFrame", "java/lang/Object")
-            .method("f", "(I)I", maxStack = 1, maxLocals = 2, PUBLIC, STATIC) {
+            .method("f", "(I)I", maxStack = 1, PUBLIC, STATIC) {
                 iconst(2)
                 istore(1)
 
@@ -228,7 +228,7 @@ class GeneratedClassTest {
     fun `names a float local a branch target carries`() {
         // given both paths writing slot 1 before they meet
         val (name, bytes) = classFile("GenFloatFrame", "java/lang/Object")
-            .method("f", "(I)F", maxStack = 1, maxLocals = 2, PUBLIC, STATIC) {
+            .method("f", "(I)F", maxStack = 1, PUBLIC, STATIC) {
                 fconst(2)
                 fstore(1)
 
@@ -257,9 +257,9 @@ class GeneratedClassTest {
         val (name, bytes) = classFile("GenCatch", "java/lang/Object")
             .iface("java/util/function/IntUnaryOperator")
             .withConstructor()
-            .method("applyAsInt", "(I)I", maxStack = 2, maxLocals = 3, PUBLIC) {
+            .method("applyAsInt", "(I)I", maxStack = 2, PUBLIC) {
                 iconst(1)
-                newarray(ArrayType.BYTE)
+                newarray(PrimitiveType.BYTE)
                 iload(1)
 
                 val from = `try`()
@@ -292,7 +292,7 @@ class GeneratedClassTest {
         val (name, bytes) = classFile("GenCatchType", "java/lang/Object")
             .iface("java/lang/Runnable")
             .withConstructor()
-            .method("run", "()V", maxStack = 2, maxLocals = 2, PUBLIC) {
+            .method("run", "()V", maxStack = 2, PUBLIC) {
                 val from = `try`()
                 construct(clazz("java/lang/IllegalStateException"), "<init>", "()V")
                 athrow()
@@ -319,7 +319,7 @@ class GeneratedClassTest {
     fun `reaches a catch all handler from both the normal and the failing path`() {
         // given f(log, n), which throws for n == 0 and writes to log[0] either way
         val (name, bytes) = classFile("GenFinally", "java/lang/Object")
-            .method("f", "([II)V", maxStack = 4, maxLocals = 2, PUBLIC, STATIC) {
+            .method("f", "([II)V", maxStack = 4, PUBLIC, STATIC) {
                 val from = `try`()
                 iload(1)
                 val ok = ifne()
@@ -367,7 +367,7 @@ class GeneratedClassTest {
     fun `resolves an interface method ref and the count it is called with`() {
         // given size() reached on an Object that has to be narrowed to a List first
         val (name, bytes) = classFile("GenCast", "java/lang/Object")
-            .method("f", "(Ljava/lang/Object;)I", maxStack = 1, maxLocals = 1, PUBLIC, STATIC) {
+            .method("f", "(Ljava/lang/Object;)I", maxStack = 1, PUBLIC, STATIC) {
                 aload(0)
                 checkcast(clazz("java/util/List"))
                 invokeinterface(imethod(clazz("java/util/List"), "size", "()I"), count = 1)

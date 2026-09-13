@@ -1,5 +1,7 @@
 package com.alsaril.codegen.classfile.code
 
+import com.alsaril.codegen.classfile.PrimitiveType
+import com.alsaril.codegen.classfile.PrimitiveType.*
 import com.alsaril.codegen.constantpool.UpdatableConstantPool.RefType.*
 
 fun CodeBuilder.method(classPointer: ClassPointer, name: String, descriptor: String): MethodDescriptor {
@@ -52,13 +54,20 @@ fun CodeBuilder.new(classPointer: ClassPointer) {
     u2(classPointer.index)
 }
 
-enum class ArrayType(val index: Int) {
-    BYTE(8), INT(10);
-}
-
-fun CodeBuilder.newarray(type: ArrayType) {
+fun CodeBuilder.newarray(type: PrimitiveType) {
     u1(0xbc)
-    u1(type.index)
+    val code = when (type) {
+        BOOLEAN -> 4
+        CHAR -> 5
+        FLOAT -> 6
+        DOUBLE -> 7
+        BYTE -> 8
+        SHORT -> 9
+        INT -> 10
+        LONG -> 11
+        VOID -> throw IllegalArgumentException("an array cannot hold void")
+    }
+    u1(code)
 }
 
 fun CodeBuilder.checkcast(classPointer: ClassPointer) {

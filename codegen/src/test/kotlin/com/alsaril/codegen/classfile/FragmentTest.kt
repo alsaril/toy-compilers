@@ -28,13 +28,13 @@ import org.junit.jupiter.api.Test
 class FragmentTest {
 
     private fun fragment(size: Int, vararg frames: StackMapFrame) =
-        Fragment(listOf(ByteArray(size)), frames.toList(), emptyList(), maxStack = 0, size = size)
+        Fragment(listOf(ByteArray(size)), frames.toList(), emptyList(), maxStack = 0, maxLocals = 0, size = size)
 
     private fun guarded(size: Int, vararg handlers: ExceptionHandler) =
-        Fragment(listOf(ByteArray(size)), emptyList(), handlers.toList(), maxStack = 0, size = size)
+        Fragment(listOf(ByteArray(size)), emptyList(), handlers.toList(), maxStack = 0, maxLocals = 0, size = size)
 
     private fun stacked(maxStack: Int, size: Int = 1) =
-        Fragment(listOf(ByteArray(size)), emptyList(), emptyList(), maxStack, size)
+        Fragment(listOf(ByteArray(size)), emptyList(), emptyList(), maxStack, 0, size)
 
     @Nested
     inner class Bytecode {
@@ -43,7 +43,7 @@ class FragmentTest {
         fun `hands back a single block without copying it`() {
             // given
             val block = bytesOf(0x01, 0x02)
-            val fragment = Fragment(listOf(block), emptyList(), emptyList(), maxStack = 0, size = 2)
+            val fragment = Fragment(listOf(block), emptyList(), emptyList(), maxStack = 0, maxLocals = 0, size = 2)
 
             // then
             assertThat(fragment.bytecode()).isSameAs(block)
@@ -73,6 +73,7 @@ class FragmentTest {
                 emptyList(),
                 emptyList(),
                 maxStack = 0,
+                maxLocals = 0,
                 size = 4,
             )
 
@@ -82,7 +83,7 @@ class FragmentTest {
 
         @Test
         fun `is empty when there is no content`() {
-            assertThat(Fragment(emptyList(), emptyList(), emptyList(), maxStack = 0, size = 0).bytecode())
+            assertThat(Fragment(emptyList(), emptyList(), emptyList(), maxStack = 0, maxLocals = 0, size = 0).bytecode())
                 .isEmpty()
         }
     }
@@ -165,8 +166,8 @@ class FragmentTest {
         fun `adds up the sizes and keeps the blocks in order`() {
             // given
             val joined = listOf(
-                Fragment(listOf(bytesOf(0x01, 0x02)), emptyList(), emptyList(), maxStack = 0, size = 2),
-                Fragment(listOf(bytesOf(0x03)), emptyList(), emptyList(), maxStack = 0, size = 1),
+                Fragment(listOf(bytesOf(0x01, 0x02)), emptyList(), emptyList(), maxStack = 0, maxLocals = 0, size = 2),
+                Fragment(listOf(bytesOf(0x03)), emptyList(), emptyList(), maxStack = 0, maxLocals = 0, size = 1),
             ).join()
 
             // then
@@ -369,6 +370,7 @@ class FragmentTest {
                 listOf(SameLocals1StackItemFrameShort(1, IntegerVariableInfo)),
                 listOf(ExceptionHandler(0, 1, 1, catchType = 0)),
                 maxStack = 0,
+                maxLocals = 0,
                 size = 3,
             )
             val joined = listOf(fragment(2), body).join()
