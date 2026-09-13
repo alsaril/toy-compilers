@@ -198,6 +198,30 @@ class CodeBuilderTest {
         }
 
         @Test
+        fun `raises the local count to what the fragment needs`() {
+            // the fragment reaches slot 4, so it needs five slots, and splicing must carry
+            // that figure across rather than the slot it was derived from
+            val piece = builder().apply { iconst(0); istore(4) }.build()
+
+            assertThat(builder().apply { fragment(piece) }.build().maxLocals).isEqualTo(5)
+        }
+
+        @Test
+        fun `keeps a larger local count the builder already had`() {
+            val piece = builder().apply { iconst(0); istore(1) }.build()
+
+            assertThat(builder().apply { iconst(0); istore(7); fragment(piece) }.build().maxLocals)
+                .isEqualTo(8)
+        }
+
+        @Test
+        fun `does not raise the local count for a fragment that touches none`() {
+            val piece = builder().apply { nop() }.build()
+
+            assertThat(builder().apply { fragment(piece) }.build().maxLocals).isZero()
+        }
+
+        @Test
         fun `raises the stack requirement to what the fragment needs`() {
             val deep = Fragment(listOf(ByteArray(1)), emptyList(), emptyList(), maxStack = 3, maxLocals = 0, size = 1)
 

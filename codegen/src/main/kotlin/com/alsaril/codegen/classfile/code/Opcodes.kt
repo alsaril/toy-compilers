@@ -45,17 +45,17 @@ fun CodeBuilder.ldc(pointer: DataPointer) {
 // load
 fun CodeBuilder.iload(index: Int) {
     instructionFamily(index, 0x1a, 0x15)
-    maxLocals(index)
+    local(index)
 }
 
 fun CodeBuilder.fload(index: Int) {
     instructionFamily(index, 0x22, 0x17)
-    maxLocals(index)
+    local(index)
 }
 
 fun CodeBuilder.aload(index: Int) {
     instructionFamily(index, 0x2a, 0x19)
-    maxLocals(index)
+    local(index)
 }
 
 fun CodeBuilder.iaload() {
@@ -69,17 +69,17 @@ fun CodeBuilder.baload() {
 // store
 fun CodeBuilder.istore(index: Int) {
     instructionFamily(index, 0x3b, 0x36)
-    maxLocals(index)
+    local(index)
 }
 
 fun CodeBuilder.fstore(index: Int) {
     instructionFamily(index, 0x43, 0x38)
-    maxLocals(index)
+    local(index)
 }
 
 fun CodeBuilder.astore(index: Int) {
     instructionFamily(index, 0x4b, 0x3a)
-    maxLocals(index)
+    local(index)
 }
 
 fun CodeBuilder.iastore() {
@@ -130,7 +130,7 @@ fun CodeBuilder.iinc(index: Int, const: Int) {
         u2(index)
         s2(const)
     }
-    maxLocals(index)
+    local(index)
 }
 
 // stack

@@ -123,7 +123,12 @@ class CodeBuilder(
         maxStack = max(maxStack, depth)
     }
 
-    fun maxLocals(slot: Int, slots: Int = 1) {
-        maxLocals = max(maxLocals, slot + slots)
+
+    fun maxLocals(count: Int) {
+        maxLocals = max(maxLocals, count)
+    }
+
+    internal fun local(slot: Int, slots: Int = 1) {
+        maxLocals(slot + slots)
     }
 }

@@ -20,6 +20,24 @@ object ClassGenerator {
             invokespecial(method(parent(), "<init>", "()V"))
             `return`()
         }
+        .method("getFloat", "(Ljava/util/Map;Ljava/lang/String;)F", 4, PRIVATE, STATIC, FINAL) {
+            aload(0)
+            aload(1)
+            invokeinterface(imethod(clazz("java/util/Map"), "get", "(Ljava/lang/Object;)Ljava/lang/Object;"), 2)
+            dup()
+            instanceof(clazz("java/lang/Float"))
+            val err = ifeq()
+            checkcast(clazz("java/lang/Float"))
+            invokevirtual(method(clazz("java/lang/Float"), "floatValue", "()F"))
+            freturn()
+            err(loc())
+            frameStack(objInfo("java/lang/Object"))
+            new(clazz("java/util/NoSuchElementException"))
+            dup()
+            aload(1)
+            invokespecial(method(clazz("java/util/NoSuchElementException"), "<init>", "(Ljava/lang/String;)V"))
+            athrow()
+        }
         .generateEval(ast)
         .build()
 
@@ -50,31 +68,12 @@ object ClassGenerator {
         fun inc() = value++
     }
 
-    private fun ClassFileBuilder.emitAccessor(variables: Map<String, Int>, callSlots: Int) = emitFragment {
-        method("getFloat", "(Ljava/util/Map;Ljava/lang/String;)F", 4, PRIVATE, STATIC, FINAL) {
-            aload(0)
-            aload(1)
-            invokeinterface(imethod(clazz("java/util/Map"), "get", "(Ljava/lang/Object;)Ljava/lang/Object;"), 2)
-            dup()
-            instanceof(clazz("java/lang/Float"))
-            val err = ifeq()
-            checkcast(clazz("java/lang/Float"))
-            invokevirtual(method(clazz("java/lang/Float"), "floatValue", "()F"))
-            freturn()
-            err(loc())
-            frameStack(objInfo("java/lang/Object"))
-            new(clazz("java/util/NoSuchElementException"))
-            dup()
-            aload(1)
-            invokespecial(method(clazz("java/util/NoSuchElementException"), "<init>", "(Ljava/lang/String;)V"))
-            athrow()
-        }
-
-        variables.forEach { (name, index) ->
+    private fun CodeBuilder.emitAccessor(table: Map<String, Int>, variables: Set<String>, callSlots: Int) {
+        variables.forEach { name ->
             aload(0)
             ldc(string(name))
             invokestatic(method(self(), "getFloat", "(Ljava/util/Map;Ljava/lang/String;)F"))
-            fstore(index + callSlots)
+            fstore(table[name]!! + callSlots)
         }
 
         maxStack(2)
@@ -83,10 +82,9 @@ object ClassGenerator {
     private fun ClassFileBuilder.generateEval(ast: Node) = apply {
         val callSlots = 1
         val variables = variables(ast)
-        val accessor = emitAccessor(variables, callSlots)
         val counter = Counter()
-        val body = materialize(ast, variables, accessor, callSlots, counter)
-        val (name, descriptor) = defineMethod(accessor, body, counter)
+        val context = materialize(ast, variables, callSlots, counter)
+        val (name, descriptor) = defineMethod(context, variables, callSlots, counter)
         method("eval", "(Ljava/util/Map;)F", maxStack = 1, PUBLIC, FINAL) {
             aload(1)
             invokestatic(method(self(), name, descriptor))
@@ -95,8 +93,9 @@ object ClassGenerator {
     }
 
     private fun ClassFileBuilder.defineMethod(
-        accessor: Fragment,
-        body: Fragment,
+        context: Context,
+        table: Map<String, Int>,
+        callSlots: Int,
         counter: Counter
     ): Pair<String, String> {
         val name = "f${counter.inc()}"
@@ -109,8 +108,8 @@ object ClassGenerator {
             STATIC,
             FINAL
         ) {
-            fragment(accessor)
-            fragment(body)
+            emitAccessor(table, context.variables, callSlots)
+            fragment(context.build())
             freturn()
         }
         return name to descriptor
@@ -118,6 +117,7 @@ object ClassGenerator {
 
     private data class Context(
         val codeBuilder: CodeBuilder,
+        val variables: MutableSet<String>,
         val maxStack: Int,
         val delta: Int
     ) {
@@ -127,36 +127,31 @@ object ClassGenerator {
     private fun ClassFileBuilder.materialize(
         ast: Node,
         variables: Map<String, Int>,
-        accessor: Fragment,
         callSlots: Int,
         counter: Counter
-    ): Fragment {
+    ): Context {
         val stack = mutableListOf<Pair<Node, MutableList<Context>>>()
         stack.add(ast to mutableListOf())
 
-        var result: Fragment? = null
+        var result: Context? = null
 
         fun ret(context: Context) {
             stack.removeLast()
-            if (stack.isEmpty()) {
-                result = context.build()
-            } else {
-                stack.last().second.add(context)
-            }
+            if (stack.isEmpty()) result = context else stack.last().second.add(context)
         }
 
-        fun outline(fragment: Fragment): Context {
-            val (name, descriptor) = defineMethod(accessor, fragment, counter)
+        fun outline(context: Context): Context {
+            val (name, descriptor) = defineMethod(context, variables, callSlots, counter)
             return Context(newCodeBuilder().apply {
                 aload(0)
                 invokestatic(method(self(), name, descriptor))
-            }, 1, 1)
+            }, mutableSetOf(), 1, 1)
         }
 
         fun outlineIfSpills(context: Context): Context {
             val (builder, maxStack) = context
             if (builder.loc() < loadFactor * methodLengthLimit) return context
-            return outline(context.build())
+            return outline(context)
         }
 
         while (stack.isNotEmpty()) {
@@ -170,11 +165,11 @@ object ClassGenerator {
                             ldc(float(value))
                         }
                     }
-                }.let { ret(Context(it, 1, 1)) }
+                }.let { ret(Context(it, mutableSetOf(), 1, 1)) }
 
                 is Var -> newCodeBuilder()
                     .apply { fload(variables[node.name]!! + callSlots) }
-                    .let { ret(Context(it, 1, 1)) }
+                    .let { ret(Context(it, mutableSetOf(node.name), 1, 1)) }
 
                 is Neg -> {
                     if (results.isEmpty()) {
@@ -198,8 +193,8 @@ object ClassGenerator {
 
                             // the sum can still overflow
                             if (left.codeBuilder.loc() + right.codeBuilder.loc() > loadFactor * methodLengthLimit) {
-                                left = outline(left.build())
-                                right = outline(right.build())
+                                left = outline(left)
+                                right = outline(right)
                             }
 
                             val builder = left.codeBuilder.apply { // asymmetric
@@ -214,6 +209,7 @@ object ClassGenerator {
                             ret(
                                 Context(
                                     builder,
+                                    left.variables.apply { addAll(right.variables) },
                                     max(left.maxStack, left.delta + right.maxStack),
                                     left.delta + right.delta - 1
                                 )
