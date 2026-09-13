@@ -72,9 +72,7 @@ class ClassFileBuilder {
         contract {
             callsInPlace(codeBuilder, InvocationKind.EXACTLY_ONCE)
         }
-        return CodeBuilder(cp, thisName, parentName)
-            .apply { codeBuilder() }
-            .build()
+        return newCodeBuilder().apply { codeBuilder() }.build()
     }
 
     fun build(): Pair<String, ByteArray> {
@@ -87,6 +85,8 @@ class ClassFileBuilder {
         )
         return thisName to toBytes { write(file) }
     }
+
+    fun newCodeBuilder() = CodeBuilder(cp, thisName, parentName)
 
     companion object {
         fun classFile(name: String, parent: String) = ClassFileBuilder(name, parent)

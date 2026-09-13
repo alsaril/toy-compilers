@@ -15,7 +15,7 @@ import kotlin.math.min
 
 object RunGenerator {
 
-    private val methodLengthLimit = 8000 // hotspot threshold, however can be as big as 65535
+    private const val methodLengthLimit = 8000 // hotspot threshold, however can be as big as 65535
 
     private val inIndex = 0
     private val outIndex = 1
@@ -89,13 +89,6 @@ object RunGenerator {
         return name to descriptor
     }
 
-    // join into one fragment
-    private fun tryInline(fragments: List<Fragment>, budget: Int): Fragment? {
-        val chunk = collect(fragments, 0, budget)
-        if (chunk.next != null) return null
-        return chunk.fragments.join()
-    }
-
     private fun ClassFileBuilder.materializeNonrecursive(
         instructions: List<Instruction>,
         generation: Generation
@@ -130,6 +123,12 @@ object RunGenerator {
                 is Loop -> stack.add(instruction.instructions to mutableListOf())
             }
         }
+    }
+
+    private fun tryInline(fragments: List<Fragment>, budget: Int): Fragment? {
+        val chunk = collect(fragments, 0, budget)
+        if (chunk.next != null) return null
+        return chunk.fragments.join()
     }
 
     private fun ClassFileBuilder.pack(

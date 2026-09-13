@@ -15,45 +15,63 @@ data class Fragment(
         ByteBuffer.allocate(size).apply { content.forEach(::put) }.array()
 }
 
-fun List<Fragment>.join(): Fragment {
-    if (size == 1) return first()
-    val result = mutableListOf<ByteArray>()
-    val globalFrames = mutableListOf<StackMapFrame>()
-    val globalExceptionHandlers = mutableListOf<ExceptionHandler>()
-    var globalBase = 0
-    var globalSize = 0
-    var globalMaxStack = 0
+internal fun Fragment.recordAt(
+    position: Int,
+    base: Int,
+    frames: MutableList<StackMapFrame>,
+    handlers: MutableList<ExceptionHandler>,
+): Int {
+    var next = base
 
-    forEach { (code, frames, exceptionHandlers, maxStack, size) ->
-        result.addAll(code)
-        if (frames.isNotEmpty()) {
-            val frame = frames.first()
-            val patchedOffset = frame.offsetDelta + globalSize - globalBase
-            if (patchedOffset != -1) {
-                val patched = when (frame) {
-                    is SameFrame, is SameFrameExtended -> sameFrame(patchedOffset)
-                    is AppendFrame -> frame.copy(offsetDelta = patchedOffset)
-                    is FullFrame -> frame.copy(offsetDelta = patchedOffset)
-                    is SameLocals1StackItemFrame -> sameLocals1StackItem(patchedOffset, frame.stack)
-                }
-                globalFrames.add(patched)
-                globalBase += patched.offsetDelta + 1
-            }
+    this.frames.firstOrNull()?.let { first ->
+        val patchedOffset = first.offsetDelta + position - next
+
+        if (patchedOffset != -1) {
+            val patched = first.movedTo(patchedOffset)
+            frames.add(patched)
+            next += patched.offsetDelta + 1
         }
-        frames.asSequence().drop(1).forEach {
-            globalFrames.add(it)
-            globalBase += it.offsetDelta + 1
-        }
-        exceptionHandlers.asSequence().map {
-            it.copy(
-                startPc = it.startPc + globalSize,
-                endPc = it.endPc + globalSize,
-                handlerPc = it.handlerPc + globalSize,
-            )
-        }.forEach(globalExceptionHandlers::add)
-        globalMaxStack = max(globalMaxStack, maxStack)
-        globalSize += size
     }
 
-    return Fragment(result, globalFrames, globalExceptionHandlers, globalMaxStack, globalSize)
+    this.frames.asSequence().drop(1).forEach {
+        frames.add(it)
+        next += it.offsetDelta + 1
+    }
+
+    exceptionHandlers.forEach { handlers.add(it.shiftedBy(position)) }
+
+    return next
+}
+
+private fun StackMapFrame.movedTo(offsetDelta: Int) = when (this) {
+    is SameFrame, is SameFrameExtended -> sameFrame(offsetDelta)
+    is AppendFrame -> copy(offsetDelta = offsetDelta)
+    is FullFrame -> copy(offsetDelta = offsetDelta)
+    is SameLocals1StackItemFrame -> sameLocals1StackItem(offsetDelta, stack)
+}
+
+private fun ExceptionHandler.shiftedBy(offset: Int) = copy(
+    startPc = startPc + offset,
+    endPc = endPc + offset,
+    handlerPc = handlerPc + offset,
+)
+
+fun List<Fragment>.join(): Fragment {
+    if (size == 1) return first()
+
+    val content = mutableListOf<ByteArray>()
+    val frames = mutableListOf<StackMapFrame>()
+    val handlers = mutableListOf<ExceptionHandler>()
+    var base = 0
+    var totalSize = 0
+    var maxStack = 0
+
+    forEach { fragment ->
+        content.addAll(fragment.content)
+        base = fragment.recordAt(totalSize, base, frames, handlers)
+        maxStack = max(maxStack, fragment.maxStack)
+        totalSize += fragment.size
+    }
+
+    return Fragment(content, frames, handlers, maxStack, totalSize)
 }

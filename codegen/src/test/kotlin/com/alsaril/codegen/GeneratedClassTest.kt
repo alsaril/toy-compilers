@@ -101,6 +101,40 @@ class GeneratedClassTest {
     }
 
     @Test
+    fun `links a body spliced together from fragments`() {
+        // given
+        val builder = classFile("GenSpliced", "java/lang/Object")
+        val chooses = builder.emitFragment {
+            iload(0)
+            val otherwise = ifeq()
+            iconst(1)
+            val done = goto()
+
+            otherwise(loc())
+            frameSame()
+            iconst(2)
+
+            done(loc())
+            frameStack(IntInfo)
+        }
+
+        // when it is spliced in behind something else, so it does not land at zero
+        val (name, bytes) = builder
+            .method("f", "(I)I", maxStack = 1, maxLocals = 1, PUBLIC, STATIC) {
+                nop()
+                fragment(chooses)
+                ireturn()
+            }
+            .build()
+        val method = loadClass(name, bytes)
+            .getDeclaredMethod("f", Int::class.javaPrimitiveType)
+
+        // then which value comes back says the branch still reaches its own target
+        assertThat(method.invoke(null, 0)).isEqualTo(2)
+        assertThat(method.invoke(null, 1)).isEqualTo(1)
+    }
+
+    @Test
     fun `raises max_stack to the depth the body reaches`() {
         // given a method declaring no stack at all, with the depth coming from the body
         val (name, bytes) = classFile("GenDeepStack", "java/lang/Object")

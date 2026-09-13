@@ -1,9 +1,11 @@
 package com.alsaril.codegen.classfile.code
 
 import com.alsaril.codegen.classfile.Fragment
+import com.alsaril.codegen.classfile.recordAt
 import com.alsaril.codegen.classfile.attributes.ExceptionHandler
 import com.alsaril.codegen.classfile.attributes.StackMapFrame
 import com.alsaril.codegen.constantpool.UpdatableConstantPool
+import kotlin.math.max
 
 @DslMarker
 annotation class CodeDsl
@@ -70,14 +72,18 @@ class CodeBuilder(
         }
     }
 
-    // a frame is positioned relative to the previous one, so base stays here
     internal fun frame(build: (offsetDelta: Int) -> StackMapFrame) {
         val l = loc()
-        // frame offsets must strictly increase, so an offset already covered by the
-        // previous frame keeps it rather than recording a second one there
         if (frames.isNotEmpty() && l == base - 1) return
         frames.add(build(l - base))
         base = l + 1
+    }
+
+    fun fragment(fragment: Fragment) {
+        val pos = loc()
+        fragment.content.forEach { chunk -> chunk.forEach(bytecode::add) }
+        base = fragment.recordAt(pos, base, frames, exceptionHandlers)
+        maxStack(fragment.maxStack)
     }
 
     fun `try`() = TryPointer(loc())
@@ -92,6 +98,6 @@ class CodeBuilder(
     }
 
     fun maxStack(depth: Int) {
-        maxStack = depth
+        maxStack = max(maxStack, depth)
     }
 }

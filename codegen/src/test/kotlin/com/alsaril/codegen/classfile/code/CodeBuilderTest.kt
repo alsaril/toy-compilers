@@ -1,6 +1,15 @@
 package com.alsaril.codegen.classfile.code
 
 import com.alsaril.codegen.bytesOf
+import com.alsaril.codegen.classfile.Fragment
+import com.alsaril.codegen.classfile.attributes.ExceptionHandler
+import com.alsaril.codegen.classfile.attributes.AppendFrame
+import com.alsaril.codegen.classfile.attributes.FullFrame
+import com.alsaril.codegen.classfile.attributes.SameFrame
+import com.alsaril.codegen.classfile.attributes.SameFrameExtended
+import com.alsaril.codegen.classfile.attributes.SameLocals1StackItemFrameShort
+import com.alsaril.codegen.classfile.attributes.SimpleVerificationTypeInfo.IntegerVariableInfo
+import com.alsaril.codegen.classfile.attributes.StackMapFrame
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatExceptionOfType
 import org.assertj.core.api.Assertions.assertThatIllegalArgumentException
@@ -50,11 +59,127 @@ class CodeBuilderTest {
             assertThat(builder.build().maxStack).isEqualTo(3)
         }
 
-        // the last call wins rather than the largest, so a body that declares twice has
-        // to declare its own high water mark
         @Test
-        fun `replaces a depth declared earlier`() {
-            assertThat(builder().apply { maxStack(4); maxStack(2) }.build().maxStack).isEqualTo(2)
+        fun `keeps the largest depth it is given, whichever order they arrive in`() {
+            assertThat(builder().apply { maxStack(4); maxStack(2) }.build().maxStack).isEqualTo(4)
+            assertThat(builder().apply { maxStack(2); maxStack(4) }.build().maxStack).isEqualTo(4)
+        }
+    }
+
+    @Nested
+    inner class Splicing {
+
+        private fun piece(vararg bytes: Int) =
+            Fragment(listOf(bytesOf(*bytes)), emptyList(), emptyList(), maxStack = 0, size = bytes.size)
+
+        private fun framed(size: Int, vararg frames: StackMapFrame) =
+            Fragment(listOf(ByteArray(size)), frames.toList(), emptyList(), maxStack = 0, size = size)
+
+        private fun guarded(size: Int, vararg handlers: ExceptionHandler) =
+            Fragment(listOf(ByteArray(size)), emptyList(), handlers.toList(), maxStack = 0, size = size)
+
+        @Test
+        fun `appends the bytes where the builder had got to`() {
+            assertThat(bytecode { nop(); fragment(piece(0x01, 0x02)) })
+                .containsExactly(*bytesOf(0x00, 0x01, 0x02))
+        }
+
+        @Test
+        fun `appends several fragments in the order they were spliced`() {
+            assertThat(bytecode { fragment(piece(0x01)); fragment(piece(0x02, 0x03)) })
+                .containsExactly(*bytesOf(0x01, 0x02, 0x03))
+        }
+
+        @Test
+        fun `takes a fragment with nothing in it`() {
+            assertThat(bytecode { nop(); fragment(piece()); nop() })
+                .containsExactly(*bytesOf(0x00, 0x00))
+        }
+
+        @Test
+        fun `keeps emitting after a fragment`() {
+            assertThat(bytecode { fragment(piece(0x01)); nop() })
+                .containsExactly(*bytesOf(0x01, 0x00))
+        }
+
+        @Test
+        fun `rewrites the first frame against the builder's position`() {
+            // the frame sits at offset 1 of a fragment spliced in at offset 3
+            assertThat(frames { repeat(3) { nop() }; fragment(framed(3, SameFrame(1))) })
+                .containsExactly(SameFrame(4))
+        }
+
+        @Test
+        fun `rewrites the first frame whatever kind it is`() {
+            // given a fragment spliced in at 1, whose own frame sits at offset 1
+            val locals = listOf(IntegerVariableInfo)
+
+            // then every frame shape carries its contents across the move
+            assertThat(frames { nop(); fragment(framed(2, SameFrameExtended(1))) })
+                .containsExactly(SameFrame(2))
+            assertThat(frames { nop(); fragment(framed(2, AppendFrame(1, locals))) })
+                .containsExactly(AppendFrame(2, locals))
+            assertThat(frames { nop(); fragment(framed(2, FullFrame(1, locals, emptyList()))) })
+                .containsExactly(FullFrame(2, locals, emptyList()))
+            assertThat(frames {
+                nop()
+                fragment(framed(2, SameLocals1StackItemFrameShort(1, IntegerVariableInfo)))
+            }).containsExactly(SameLocals1StackItemFrameShort(2, IntegerVariableInfo))
+        }
+
+        @Test
+        fun `leaves the frames after the first alone`() {
+            assertThat(frames { fragment(framed(5, SameFrame(0), SameFrame(2))) })
+                .containsExactly(SameFrame(0), SameFrame(2))
+        }
+
+        @Test
+        fun `measures a frame already in the builder before the one it splices`() {
+            // the builder's frame is at offset 1, and the fragment's own frame at offset 1
+            // of a fragment spliced in at 1, so the second sits at 2 and is one past the first
+            assertThat(frames { nop(); frameSame(); fragment(framed(3, SameFrame(1))) })
+                .containsExactly(SameFrame(1), SameFrame(0))
+        }
+
+        @Test
+        fun `drops a frame that lands on the offset the previous one already covers`() {
+            assertThat(frames { nop(); frameSame(); fragment(framed(2, SameFrame(0))) })
+                .containsExactly(SameFrame(1))
+        }
+
+        @Test
+        fun `slides an exception handler by where the fragment landed`() {
+            assertThat(handlers { repeat(4) { nop() }; fragment(guarded(3, ExceptionHandler(0, 2, 2, catchType = 7))) })
+                .containsExactly(ExceptionHandler(4, 6, 6, catchType = 7))
+        }
+
+        @Test
+        fun `slides every handler of the fragment`() {
+            val spliced = guarded(
+                4,
+                ExceptionHandler(0, 1, 1, catchType = 0),
+                ExceptionHandler(2, 3, 3, catchType = 0),
+            )
+
+            assertThat(handlers { nop(); fragment(spliced) }).containsExactly(
+                ExceptionHandler(1, 2, 2, catchType = 0),
+                ExceptionHandler(3, 4, 4, catchType = 0),
+            )
+        }
+
+        @Test
+        fun `raises the stack requirement to what the fragment needs`() {
+            val deep = Fragment(listOf(ByteArray(1)), emptyList(), emptyList(), maxStack = 3, size = 1)
+
+            assertThat(builder().apply { fragment(deep) }.build().maxStack).isEqualTo(3)
+        }
+
+        @Test
+        fun `keeps a larger requirement the builder already had`() {
+            val shallow = Fragment(listOf(ByteArray(1)), emptyList(), emptyList(), maxStack = 1, size = 1)
+
+            assertThat(builder().apply { maxStack(5); fragment(shallow) }.build().maxStack)
+                .isEqualTo(5)
         }
     }
 

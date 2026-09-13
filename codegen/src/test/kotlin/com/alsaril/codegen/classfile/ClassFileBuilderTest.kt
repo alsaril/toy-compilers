@@ -4,6 +4,9 @@ import com.alsaril.codegen.bytesOf
 import com.alsaril.codegen.classfile.ClassFileBuilder.Companion.classFile
 import com.alsaril.codegen.classfile.MethodAccessFlag.PUBLIC
 import com.alsaril.codegen.classfile.MethodAccessFlag.STATIC
+import com.alsaril.codegen.classfile.code.clazz
+import com.alsaril.codegen.classfile.code.parent
+import com.alsaril.codegen.classfile.code.self
 import com.alsaril.codegen.classfile.code.`return`
 import com.alsaril.codegen.classfile.code.nop
 import org.assertj.core.api.Assertions.assertThat
@@ -57,6 +60,29 @@ class ClassFileBuilderTest {
                 .method("f", "()V", maxStack = 0, maxLocals = 0, PUBLIC, STATIC) { `return`() }
                 .build()
         }
+    }
+
+    @Test
+    fun `hands out code builders that share one constant pool`() {
+        // given
+        val builder = classFile("Shared", "java/lang/Object")
+
+        // when the same class is registered through two of them
+        val first = builder.newCodeBuilder().clazz("A")
+        val second = builder.newCodeBuilder().clazz("A")
+
+        // then it landed on one entry, which is what lets fragments be built apart and
+        // then spliced into a method of the same class
+        assertThat(second).isEqualTo(first)
+    }
+
+    @Test
+    fun `hands out code builders that know the class they belong to`() {
+        val builder = classFile("Shared", "java/lang/Object")
+
+        assertThat(builder.newCodeBuilder().self())
+            .isEqualTo(builder.newCodeBuilder().self())
+            .isNotEqualTo(builder.newCodeBuilder().parent())
     }
 
     @Test
