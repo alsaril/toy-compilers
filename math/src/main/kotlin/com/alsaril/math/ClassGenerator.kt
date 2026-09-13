@@ -44,7 +44,7 @@ object ClassGenerator {
         return n2i
     }
 
-    private class MutableInt {
+    private class Counter {
         private var value = 0
 
         fun inc() = value++
@@ -84,9 +84,9 @@ object ClassGenerator {
         val callSlots = 1
         val variables = variables(ast)
         val accessor = emitAccessor(variables, callSlots)
-        val count = MutableInt()
-        val body = materialize(ast, variables, accessor, callSlots, count)
-        val (name, descriptor) = defineMethod(accessor, body, count)
+        val counter = Counter()
+        val body = materialize(ast, variables, accessor, callSlots, counter)
+        val (name, descriptor) = defineMethod(accessor, body, counter)
         method("eval", "(Ljava/util/Map;)F", maxStack = 1, PUBLIC, FINAL) {
             aload(1)
             invokestatic(method(self(), name, descriptor))
@@ -97,9 +97,9 @@ object ClassGenerator {
     private fun ClassFileBuilder.defineMethod(
         accessor: Fragment,
         body: Fragment,
-        count: MutableInt
+        counter: Counter
     ): Pair<String, String> {
-        val name = "f${count.inc()}"
+        val name = "f${counter.inc()}"
         val descriptor = "(Ljava/util/Map;)F"
         method(
             name,
@@ -129,7 +129,7 @@ object ClassGenerator {
         variables: Map<String, Int>,
         accessor: Fragment,
         callSlots: Int,
-        count: MutableInt
+        counter: Counter
     ): Fragment {
         val stack = mutableListOf<Pair<Node, MutableList<Context>>>()
         stack.add(ast to mutableListOf())
@@ -146,7 +146,7 @@ object ClassGenerator {
         }
 
         fun outline(fragment: Fragment): Context {
-            val (name, descriptor) = defineMethod(accessor, fragment, count)
+            val (name, descriptor) = defineMethod(accessor, fragment, counter)
             return Context(newCodeBuilder().apply {
                 aload(0)
                 invokestatic(method(self(), name, descriptor))
