@@ -4,6 +4,10 @@ import com.alsaril.codegen.classfile.attributes.*
 import java.nio.ByteBuffer
 import kotlin.math.max
 
+internal class UnpatchedJumps {
+    var count = 0
+}
+
 data class Fragment(
     val content: List<ByteArray>,
     val frames: List<StackMapFrame>,
@@ -11,8 +15,15 @@ data class Fragment(
     val maxStack: Int,
     val size: Int, // the sum of lengths in content
 ) {
-    fun bytecode(): ByteArray = if (content.size == 1) content.first() else
+    internal var unpatchedJumps: () -> Int = { 0 }
+
+    fun bytecode(): ByteArray = if (content.size == 1) content.first() else {
+        require(unpatchedJumps() == 0) {
+            "flattening several blocks copies them, so the ${unpatchedJumps()} outstanding " +
+                "jump patch(es) would not reach the result: patch before flattening"
+        }
         ByteBuffer.allocate(size).apply { content.forEach(::put) }.array()
+    }
 }
 
 internal fun Fragment.recordAt(
@@ -74,4 +85,5 @@ fun List<Fragment>.join(): Fragment {
     }
 
     return Fragment(content, frames, handlers, maxStack, totalSize)
+        .also { joined -> joined.unpatchedJumps = { sumOf { it.unpatchedJumps() } } }
 }

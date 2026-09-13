@@ -1,6 +1,7 @@
 package com.alsaril.codegen.classfile.code
 
 import com.alsaril.codegen.classfile.Fragment
+import com.alsaril.codegen.classfile.UnpatchedJumps
 import com.alsaril.codegen.classfile.recordAt
 import com.alsaril.codegen.classfile.attributes.ExceptionHandler
 import com.alsaril.codegen.classfile.attributes.StackMapFrame
@@ -21,6 +22,7 @@ class CodeBuilder(
     private val exceptionHandlers = mutableListOf<ExceptionHandler>()
     private var base = 0
     private var frozen: ByteArray? = null
+    private val unpatched = UnpatchedJumps()
     private var maxStack = 0
 
     fun build(): Fragment {
@@ -28,10 +30,23 @@ class CodeBuilder(
         with(bytecode.toByteArray()) {
             frozen = this
             return Fragment(listOf(this), frames, exceptionHandlers, maxStack, this.size)
+                .also { it.unpatchedJumps = unpatched::count }
         }
     }
 
     fun loc() = bytecode.size
+
+    internal fun deferred(patch: (Int) -> Unit): (Int) -> Unit {
+        unpatched.count++
+        var pending = true
+        return { target ->
+            if (pending) {
+                pending = false
+                unpatched.count--
+            }
+            patch(target)
+        }
+    }
 
     internal fun u1(value: Int) {
         require(value in 0..0xff) { "$value does not fit a u1" }
@@ -80,6 +95,11 @@ class CodeBuilder(
     }
 
     fun fragment(fragment: Fragment) {
+        require(fragment.unpatchedJumps() == 0) {
+            "splicing copies the bytes of a fragment, so its ${fragment.unpatchedJumps()} " +
+                "outstanding jump patch(es) would not reach the copy: patch before splicing"
+        }
+
         val pos = loc()
         fragment.content.forEach { chunk -> chunk.forEach(bytecode::add) }
         base = fragment.recordAt(pos, base, frames, exceptionHandlers)

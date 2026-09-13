@@ -168,20 +168,33 @@ class CodeBuilderTest {
         }
 
         @Test
-        fun `copies the bytes, so a jump patched afterwards does not reach the splice`() {
-            // given a fragment whose jump target is only known after it was built
+        fun `refuses a fragment whose jump is still waiting for a target`() {
+            // given a fragment built with its jump target still unknown
+            val source = builder()
+            source.goto()
+            source.nop()
+            val open = source.build()
+
+            // then
+            assertThatIllegalArgumentException()
+                .isThrownBy { builder().apply { fragment(open) } }
+                .withMessageContaining("patch before splicing")
+        }
+
+        @Test
+        fun `takes the same fragment once its jump has been patched`() {
+            // given
             val source = builder()
             val jump = source.goto()
             source.nop()
             val open = source.build()
 
-            // when it is spliced and only then patched
-            val spliced = builder().apply { fragment(open) }
+            // when the target is supplied before the splice rather than after
             jump(9)
 
-            // then the fragment itself moved on and the splice did not
-            assertThat(open.bytecode()).containsExactly(*bytesOf(0xA7, 0x00, 0x09, 0x00))
-            assertThat(spliced.build().bytecode()).containsExactly(*bytesOf(0xA7, 0x00, 0x00, 0x00))
+            // then
+            assertThat(builder().apply { fragment(open) }.build().bytecode())
+                .containsExactly(*bytesOf(0xA7, 0x00, 0x09, 0x00))
         }
 
         @Test

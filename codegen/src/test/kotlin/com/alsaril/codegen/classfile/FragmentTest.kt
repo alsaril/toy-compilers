@@ -15,6 +15,7 @@ import com.alsaril.codegen.classfile.attributes.SameLocals1StackItemFrameShort
 import com.alsaril.codegen.classfile.attributes.SimpleVerificationTypeInfo.IntegerVariableInfo
 import com.alsaril.codegen.classfile.attributes.StackMapFrame
 import org.assertj.core.api.Assertions.assertThat
+import org.assertj.core.api.Assertions.assertThatIllegalArgumentException
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
@@ -46,6 +47,22 @@ class FragmentTest {
 
             // then
             assertThat(fragment.bytecode()).isSameAs(block)
+        }
+
+        @Test
+        fun `hands back a single block even while a jump waits, since nothing is copied`() {
+            // given a fragment built with its jump target still unknown
+            val source = builder()
+            val jump = source.goto()
+            source.nop()
+            val open = source.build()
+
+            // when the one block is handed back as it stands, a later patch still reaches it
+            val handed = open.bytecode()
+            jump(9)
+
+            // then
+            assertThat(handed).containsExactly(*bytesOf(0xA7, 0x00, 0x09, 0x00))
         }
 
         @Test
@@ -128,6 +145,20 @@ class FragmentTest {
             // then the patch reached, because joining moved the block and not its bytes
             assertThat(joined.content.first()).isSameAs(open.content.first())
             assertThat(joined.bytecode()).startsWith(*bytesOf(0xA7, 0x00, 0x09))
+        }
+
+        @Test
+        fun `carries the jumps still waiting from every fragment it joined`() {
+            // given one fragment owing a target joined with one that does not
+            val source = builder()
+            source.goto()
+            source.nop()
+            val joined = listOf(source.build(), builder().apply { nop() }.build()).join()
+
+            // then flattening its blocks would copy them, so it is refused rather than lost
+            assertThatIllegalArgumentException()
+                .isThrownBy { joined.bytecode() }
+                .withMessageContaining("patch before flattening")
         }
 
         @Test
