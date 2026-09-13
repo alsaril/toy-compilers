@@ -148,6 +148,26 @@ Descriptors are parsed by `parseFunctionDescriptor` in `descriptor.kt`, which is
 or a spliced fragment that needs more raises it — so a caller can pass `0` and let the code
 speak for itself, or state a number and have it honoured if the body stays inside it.
 
+**Both are counts, raised and never lowered**, which is what lets a spliced fragment carry
+its own figures across unchanged:
+
+```kotlin
+maxStack(fragment.maxStack)
+maxLocals(fragment.maxLocals)
+```
+
+An instruction has a slot, not a count, so the conversion happens in one place rather than
+at each of the seven call sites that need it:
+
+```kotlin
+internal fun local(slot: Int, slots: Int = 1) = maxLocals(slot + slots)
+```
+
+`slots` is what makes a `long` or a `double` reserve the pair it occupies. Keeping the two
+shapes apart matters: feeding a count to something expecting a slot over-declares by one,
+and feeding a slot to something expecting a count under-declares — and only the second is
+rejected, so the first is the kind of mistake that survives a test suite.
+
 ## Loading
 
 `ByteClassLoader.loadClass(name, bytes)` gives each class its own loader, so the same
