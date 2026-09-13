@@ -1,6 +1,9 @@
 package com.alsaril.codegen.classfile
 
 import com.alsaril.codegen.bytesOf
+import com.alsaril.codegen.classfile.code.builder
+import com.alsaril.codegen.classfile.code.goto
+import com.alsaril.codegen.classfile.code.nop
 import com.alsaril.codegen.classfile.attributes.AppendFrame
 import com.alsaril.codegen.classfile.attributes.ExceptionHandler
 import com.alsaril.codegen.classfile.attributes.FullFrame
@@ -108,6 +111,23 @@ class FragmentTest {
         @Test
         fun `asks for no stack when none of the fragments do`() {
             assertThat(listOf(fragment(1), fragment(2)).join().maxStack).isZero()
+        }
+
+        @Test
+        fun `shares the blocks rather than copying them, so a later patch still lands`() {
+            // given a fragment whose jump target is only known after it was built
+            val builder = builder()
+            val jump = builder.goto()
+            builder.nop()
+            val open = builder.build()
+
+            // when it is joined and only then patched
+            val joined = listOf(open, builder().apply { nop() }.build()).join()
+            jump(9)
+
+            // then the patch reached, because joining moved the block and not its bytes
+            assertThat(joined.content.first()).isSameAs(open.content.first())
+            assertThat(joined.bytecode()).startsWith(*bytesOf(0xA7, 0x00, 0x09))
         }
 
         @Test

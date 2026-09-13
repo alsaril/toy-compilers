@@ -168,6 +168,23 @@ class CodeBuilderTest {
         }
 
         @Test
+        fun `copies the bytes, so a jump patched afterwards does not reach the splice`() {
+            // given a fragment whose jump target is only known after it was built
+            val source = builder()
+            val jump = source.goto()
+            source.nop()
+            val open = source.build()
+
+            // when it is spliced and only then patched
+            val spliced = builder().apply { fragment(open) }
+            jump(9)
+
+            // then the fragment itself moved on and the splice did not
+            assertThat(open.bytecode()).containsExactly(*bytesOf(0xA7, 0x00, 0x09, 0x00))
+            assertThat(spliced.build().bytecode()).containsExactly(*bytesOf(0xA7, 0x00, 0x00, 0x00))
+        }
+
+        @Test
         fun `raises the stack requirement to what the fragment needs`() {
             val deep = Fragment(listOf(ByteArray(1)), emptyList(), emptyList(), maxStack = 3, size = 1)
 
