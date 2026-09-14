@@ -439,6 +439,12 @@ class ClassGeneratorTest {
     @Nested
     inner class Splitting {
 
+        private fun chainOf(name: String, terms: Int): Node {
+            var node: Node = Var(name)
+            repeat(terms - 1) { node = Op(ADD, node, Var(name)) }
+            return node
+        }
+
         private fun chain(terms: Int): Node {
             var node: Node = Var("x")
             repeat(terms - 1) { node = Op(ADD, node, Var("y")) }
@@ -478,6 +484,61 @@ class ClassGeneratorTest {
             assertThatExceptionOfType(NoSuchElementException::class.java)
                 .isThrownBy { eval(chain(5_000), mapOf("x" to 1.0f)) }
                 .withMessage("y")
+        }
+
+        /** the slots the body methods declare, entry method last */
+        private fun bodySlots(ast: Node): List<Int> {
+            val bytes = generate(ast).second
+            return methodNames(bytes).zip(maxLocals(bytes))
+                .filter { (name, _) -> name.startsWith("f") }
+                .map { (_, slots) -> slots }
+        }
+
+        @Test
+        fun `numbers each method's slots from the variables that method uses`() {
+            // ten variables are known, but each outlined half reads only one of them, so
+            // neither should reserve room for the other nine
+            val names = ('a'..'j').map { it.toString() }
+            var known: Node = Var(names.first())
+            names.drop(1).forEach { known = Op(ADD, known, Var(it)) }
+            val ast = Op(ADD, Op(ADD, known, chainOf("a", 3_000)), chainOf("j", 3_000))
+
+            // one slot for the map, one for the single variable the method reads
+            assertThat(bodySlots(ast)).contains(2)
+        }
+
+        @Test
+        fun `leaves no gap when a method reads only a late variable`() {
+            // b is the second name seen, yet in a method of its own it takes the first slot
+            val known = Op(ADD, Var("a"), Var("b"))
+            val ast = Op(ADD, known, chainOf("b", 5_000))
+
+            assertThat(bodySlots(ast)).contains(2)
+        }
+
+        @Test
+        fun `still evaluates correctly once the slots have been renumbered`() {
+            val names = ('a'..'j').map { it.toString() }
+            var ast: Node = Var(names.first())
+            names.drop(1).forEach { ast = Op(ADD, ast, Var(it)) }
+            repeat(20) { ast = Op(ADD, ast, Var("j")) }
+
+            val values = names.withIndex().associate { (i, n) -> n to (i + 1).toFloat() }
+
+            assertThat(eval(ast, values)).isEqualTo(values.values.sum() + 10.0f * 20)
+        }
+
+        @Test
+        fun `gives the most used variable the first slot`() {
+            // the accessor fills slots in order, so the lookup order is the slot order
+            val variables = CountingMap(mapOf("a" to 1.0f, "b" to 1.0f, "c" to 1.0f))
+            var ast: Node = Op(ADD, Op(ADD, Var("a"), Var("b")), Var("c"))
+            repeat(5) { ast = Op(ADD, ast, Var("c")) }
+            repeat(2) { ast = Op(ADD, ast, Var("b")) }
+
+            program(ast).eval(variables)
+
+            assertThat(variables.lookups).containsExactly("c", "b", "a")
         }
 
         @Test

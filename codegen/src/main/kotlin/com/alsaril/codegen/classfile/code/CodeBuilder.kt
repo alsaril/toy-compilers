@@ -131,4 +131,10 @@ class CodeBuilder(
     internal fun local(slot: Int, slots: Int = 1) {
         maxLocals(slot + slots)
     }
+
+    fun splice(start: Int, end: Int) = bytecode.subList(start, end)
+
+    fun append(code: List<Byte>) {
+        bytecode.addAll(code)
+    }
 }

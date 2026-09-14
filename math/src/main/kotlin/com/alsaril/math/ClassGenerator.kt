@@ -6,6 +6,7 @@ import com.alsaril.codegen.classfile.Fragment
 import com.alsaril.codegen.classfile.MethodAccessFlag.*
 import com.alsaril.codegen.classfile.code.*
 import com.alsaril.math.BinaryKind.*
+import com.alsaril.math.ClassGenerator.Context.Companion.new
 import kotlin.math.max
 
 object ClassGenerator {
@@ -41,15 +42,15 @@ object ClassGenerator {
         .generateEval(ast)
         .build()
 
-    private fun variables(ast: Node): Map<String, Int> {
-        val n2i = mutableMapOf<String, Int>()
+    private fun variables(ast: Node): Pair<Map<String, Int>, List<String>> {
+        val vars = mutableSetOf<String>()
         val stack = ArrayDeque<Node>()
         stack.addLast(ast)
 
         while (stack.isNotEmpty()) {
             when (val node = stack.removeLast()) {
                 is Value -> {}
-                is Var -> n2i.putIfAbsent(node.name, n2i.size)
+                is Var -> vars.add(node.name)
                 is Neg -> stack.addLast(node.arg)
 
                 is Op -> {
@@ -59,21 +60,24 @@ object ClassGenerator {
             }
         }
 
-        return n2i
+        val list = vars.toList()
+        val n2i = list.asSequence().mapIndexed { index, name -> name to index }.toMap()
+        return n2i to list
     }
 
-    private class Counter {
-        private var value = 0
-
+    private class Counter(private var value: Int = 0) {
         fun inc() = value++
+        fun get() = value
+
+        operator fun plus(other: Counter) = Counter(value + other.value)
     }
 
-    private fun CodeBuilder.emitAccessor(table: Map<String, Int>, variables: Set<String>, callSlots: Int) {
-        variables.forEach { name ->
+    private fun CodeBuilder.emitAccessor(vars: List<String>, variables: List<Int>, callSlots: Int) {
+        variables.forEachIndexed { index, old ->
             aload(0)
-            ldc(string(name))
+            ldc(string(vars[old]))
             invokestatic(method(self(), "getFloat", "(Ljava/util/Map;Ljava/lang/String;)F"))
-            fstore(table[name]!! + callSlots)
+            fstore(index + callSlots)
         }
 
         maxStack(2)
@@ -81,10 +85,10 @@ object ClassGenerator {
 
     private fun ClassFileBuilder.generateEval(ast: Node) = apply {
         val callSlots = 1
-        val variables = variables(ast)
+        val (n2i, vars) = variables(ast)
         val counter = Counter()
-        val context = materialize(ast, variables, callSlots, counter)
-        val (name, descriptor) = defineMethod(context, variables, callSlots, counter)
+        val context = materialize(ast, vars, n2i, callSlots, counter)
+        val (name, descriptor) = defineMethod(context, vars, callSlots, counter)
         method("eval", "(Ljava/util/Map;)F", maxStack = 1, PUBLIC, FINAL) {
             aload(1)
             invokestatic(method(self(), name, descriptor))
@@ -94,7 +98,7 @@ object ClassGenerator {
 
     private fun ClassFileBuilder.defineMethod(
         context: Context,
-        table: Map<String, Int>,
+        vars: List<String>,
         callSlots: Int,
         counter: Counter
     ): Pair<String, String> {
@@ -108,24 +112,106 @@ object ClassGenerator {
             STATIC,
             FINAL
         ) {
-            emitAccessor(table, context.variables, callSlots)
-            fragment(context.build())
+            // we're gonna compact the used variables based on their usage
+            val variables = context.virtualInstructionsBuilder.sortedVariables()
+            val o2n = variables.asSequence().mapIndexed { index, i -> i to index }.toMap()
+            emitAccessor(vars, variables, callSlots)
+            context.virtualInstructionsBuilder.emitRealTransforming(this, o2n, callSlots)
+            maxStack(context.maxStack)
             freturn()
         }
         return name to descriptor
     }
 
+    private sealed interface VirtualInstruction
+
+    private sealed interface VariableInstruction : VirtualInstruction {
+        val index: Int
+    }
+
+    private class LoadInstruction(override val index: Int) : VariableInstruction
+    private class StoreInstruction(override val index: Int) : VariableInstruction
+    private class ExactInstruction(val code: MutableList<Byte>) : VirtualInstruction
+
+    private class VirtualInstructionsBuilder {
+        private val instructions = mutableListOf<VirtualInstruction>()
+        private val statistics = mutableMapOf<Int, Counter>()
+
+        fun append(code: List<Byte>) {
+            if (instructions.isNotEmpty() && instructions.last() is ExactInstruction) {
+                (instructions.last() as ExactInstruction).code.addAll(code)
+            } else {
+                instructions.add(ExactInstruction(code.toMutableList()))
+            }
+        }
+
+        fun recordUsage(index: Int) {
+            statistics.computeIfAbsent(index) { Counter() }.inc()
+        }
+
+        fun load(index: Int) {
+            instructions.add(LoadInstruction(index))
+            recordUsage(index)
+        }
+
+        fun store(index: Int) {
+            instructions.add(StoreInstruction(index))
+            recordUsage(index)
+        }
+
+        fun extend(other: VirtualInstructionsBuilder) {
+            instructions.addAll(other.instructions)
+            other.statistics.forEach { (i, counter) ->
+                statistics.merge(i, counter) { c1, c2 -> c1 + c2 }
+            }
+        }
+
+        fun sortedVariables() = statistics.asSequence().sortedByDescending { it.value.get() }.map { it.key }.toList()
+
+        fun emitRealTransforming(codeBuilder: CodeBuilder, o2n: Map<Int, Int>, callSlots: Int) = with(codeBuilder) {
+            instructions.forEach {
+                when (it) {
+                    is ExactInstruction -> append(it.code)
+                    is LoadInstruction -> fload(o2n[it.index]!! + callSlots)
+                    is StoreInstruction -> fstore(o2n[it.index]!! + callSlots)
+                }
+            }
+        }
+    }
+
     private data class Context(
-        val codeBuilder: CodeBuilder,
-        val variables: MutableSet<String>,
+        val bytecodeBuilder: CodeBuilder, // estimate for splitting
+        val virtualInstructionsBuilder: VirtualInstructionsBuilder,
         val maxStack: Int,
-        val delta: Int
+        val delta: Int,
+        val callSlots: Int,
     ) {
-        fun build(): Fragment = codeBuilder.apply { maxStack(maxStack) }.build()
+        fun build(): Fragment = bytecodeBuilder.apply { maxStack(maxStack) }.build()
+
+        fun exact(call: CodeBuilder.() -> Unit): Context {
+            val start = bytecodeBuilder.loc()
+            bytecodeBuilder.call()
+            val end = bytecodeBuilder.loc()
+            virtualInstructionsBuilder.append(bytecodeBuilder.splice(start, end))
+            return this
+        }
+
+        fun fload(index: Int): Context {
+            bytecodeBuilder.fload(index + callSlots)
+            virtualInstructionsBuilder.load(index)
+            return this
+        }
+
+        companion object {
+            fun ClassFileBuilder.new(maxStack: Int, delta: Int, callSlots: Int) = Context(
+                newCodeBuilder(), VirtualInstructionsBuilder(), maxStack, delta, callSlots
+            )
+        }
     }
 
     private fun ClassFileBuilder.materialize(
         ast: Node,
+        vars: List<String>,
         variables: Map<String, Int>,
         callSlots: Int,
         counter: Counter
@@ -141,15 +227,15 @@ object ClassGenerator {
         }
 
         fun outline(context: Context): Context {
-            val (name, descriptor) = defineMethod(context, variables, callSlots, counter)
-            return Context(newCodeBuilder().apply {
+            val (name, descriptor) = defineMethod(context, vars, callSlots, counter)
+            return new(1, 1, callSlots).exact {
                 aload(0)
                 invokestatic(method(self(), name, descriptor))
-            }, mutableSetOf(), 1, 1)
+            }
         }
 
         fun outlineIfSpills(context: Context): Context {
-            val (builder, maxStack) = context
+            val (builder) = context
             if (builder.loc() < loadFactor * methodLengthLimit) return context
             return outline(context)
         }
@@ -158,18 +244,18 @@ object ClassGenerator {
             val (node, results) = stack.last()
             when (node) {
                 is Value -> node.value.let { value ->
-                    newCodeBuilder().apply {
+                    new(1, 1, callSlots).exact {
                         if (value.toRawBits() == 0 || value == 1.0f || value == 2.0f) {
                             fconst(value.toInt())
                         } else {
                             ldc(float(value))
                         }
                     }
-                }.let { ret(Context(it, mutableSetOf(), 1, 1)) }
+                }.let(::ret)
 
-                is Var -> newCodeBuilder()
-                    .apply { fload(variables[node.name]!! + callSlots) }
-                    .let { ret(Context(it, mutableSetOf(node.name), 1, 1)) }
+                is Var -> new(1, 1, callSlots)
+                    .fload(variables[node.name]!!)
+                    .let { ret(it) }
 
                 is Neg -> {
                     if (results.isEmpty()) {
@@ -178,44 +264,45 @@ object ClassGenerator {
                     }
 
                     val result = results.first()
-                    ret(outlineIfSpills(result).apply { codeBuilder.fneg() })
+                    ret(outlineIfSpills(result).exact { fneg() })
                 }
 
                 is Op -> {
                     when (results.size) {
                         0 -> stack.add(node.left to mutableListOf())
                         1 -> stack.add(node.right to mutableListOf())
-                        else -> {
-                            val (leftContext, rightContext) = results
+                        else -> null
+                    }?.let { continue }
 
-                            var left = outlineIfSpills(leftContext)
-                            var right = outlineIfSpills(rightContext)
+                    val (leftContext, rightContext) = results
 
-                            // the sum can still overflow
-                            if (left.codeBuilder.loc() + right.codeBuilder.loc() > loadFactor * methodLengthLimit) {
-                                left = outline(left)
-                                right = outline(right)
-                            }
+                    var left = outlineIfSpills(leftContext)
+                    var right = outlineIfSpills(rightContext)
 
-                            val builder = left.codeBuilder.apply { // asymmetric
-                                fragment(right.build())
-                                when (node.kind) {
-                                    ADD -> fadd()
-                                    SUB -> fsub()
-                                    MUL -> fmul()
-                                    DIV -> fdiv()
-                                }
-                            }
-                            ret(
-                                Context(
-                                    builder,
-                                    left.variables.apply { addAll(right.variables) },
-                                    max(left.maxStack, left.delta + right.maxStack),
-                                    left.delta + right.delta - 1
-                                )
-                            )
+                    // the sum can still overflow
+                    if (left.bytecodeBuilder.loc() + right.bytecodeBuilder.loc() > loadFactor * methodLengthLimit) {
+                        left = outline(left)
+                        right = outline(right)
+                    }
+
+                    // merge here we go
+                    val context = Context(
+                        left.bytecodeBuilder.apply { fragment(right.build()) },
+                        left.virtualInstructionsBuilder.apply {
+                            extend(right.virtualInstructionsBuilder)
+                        },
+                        max(left.maxStack, left.delta + right.maxStack),
+                        left.delta + right.delta - 1,
+                        callSlots,
+                    ).exact {
+                        when (node.kind) {
+                            ADD -> fadd()
+                            SUB -> fsub()
+                            MUL -> fmul()
+                            DIV -> fdiv()
                         }
                     }
+                    ret(context)
                 }
             }
         }

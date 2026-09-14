@@ -9,6 +9,12 @@ fun maxStacks(classBytes: ByteArray): List<Int> = methods(classBytes) { _, code 
     code?.let { DataInputStream(ByteArrayInputStream(it)).readUnsignedShort() } ?: -1
 }
 
+fun maxLocals(classBytes: ByteArray): List<Int> = methods(classBytes) { _, code ->
+    code?.let {
+        with(DataInputStream(ByteArrayInputStream(it))) { readUnsignedShort(); readUnsignedShort() }
+    } ?: -1
+}
+
 private fun <T> methods(classBytes: ByteArray, read: (name: String, code: ByteArray?) -> T): List<T> {
     val input = DataInputStream(ByteArrayInputStream(classBytes))
     input.skipNBytes(8) // magic, minor and major version
