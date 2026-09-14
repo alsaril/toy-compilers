@@ -1,0 +1,186 @@
+package com.alsaril.math.generator
+
+import com.alsaril.codegen.classfile.ClassFileBuilder
+import com.alsaril.codegen.classfile.Fragment
+import com.alsaril.codegen.classfile.MethodAccessFlag.FINAL
+import com.alsaril.codegen.classfile.MethodAccessFlag.PUBLIC
+import com.alsaril.codegen.classfile.MethodAccessFlag.STATIC
+import com.alsaril.codegen.classfile.code.*
+import com.alsaril.math.BinaryKind.ADD
+import com.alsaril.math.BinaryKind.DIV
+import com.alsaril.math.BinaryKind.MUL
+import com.alsaril.math.BinaryKind.SUB
+import com.alsaril.math.Neg
+import com.alsaril.math.Node
+import com.alsaril.math.Op
+import com.alsaril.math.Value
+import com.alsaril.math.Var
+import com.alsaril.math.generator.Context.Companion.context
+import kotlin.math.max
+
+private const val methodLengthLimit = 8000 // hotspot threshold, however can be as big as 65535
+private const val loadFactor = 0.9
+
+private const val callSlots = 1
+
+private const val descriptor = "(Ljava/util/Map;)F"
+
+internal data class Context(
+    val bytecodeBuilder: CodeBuilder,
+    val virtualInstructionsBuilder: VirtualInstructionsBuilder,
+    val maxStack: Int,
+    val delta: Int,
+) {
+    fun build(): Fragment = bytecodeBuilder.apply { maxStack(maxStack) }.build()
+
+    fun exact(call: CodeBuilder.() -> Unit): Context {
+        val start = bytecodeBuilder.loc()
+        bytecodeBuilder.call()
+        virtualInstructionsBuilder.append(bytecodeBuilder.splice(start, bytecodeBuilder.loc()))
+        return this
+    }
+
+    fun fload(index: Int): Context {
+        bytecodeBuilder.fload(index + callSlots)
+        virtualInstructionsBuilder.load(index)
+        return this
+    }
+
+    companion object {
+        fun ClassFileBuilder.context(maxStack: Int, delta: Int) =
+            Context(newCodeBuilder(), VirtualInstructionsBuilder(), maxStack, delta)
+    }
+}
+
+internal fun ClassFileBuilder.generateEval(ast: Node) = apply {
+    val (n2i, vars) = variables(ast)
+    val counter = Counter()
+    val context = materialize(ast, vars, n2i, counter)
+    val (name, _) = defineMethod(context, vars, counter)
+
+    method("eval", descriptor, maxStack = 1, PUBLIC, FINAL) {
+        aload(1)
+        invokestatic(method(self(), name, descriptor))
+        freturn()
+    }
+}
+
+private fun CodeBuilder.emitAccessor(vars: List<String>, variables: List<Int>) {
+    variables.forEachIndexed { index, old ->
+        aload(0)
+        ldc(string(vars[old]))
+        invokestatic(method(self(), "getFloat", "(Ljava/util/Map;Ljava/lang/String;)F"))
+        fstore(index + callSlots)
+    }
+
+    maxStack(2)
+}
+
+private fun ClassFileBuilder.defineMethod(
+    context: Context,
+    vars: List<String>,
+    counter: Counter,
+): Pair<String, String> {
+    val name = "f${counter.inc()}"
+
+    method(name, descriptor, maxStack = 0, PUBLIC, STATIC, FINAL) {
+        val variables = context.virtualInstructionsBuilder.sortedVariables()
+        val o2n = variables.asSequence().mapIndexed { index, old -> old to index }.toMap()
+
+        emitAccessor(vars, variables)
+        context.virtualInstructionsBuilder.emitRealTransforming(this, o2n, callSlots)
+        maxStack(context.maxStack)
+        freturn()
+    }
+
+    return name to descriptor
+}
+
+private fun ClassFileBuilder.materialize(
+    ast: Node,
+    vars: List<String>,
+    variables: Map<String, Int>,
+    counter: Counter,
+): Context {
+    val stack = mutableListOf<Pair<Node, MutableList<Context>>>()
+    stack.add(ast to mutableListOf())
+
+    var result: Context? = null
+
+    fun ret(context: Context) {
+        stack.removeLast()
+        if (stack.isEmpty()) result = context else stack.last().second.add(context)
+    }
+
+    fun outline(subtree: Context): Context {
+        val (name, _) = defineMethod(subtree, vars, counter)
+        return context(1, 1).exact {
+            aload(0)
+            invokestatic(method(self(), name, descriptor))
+        }
+    }
+
+    fun outlineIfSpills(subtree: Context) =
+        if (subtree.bytecodeBuilder.loc() < loadFactor * methodLengthLimit) subtree
+        else outline(subtree)
+
+    while (stack.isNotEmpty()) {
+        val (node, results) = stack.last()
+        when (node) {
+            is Value -> context(1, 1).exact {
+                val value = node.value
+                if (value.toRawBits() == 0 || value == 1.0f || value == 2.0f) {
+                    fconst(value.toInt())
+                } else {
+                    ldc(float(value))
+                }
+            }.let(::ret)
+
+            is Var -> context(1, 1).fload(variables[node.name]!!).let(::ret)
+
+            is Neg -> {
+                if (results.isEmpty()) {
+                    stack.add(node.arg to mutableListOf())
+                    continue
+                }
+
+                ret(outlineIfSpills(results.first()).exact { fneg() })
+            }
+
+            is Op -> {
+                when (results.size) {
+                    0 -> stack.add(node.left to mutableListOf())
+                    1 -> stack.add(node.right to mutableListOf())
+                    else -> null
+                }?.let { continue }
+
+                val (leftResult, rightResult) = results
+                var left = outlineIfSpills(leftResult)
+                var right = outlineIfSpills(rightResult)
+
+                if (left.bytecodeBuilder.loc() + right.bytecodeBuilder.loc() > loadFactor * methodLengthLimit) {
+                    left = outline(left)
+                    right = outline(right)
+                }
+
+                ret(
+                    Context(
+                        left.bytecodeBuilder.apply { fragment(right.build()) },
+                        left.virtualInstructionsBuilder.apply { extend(right.virtualInstructionsBuilder) },
+                        max(left.maxStack, left.delta + right.maxStack),
+                        left.delta + right.delta - 1,
+                    ).exact {
+                        when (node.kind) {
+                            ADD -> fadd()
+                            SUB -> fsub()
+                            MUL -> fmul()
+                            DIV -> fdiv()
+                        }
+                    }
+                )
+            }
+        }
+    }
+
+    return result!!
+}

@@ -1,0 +1,45 @@
+package com.alsaril.math.generator
+
+import com.alsaril.codegen.classfile.ClassFileBuilder.Companion.classFile
+import com.alsaril.codegen.classfile.MethodAccessFlag.FINAL
+import com.alsaril.codegen.classfile.MethodAccessFlag.PRIVATE
+import com.alsaril.codegen.classfile.MethodAccessFlag.PUBLIC
+import com.alsaril.codegen.classfile.MethodAccessFlag.STATIC
+import com.alsaril.codegen.classfile.code.*
+import com.alsaril.math.Node
+
+object ClassGenerator {
+
+    fun generate(ast: Node) = classFile("Impl", parent = "java/lang/Object")
+        .iface("com/alsaril/math/Program")
+        .method("<init>", "()V", maxStack = 1, PUBLIC) {
+            aload(0)
+            invokespecial(method(parent(), "<init>", "()V"))
+            `return`()
+        }
+        .emitGetFloat()
+        .generateEval(ast)
+        .build()
+
+    private fun com.alsaril.codegen.classfile.ClassFileBuilder.emitGetFloat() =
+        method("getFloat", "(Ljava/util/Map;Ljava/lang/String;)F", 4, PRIVATE, STATIC, FINAL) {
+            aload(0)
+            aload(1)
+            invokeinterface(imethod(clazz("java/util/Map"), "get", "(Ljava/lang/Object;)Ljava/lang/Object;"), 2)
+            dup()
+            instanceof(clazz("java/lang/Float"))
+            val err = ifeq()
+
+            checkcast(clazz("java/lang/Float"))
+            invokevirtual(method(clazz("java/lang/Float"), "floatValue", "()F"))
+            freturn()
+
+            err(loc())
+            frameStack(objInfo("java/lang/Object"))
+            new(clazz("java/util/NoSuchElementException"))
+            dup()
+            aload(1)
+            invokespecial(method(clazz("java/util/NoSuchElementException"), "<init>", "(Ljava/lang/String;)V"))
+            athrow()
+        }
+}

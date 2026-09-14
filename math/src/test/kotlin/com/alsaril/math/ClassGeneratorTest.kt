@@ -2,7 +2,7 @@ package com.alsaril.math
 
 import com.alsaril.codegen.ByteClassLoader.loadClass
 import com.alsaril.math.BinaryKind.*
-import com.alsaril.math.ClassGenerator.generate
+import com.alsaril.math.generator.ClassGenerator.generate
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatExceptionOfType
 import org.junit.jupiter.api.Nested
