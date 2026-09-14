@@ -91,11 +91,15 @@ class ClassGeneratorTest {
         }
 
         @Test
-        fun `names the first missing variable, in the order they appear`() {
-            val ast = Op(ADD, Var("a"), Op(MUL, Var("b"), Var("c")))
+        fun `names the first missing variable the accessor reaches`() {
+            // the accessor reads in slot order, most used first — so that is the order a
+            // missing one is noticed in, not the order the names appear in the expression.
+            // a comes first in the tree, b is read first because it is read six times
+            var ast: Node = Op(ADD, Var("a"), Var("b"))
+            repeat(5) { ast = Op(ADD, ast, Var("b")) }
 
             assertThatExceptionOfType(NoSuchElementException::class.java)
-                .isThrownBy { eval(ast, mapOf("a" to 1.0f)) }
+                .isThrownBy { eval(ast) }
                 .withMessage("b")
         }
 
@@ -118,14 +122,14 @@ class ClassGeneratorTest {
         }
 
         @Test
-        fun `looks each variable up in the order it appears`() {
-            // given
+        fun `keeps equally used variables in the order they appear`() {
+            // given three variables read once each, so nothing separates them by usage
             val variables = CountingMap(mapOf("a" to 1.0f, "b" to 1.0f, "c" to 1.0f))
 
             // when c is named first in the tree even though the map lists it last
             program(Op(ADD, Var("c"), Op(ADD, Var("a"), Var("b")))).eval(variables)
 
-            // then
+            // then the sort leaves the tie alone, which is what keeps generation repeatable
             assertThat(variables.lookups).containsExactly("c", "a", "b")
         }
 
