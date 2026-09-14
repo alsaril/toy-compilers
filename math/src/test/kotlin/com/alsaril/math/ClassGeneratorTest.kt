@@ -541,6 +541,49 @@ class ClassGeneratorTest {
             assertThat(variables.lookups).containsExactly("c", "b", "a")
         }
 
+        private fun overVariables(count: Int, terms: Int): Pair<Node, List<String>> {
+            val names = (0 until count).map { index ->
+                var n = index
+                val sb = StringBuilder()
+                do { sb.append('a' + n % 26); n /= 26 } while (n > 0)
+                sb.toString()
+            }
+            var ast: Node = Var(names.first())
+            names.drop(1).forEach { ast = Op(ADD, ast, Var(it)) }
+            repeat(terms) { ast = Op(ADD, ast, Var(names[it % names.size])) }
+            return ast to names
+        }
+
+        @Test
+        fun `keeps every method inside the length budget, prelude included`() {
+            // 8000 is hotspot's threshold for compiling a method at all, so a method past
+            // it would silently stay interpreted. The prelude that reads the variables is
+            // part of the method, so it has to be part of the estimate that splits it
+            val (ast, _) = overVariables(128, 6_000)
+
+            assertThat(codeLengths(generate(ast).second))
+                .allSatisfy { assertThat(it).isLessThanOrEqualTo(8_000) }
+        }
+
+        @Test
+        fun `keeps to the budget past the slot where stores widen`() {
+            // a store is one byte up to slot 3, two up to 255 and four beyond, so the
+            // prelude costs more per variable the more of them a method reads. Enough of
+            // them that getting the width wrong outgrows the slack rather than hiding in it
+            val (ast, _) = overVariables(600, 6_000)
+
+            assertThat(codeLengths(generate(ast).second))
+                .allSatisfy { assertThat(it).isLessThanOrEqualTo(8_000) }
+        }
+
+        @Test
+        fun `evaluates correctly when the prelude forces an extra split`() {
+            val (ast, names) = overVariables(300, 4_000)
+
+            // every name once, then four thousand more additions of one
+            assertThat(eval(ast, names.associateWith { 1.0f })).isEqualTo(names.size + 4_000.0f)
+        }
+
         @Test
         fun `reads the map through one accessor however many methods there are`() {
             assertThat(methodNames(generate(chain(5_000)).second).filter { it == "getFloat" })

@@ -18,6 +18,8 @@ internal class VirtualInstructionsBuilder {
     private val instructions = mutableListOf<VirtualInstruction>()
     private val statistics = mutableMapOf<Int, Counter>()
 
+    fun nvars() = statistics.size
+
     fun append(code: List<Byte>) {
         if (instructions.isNotEmpty() && instructions.last() is ExactInstruction) {
             (instructions.last() as ExactInstruction).code.addAll(code)

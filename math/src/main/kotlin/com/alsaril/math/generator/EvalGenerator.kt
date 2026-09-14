@@ -2,24 +2,17 @@ package com.alsaril.math.generator
 
 import com.alsaril.codegen.classfile.ClassFileBuilder
 import com.alsaril.codegen.classfile.Fragment
-import com.alsaril.codegen.classfile.MethodAccessFlag.FINAL
-import com.alsaril.codegen.classfile.MethodAccessFlag.PUBLIC
-import com.alsaril.codegen.classfile.MethodAccessFlag.STATIC
+import com.alsaril.codegen.classfile.MethodAccessFlag.*
 import com.alsaril.codegen.classfile.code.*
-import com.alsaril.math.BinaryKind.ADD
-import com.alsaril.math.BinaryKind.DIV
-import com.alsaril.math.BinaryKind.MUL
-import com.alsaril.math.BinaryKind.SUB
-import com.alsaril.math.Neg
-import com.alsaril.math.Node
-import com.alsaril.math.Op
-import com.alsaril.math.Value
-import com.alsaril.math.Var
+import com.alsaril.math.*
+import com.alsaril.math.BinaryKind.*
 import com.alsaril.math.generator.Context.Companion.context
 import kotlin.math.max
+import kotlin.math.min
 
 private const val methodLengthLimit = 8000 // hotspot threshold, however can be as big as 65535
-private const val loadFactor = 0.9
+private const val mergeExcess = 513
+private const val bodyLengthLimit = methodLengthLimit - mergeExcess
 
 private const val callSlots = 1
 
@@ -65,15 +58,33 @@ internal fun ClassFileBuilder.generateEval(ast: Node) = apply {
     }
 }
 
-private fun CodeBuilder.emitAccessor(vars: List<String>, variables: List<Int>) {
-    variables.forEachIndexed { index, old ->
-        aload(0)
-        ldc(string(vars[old]))
-        invokestatic(method(self(), "getFloat", "(Ljava/util/Map;Ljava/lang/String;)F"))
-        fstore(index + callSlots)
-    }
+private fun CodeBuilder.accessorLine(name: String, slot: Int) {
+    aload(0)
+    ldc(string(name))
+    invokestatic(method(self(), "getFloat", "(Ljava/util/Map;Ljava/lang/String;)F"))
+    fstore(slot + callSlots)
+}
 
+private fun CodeBuilder.emitAccessor(vars: List<String>, variables: List<Int>) {
+    variables.forEachIndexed { index, old -> accessorLine(vars[old], index) }
     maxStack(2)
+}
+
+private fun ClassFileBuilder.preludeLines(vars: List<String>): IntArray {
+    val cheapest = vars.firstOrNull() ?: return IntArray(3)
+
+    // a slot of 0, 3 and 255 lands in each of the three widths, once callSlots is added
+    return intArrayOf(0, 3, 255)
+        .map { slot -> newCodeBuilder().apply { accessorLine(cheapest, slot) }.loc() + 1 }
+        .toIntArray()
+}
+
+private fun preludeLength(lines: IntArray, count: Int): Int {
+    val compact = min(count, 3)                 // slots 1..3
+    val operand = max(min(count, 255) - 3, 0)   // slots 4..255
+    val wide = max(count - 255, 0)              // slots 256 and up
+
+    return lines[0] * compact + lines[1] * operand + lines[2] * wide
 }
 
 private fun ClassFileBuilder.defineMethod(
@@ -102,6 +113,10 @@ private fun ClassFileBuilder.materialize(
     variables: Map<String, Int>,
     counter: Counter,
 ): Context {
+    val lines = preludeLines(vars)
+    fun length(subtree: Context) = subtree.bytecodeBuilder.loc() +
+        preludeLength(lines, subtree.virtualInstructionsBuilder.nvars())
+
     val stack = mutableListOf<Pair<Node, MutableList<Context>>>()
     stack.add(ast to mutableListOf())
 
@@ -121,7 +136,7 @@ private fun ClassFileBuilder.materialize(
     }
 
     fun outlineIfSpills(subtree: Context) =
-        if (subtree.bytecodeBuilder.loc() < loadFactor * methodLengthLimit) subtree
+        if (length(subtree) <= bodyLengthLimit) subtree
         else outline(subtree)
 
     while (stack.isNotEmpty()) {
@@ -158,7 +173,7 @@ private fun ClassFileBuilder.materialize(
                 var left = outlineIfSpills(leftResult)
                 var right = outlineIfSpills(rightResult)
 
-                if (left.bytecodeBuilder.loc() + right.bytecodeBuilder.loc() > loadFactor * methodLengthLimit) {
+                if (length(left) + length(right) > bodyLengthLimit) {
                     left = outline(left)
                     right = outline(right)
                 }

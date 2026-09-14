@@ -9,6 +9,13 @@ fun maxStacks(classBytes: ByteArray): List<Int> = methods(classBytes) { _, code 
     code?.let { DataInputStream(ByteArrayInputStream(it)).readUnsignedShort() } ?: -1
 }
 
+fun codeLengths(classBytes: ByteArray): List<Int> = methods(classBytes) { _, code ->
+    code?.let {
+        // max_stack and max_locals come first, then the four byte code_length
+        DataInputStream(ByteArrayInputStream(it, 4, 4)).readInt()
+    } ?: -1
+}
+
 fun maxLocals(classBytes: ByteArray): List<Int> = methods(classBytes) { _, code ->
     code?.let {
         with(DataInputStream(ByteArrayInputStream(it))) { readUnsignedShort(); readUnsignedShort() }
