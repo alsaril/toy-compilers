@@ -28,7 +28,9 @@ object RunGenerator {
         val generation = Generation(bodyLengthLimit(), loopOverhead())
         val body = materializeNonrecursive(instructions, generation)
         val (name, descriptor) = defineMethod(body, generation)
-        method("run", "(Ljava/io/InputStream;Ljava/io/OutputStream;II)V", maxStack = 5, PUBLIC, FINAL) {
+        method("run", "(Ljava/io/InputStream;Ljava/io/OutputStream;II)V", maxStack = 0, PUBLIC, FINAL) {
+            maxStack(5)
+
             // input: in, out, size, cycles
             iconst(2)
             newarray(INT)
@@ -85,7 +87,7 @@ object RunGenerator {
         val prefix = emitMethodPrefix()
         val postfix = emitMethodPostfix()
         val body = listOf(prefix, fragment, postfix).join()
-        method(name, descriptor, body, maxStack = 5, PRIVATE, STATIC, FINAL)
+        method(name, descriptor, body, maxStack = 0, PRIVATE, STATIC, FINAL)
         return name to descriptor
     }
 
@@ -173,6 +175,7 @@ object RunGenerator {
     }
 
     private fun ClassFileBuilder.emitMove(times: Int, dir: Boolean) = emitFragment {
+        maxStack(4)
         aload(stateIndex)
         iconst(0)
         dup2()
@@ -190,6 +193,7 @@ object RunGenerator {
     }
 
     private fun ClassFileBuilder.emitAdd(times: Int, inc: Boolean) = emitFragment {
+        maxStack(4)
         aload(arrayIndex)
         aload(stateIndex)
         iconst(0)
@@ -204,6 +208,7 @@ object RunGenerator {
     }
 
     private fun ClassFileBuilder.emitRead() = emitFragment {
+        maxStack(4)
         aload(inIndex)
         invokevirtual(method(clazz("java/io/InputStream"), "read", "()I"))
         istore(readIndex)
@@ -227,6 +232,7 @@ object RunGenerator {
     }
 
     private fun ClassFileBuilder.emitWrite() = emitFragment {
+        maxStack(5)
         aload(outIndex)
         aload(arrayIndex)
         aload(stateIndex)
@@ -241,6 +247,7 @@ object RunGenerator {
         val exit: (Int) -> Unit
         val entry: Int
         val fragment = emitFragment {
+            maxStack(4)
             exit = goto() // jump over the loop body
             entry = loc()
             frameSame()
@@ -268,6 +275,7 @@ object RunGenerator {
         val exit: (Int) -> Unit
         val entry: Int
         val fragment = emitFragment {
+            maxStack(4)
             entry = loc()
             frameSame()
             aload(arrayIndex)
@@ -282,6 +290,7 @@ object RunGenerator {
     }
 
     private fun ClassFileBuilder.emitCall(target: Pair<String, String>) = emitFragment {
+        maxStack(5)
         val (name, descriptor) = target
         aload(inIndex)
         aload(outIndex)
@@ -292,6 +301,7 @@ object RunGenerator {
     }
 
     private fun ClassFileBuilder.emitMethodPrefix() = emitFragment {
+        maxStack(1)
         iconst(0)
         istore(readIndex)
         frameAppend(IntInfo)
