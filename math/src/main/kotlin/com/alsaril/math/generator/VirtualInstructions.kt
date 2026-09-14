@@ -11,7 +11,6 @@ internal sealed interface VariableInstruction : VirtualInstruction {
 }
 
 internal class LoadInstruction(override val index: Int) : VariableInstruction
-internal class StoreInstruction(override val index: Int) : VariableInstruction
 internal class ExactInstruction(val code: MutableList<Byte>) : VirtualInstruction
 
 internal class VirtualInstructionsBuilder {
@@ -28,18 +27,9 @@ internal class VirtualInstructionsBuilder {
         }
     }
 
-    fun recordUsage(index: Int) {
-        statistics.computeIfAbsent(index) { Counter() }.inc()
-    }
-
     fun load(index: Int) {
         instructions.add(LoadInstruction(index))
-        recordUsage(index)
-    }
-
-    fun store(index: Int) {
-        instructions.add(StoreInstruction(index))
-        recordUsage(index)
+        statistics.computeIfAbsent(index) { Counter() }.inc()
     }
 
     fun extend(other: VirtualInstructionsBuilder) {
@@ -60,7 +50,6 @@ internal class VirtualInstructionsBuilder {
                 when (it) {
                     is ExactInstruction -> append(it.code)
                     is LoadInstruction -> fload(o2n[it.index]!! + callSlots)
-                    is StoreInstruction -> fstore(o2n[it.index]!! + callSlots)
                 }
             }
         }
