@@ -17,8 +17,11 @@ math/build/install/math/bin/math --expr "x*y+1" --vars "x=2;y=3" --vars "x=1;y=1
 
 - **`Parser`** — hand-written shunting yard, no parser generator.
 - **`ast.kt`** — `Value`, `Var`, `Neg` and `Op(kind, left, right)`, a tree.
-- **`ClassGenerator`** — the class shell, the variable accessor, and the expression body
-  including all method splitting.
+- **`generator/ClassGenerator`** — the class shell: the constructor and the `getFloat` helper.
+- **`generator/EvalGenerator`** — the accessor, the expression body, and all method splitting.
+- **`generator/VirtualInstructions`** — the half-encoded body and the usage counts that
+  decide its slot numbering.
+- **`generator/utils.kt`** — collecting the variables of a tree, and a counter.
 
 ## Parser
 
@@ -48,19 +51,28 @@ matching — otherwise `(-3)` would pop the negation in place of the bracket.
 ## Code generation
 
 Non-recursive throughout. Collecting variables is a pre-order walk over an explicit stack;
-emitting code is a stack of **work items** — `Visit(node)` for a subtree and `Apply(kind)`
-for an operator waiting on the operands below it:
+emitting code is a stack of **`(node, results)`** pairs, where `results` holds what the
+node's children have come back with so far. A node is peeked rather than popped, and how
+many results it already has says what to do next:
 
 ```kotlin
 is Op -> {
-    work.addLast(Apply(node.kind))   // pushed first, so popped last
-    work.addLast(Visit(node.right))
-    work.addLast(Visit(node.left))   // pushed last, so popped first
+    when (results.size) {
+        0 -> stack.add(node.left to mutableListOf())   // left not started
+        1 -> stack.add(node.right to mutableListOf())  // left done, right next
+        else -> null                                   // both in, emit the operator
+    }?.let { continue }
+
+    val (leftResult, rightResult) = results
+    …
 }
 ```
 
-Post-order falls out of the push order, so nothing has to remember how many children it has
-already handled. Generation is bounded by the heap: a 100 000 term expression compiles.
+`results` is the call stack's frame made explicit — the one thing a recursive walk gets for
+free is knowing where it was, and this is the price of not recursing. A leaf never pushes
+anything and returns immediately; `ret` pops the finished node and appends its `Context` to
+the parent's `results`. Generation is then bounded by the heap: a 100 000 term expression
+compiles, and so does a million term one.
 
 ### The `getFloat` indirection
 
@@ -101,12 +113,12 @@ That is only possible because a body is emitted **twice over**. The first pass k
 everything as bytes except the variable accesses, which stay symbolic:
 
 ```kotlin
-is Op -> {                       // already bytes
-    work.addLast(Apply(node.kind))
-    …
-}
-is Var -> LoadInstruction(index) // still a name, not a slot
+context.exact { fadd() }   // ExactInstruction: bytes, spliced straight out of the builder
+context.fload(index)       // LoadInstruction: still a name's index, not a slot
 ```
+
+Runs of `exact` coalesce into one `ExactInstruction`, so a body is a short alternation of
+byte blocks and loads rather than one entry per instruction.
 
 A body is built before it is known which method it will land in, and a method numbers its
 slots from the variables it turned out to use — so the loads cannot be encoded until that
@@ -165,7 +177,7 @@ A generated class is therefore:
 
 where `eval(Map)` is a five-byte trampoline into the last `fN`. Outlined methods call each
 other linearly rather than nesting, so the call chain stays shallow: 20 000 terms compile
-to 9 methods, 100 000 to 31.
+to 11 methods, 100 000 to 53, a million to 535.
 
 ### `Context(maxStack, delta)`
 
@@ -257,9 +269,13 @@ Measured, not estimated:
   127th name and every name after that genuinely needs the wide form. The over-count
   therefore saturates rather than growing with the expression.
 
-- **Evaluation runs out of stack around 150 000 terms.** Generation is fine; it is the call
-  chain at runtime, each frame carrying up to ~3600 operand slots. Raising the method length
-  budget makes this worse, not better, by trading more frames for deeper ones.
+- **Evaluation runs out of stack around 250 000 right-leaning terms.** Generation is fine;
+  it is the call chain at runtime, and the ceiling is a matter of shape rather than size,
+  because a frame is sized by the depth its method reaches. A right-leaning body declares
+  3744 operand slots, and ~130 such frames nested exhaust a default stack: 240 000 terms
+  evaluate, 250 000 overflow. A left-leaning body declares 4, so the same chain costs
+  nothing and a million terms evaluate through 535 methods. Raising the method length budget
+  makes the right-leaning case worse, not better, by trading more frames for deeper ones.
 
 - **Generation is linear only because splitting makes it so.** Merging appends the right
   operand to the left, so a right-leaning tree copies the accumulated side at every step.
@@ -283,7 +299,9 @@ failure to one type and a position.
 
 `ClassGeneratorTest` drives `generate` directly and runs the result: arithmetic and float
 semantics, and the variable accessor — that a repeated variable is looked up once, in the
-order the names appear, and again on the next call.
+order its slot was numbered, and again on the next call. Since ties in the usage count keep
+the order the names first appeared, an expression using each name equally is looked up left
+to right, which is what most of those tests read as.
 
 Three things there are invisible from running a class, so they are read back out of the
 bytes by `GeneratedMethods`:
