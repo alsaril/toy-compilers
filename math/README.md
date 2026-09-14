@@ -1,9 +1,5 @@
 # math
 
-> **Work in progress.** The pipeline compiles and evaluates correctly, and the splitting
-> and stack arithmetic below are in place, but the accessor scheme is still provisional —
-> see [Known limits](#known-limits).
-
 An arithmetic expression compiler. An expression goes in, a JVM class comes out, and the
 JVM evaluates it against a map of variables — nothing is interpreted. Built on
 [`codegen`](../codegen/README.md).
@@ -87,12 +83,37 @@ Each variable is read into a local slot **once per call**, before any arithmetic
 body then uses `fload`. So `x*x+x` costs one map lookup, not three, and the expression
 proper is pure stack arithmetic.
 
-Slots are assigned in the order names first appear, with slot 0 holding the map:
-
 | slot | holds |
 |---|---|
 | 0 | the `Map` argument |
-| 1…n | one float per distinct variable |
+| 1…k | one float per variable **this method** reads |
+
+**Each method carries only what it uses.** A subtree records the variables it touched, and
+a method reads exactly those — so splitting an expression in half does not make both halves
+pay for every name in it.
+
+**Slots are numbered by usage, not by appearance.** The variables a method reads most often
+get the lowest slots, which are also the ones with a one-byte `fload` of their own. Slots
+0–3 encode in one byte, up to 255 in two, and beyond that the wide form takes four, so
+putting the hottest variables first shortens the body as well as tidying the frame.
+
+That is only possible because a body is emitted **twice over**. The first pass keeps
+everything as bytes except the variable accesses, which stay symbolic:
+
+```kotlin
+is Op -> {                       // already bytes
+    work.addLast(Apply(node.kind))
+    …
+}
+is Var -> LoadInstruction(index) // still a name, not a slot
+```
+
+A body is built before it is known which method it will land in, and a method numbers its
+slots from the variables it turned out to use — so the loads cannot be encoded until that
+is settled. `VirtualInstructionsBuilder` holds the half-encoded form and the usage counts;
+`defineMethod` decides the numbering and emits the real instructions. Alongside it a plain
+`CodeBuilder` is kept purely as a **size estimate**, since the split decision has to be made
+before any of this is known.
 
 ### Outlining
 
@@ -101,6 +122,40 @@ A JVM method is capped at 65535 bytes, and HotSpot will not JIT-compile anything
 its own `static` method `fN(Map) -> float` and the parent emits `aload_0; invokestatic` in
 its place. Two cases trigger it: one operand too big on its own, and two operands that only
 overrun together.
+
+**The preamble is part of the method, so it is part of the estimate.** Its length depends
+only on how many variables a method reads, since compaction numbers their slots `0…k-1`
+whichever ones they are — so three measured line costs, one per store width, give every
+answer:
+
+```kotlin
+lines[0] * min(k, 3)  +  lines[1] * clamp(k - 3, 0, 252)  +  lines[2] * max(k - 255, 0)
+```
+
+The three are measured by emitting a line rather than predicting its length, so they follow
+any change to the emitter — the same reason [`bf`](../bf/README.md) measures its own
+budgets. Only the `ldc` is predicted, and only by a byte: it widens once a name's constant
+pool index passes 255, so the line is measured against the first name — whose index is the
+lowest — and one byte is added for the wide form the rest may need.
+
+**The budget is under 8000, and the difference is an allowance rather than slack.** A merge
+checks `length(left) + length(right)`, which is not the merged length. Two halves may share
+variables, in which case the sum over-counts and something is split that needn't have been.
+Or they may share none — and then the merge pushes variables into a wider store band that
+neither half was in. Two halves of 255 variables each sit wholly in the two-byte band; their
+union of 510 puts 255 of them in the four-byte one:
+
+```
+prelude(255) = 2292        2 x 2292 = 4584
+prelude(510) = 5097        excess   =  513
+```
+
+So a merged method can reach `budget + 513`, and the excess saturates there — it cannot grow
+with the expression, and it does not compound up the tree, because after a merge the context
+knows its own union and every later check is exact. Holding the budget 513 below 8000 covers
+it by construction, which is where the load factor comes from. Measuring the union instead
+of summing two preludes would remove the excess exactly, at the cost of a set operation at
+every operator — 500 bytes of a 65535 byte format limit, so the approximation stays.
 
 A generated class is therefore:
 
@@ -150,8 +205,8 @@ so a fragment can never leave `materialize` without its depth applied. Every pat
 turned a builder into a fragment used to do this by hand, and two of the three forgot —
 each one a class the verifier rejected with `Operand stack overflow`.
 
-Splitting bounds the depth as a side effect: a body capped at ~7200 bytes at ~2 bytes per
-term cannot need more than ~3600 slots, so the `u2` ceiling on `max_stack` is unreachable
+Splitting bounds the depth as a side effect: a body capped at ~7500 bytes at ~2 bytes per
+term cannot need more than ~3700 slots, so the `u2` ceiling on `max_stack` is unreachable
 by construction.
 
 ## Runtime model
@@ -196,21 +251,27 @@ Argument parsing is [Clikt](https://github.com/ajalt/clikt), as in
 
 Measured, not estimated:
 
-- **The accessor is emitted into every method.** Lookups therefore scale with method count
-  rather than variable count: four variables across twelve methods cost 36 map lookups
-  where four would do. Unpacking only the variables a method actually uses is the obvious
-  fix and is not done yet.
-- **The split budget ignores the accessor prefix.** The check measures the body alone, and
-  `defineMethod` then prepends the accessor, so a method overruns 8000 at around 90
-  variables — 128 variables produce an 8238 byte method. Not a correctness failure, since
-  8000 is HotSpot's threshold rather than the format's, but those methods silently stay
-  interpreted, which is the one thing the budget exists to prevent.
+- **`ldc` is over-counted by at most 127 bytes per method.** The estimate assumes the wide
+  form for every name; names whose pool index is still under 255 do not need it. Each name
+  costs two pool entries, a `Utf8` and a `String`, so the index crosses 255 at about the
+  127th name and every name after that genuinely needs the wide form. The over-count
+  therefore saturates rather than growing with the expression.
+
 - **Evaluation runs out of stack around 150 000 terms.** Generation is fine; it is the call
-  chain at runtime, each frame carrying up to ~3600 operand slots. Raising the method
-  length budget makes this worse, not better, by trading more frames for deeper ones.
+  chain at runtime, each frame carrying up to ~3600 operand slots. Raising the method length
+  budget makes this worse, not better, by trading more frames for deeper ones.
+
+- **Generation is linear only because splitting makes it so.** Merging appends the right
+  operand to the left, so a right-leaning tree copies the accumulated side at every step.
+  Below the split threshold that is quadratic — time per doubling measured at 2.5x, 3.0x,
+  3.5x — and above it outlining caps each copy at the budget and it settles to 2.0x. The
+  constant differs by shape: at 80 000 terms, right-leaning takes ~1.9 s against
+  left-leaning's ~40 ms.
+
 - **The split criterion is length, not depth.** `loc()` says nothing about stack usage, so a
-  deep expression is divided where it reaches 7200 bytes rather than where the stack gets
-  deep.
+  deep expression is divided where it reaches the byte budget rather than where the stack
+  gets deep.
+
 - **Identifiers are letters only**, and there is no unary plus, no exponentiation and no
   functions.
 
@@ -218,9 +279,23 @@ Measured, not estimated:
 
 `ParserTest` covers precedence, associativity, brackets, unary minus, leading-point numbers
 and every way an expression can be malformed, including a property test that holds every
-failure to one type and a position. `ClassGeneratorTest` drives `generate` directly and
-runs the result: arithmetic and float semantics, the variable accessor (including that a
-repeated variable is looked up once, in AST order, and again on the next call), stack depth
-against the class file's declared `max_stack`, and splitting — that an outlined body still
-resolves its variables, still names a missing one, and declares the depth it needs.
+failure to one type and a position.
+
+`ClassGeneratorTest` drives `generate` directly and runs the result: arithmetic and float
+semantics, and the variable accessor — that a repeated variable is looked up once, in the
+order the names appear, and again on the next call.
+
+Three things there are invisible from running a class, so they are read back out of the
+bytes by `GeneratedMethods`:
+
+| | |
+|---|---|
+| `maxStacks` | that the declared depth is exactly what the tree reaches, not merely enough |
+| `maxLocals` | that a method's slots are numbered from the variables it uses, with no gaps |
+| `codeLengths` | that no method passes 8000 once the preamble is counted |
+
+The last is sized deliberately: at 300 variables a wrong store width still fits inside the
+load factor's allowance, so the test uses 600, where it cannot. A tolerance-based assertion
+has to be sized against the tolerance or it quietly tests nothing.
+
 `MainTest` covers both CLI modes and every way a command line or an input line can be wrong.
