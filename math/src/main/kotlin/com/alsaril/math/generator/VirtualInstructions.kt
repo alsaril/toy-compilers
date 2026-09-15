@@ -1,8 +1,8 @@
 package com.alsaril.math.generator
 
 import com.alsaril.codegen.classfile.code.CodeBuilder
+import com.alsaril.codegen.classfile.code.Splice
 import com.alsaril.codegen.classfile.code.fload
-import com.alsaril.codegen.classfile.code.fstore
 
 internal sealed interface VirtualInstruction
 
@@ -11,7 +11,7 @@ internal sealed interface VariableInstruction : VirtualInstruction {
 }
 
 internal class LoadInstruction(override val index: Int) : VariableInstruction
-internal class ExactInstruction(val code: MutableList<Byte>) : VirtualInstruction
+internal class ExactInstruction(val code: Splice) : VirtualInstruction
 
 internal class VirtualInstructionsBuilder {
     private val instructions = mutableListOf<VirtualInstruction>()
@@ -19,12 +19,8 @@ internal class VirtualInstructionsBuilder {
 
     fun nvars() = statistics.size
 
-    fun append(code: List<Byte>) {
-        if (instructions.isNotEmpty() && instructions.last() is ExactInstruction) {
-            (instructions.last() as ExactInstruction).code.addAll(code)
-        } else {
-            instructions.add(ExactInstruction(code.toMutableList()))
-        }
+    fun append(code: Splice) {
+        instructions.add(ExactInstruction(code))
     }
 
     fun load(index: Int) {

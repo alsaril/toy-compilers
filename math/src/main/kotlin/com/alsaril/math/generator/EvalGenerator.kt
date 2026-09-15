@@ -29,7 +29,8 @@ internal data class Context(
     fun exact(call: CodeBuilder.() -> Unit): Context {
         val start = bytecodeBuilder.loc()
         bytecodeBuilder.call()
-        virtualInstructionsBuilder.append(bytecodeBuilder.splice(start, bytecodeBuilder.loc()))
+        val end = bytecodeBuilder.loc()
+        virtualInstructionsBuilder.append(bytecodeBuilder.splice(start, end))
         return this
     }
 

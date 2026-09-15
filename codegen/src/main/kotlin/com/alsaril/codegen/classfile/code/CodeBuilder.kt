@@ -150,9 +150,14 @@ class CodeBuilder(
         maxLocals(slot + slots)
     }
 
-    fun splice(start: Int, end: Int) = bytecode.subList(start, end)
+    fun splice(start: Int, end: Int): Splice = SpliceImpl(bytecode.subList(start, end).toList())
 
-    fun append(code: List<Byte>) {
-        bytecode.addAll(code)
+    private class SpliceImpl(val code: List<Byte>) : Splice
+
+    fun append(splice: Splice) {
+        splice as SpliceImpl
+        bytecode.addAll(splice.code)
     }
 }
+
+sealed interface Splice

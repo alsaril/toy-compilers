@@ -113,12 +113,14 @@ That is only possible because a body is emitted **twice over**. The first pass k
 everything as bytes except the variable accesses, which stay symbolic:
 
 ```kotlin
-context.exact { fadd() }   // ExactInstruction: bytes, spliced straight out of the builder
+context.exact { fadd() }   // ExactInstruction: a Splice, the bytes taken from the builder
 context.fload(index)       // LoadInstruction: still a name's index, not a slot
 ```
 
-Runs of `exact` coalesce into one `ExactInstruction`, so a body is a short alternation of
-byte blocks and loads rather than one entry per instruction.
+A `Splice` is [`codegen`](../codegen/README.md#splices)'s handle on a run of bytes already
+emitted: opaque, so the only thing to be done with one is hand it back to a builder. Each
+`exact` call produces one, so the half-encoded body is an alternation of byte runs and
+loads — roughly one run per tree node, since every operator ends one.
 
 A body is built before it is known which method it will land in, and a method numbers its
 slots from the variables it turned out to use — so the loads cannot be encoded until that

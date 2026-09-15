@@ -161,6 +161,36 @@ A fragment patched and then left alone is the case all of this protects: a handl
 recorded after its builder was frozen still reaches the fragment that builder produced,
 the same way a late jump does.
 
+## Splices
+
+A `Fragment` is the whole apparatus — frames, handlers, the stack and locals it needs, and
+the position arithmetic to move all of that somewhere else. Sometimes a caller wants none
+of it and only the bytes:
+
+```kotlin
+val run = splice(start, loc())   // what was emitted between the two marks
+...
+append(run)                      // put it into a builder, here or elsewhere
+```
+
+`Splice` is that, and deliberately nothing more. It is a **sealed interface with no
+members**, so a caller can hold one and hand it back and has no third option: the bytes
+cannot be read, indexed, mutated, or forged by implementing the type. That matters because
+these are the two calls that bypass the [width checks](#width-checks) — bytes taken from a
+builder have already passed them, and re-checking a byte on its way back in would be
+checking the wrong thing, since `u1` and `s1` disagree about what a byte may hold.
+
+**The bytes are copied at `splice`, not at `append`.** A builder's bytecode lives in a
+list that every later emission appends to, so anything holding a window into it would go
+stale — `subList` hands back a live view and refuses to be read at all once the parent has
+grown. Taking the copy while the window is still valid is what makes a splice keep until
+its builder is long finished.
+
+What that buys is a body emitted in more than one pass: a caller that has to leave some
+instructions undecided — because what they encode to depends on something the whole body
+determines — can settle the rest as it goes and carry the runs between them until the
+question is answered.
+
 ## Method limits
 
 **`max_locals` is derived, never given.** The descriptor says how many slots the arguments
@@ -213,7 +243,7 @@ pipeline(source, parse, generate, Program::class.java)
 
 Parse the source into whatever IR the front end likes, generate class bytes from it, load
 them, check the class implements the interface the front end declared, and instantiate it.
-Both `bf` and `math` are three lines on top of it — everything language-specific is the two
+A front end is three lines on top of it — everything language-specific is the two
 functions passed in.
 
 ## Width checks
