@@ -349,9 +349,18 @@ class ClassFileSerializationTest {
 
         @Test
         fun `rejects a location past a u2`() {
+            // the range itself is well formed, so the width is what is left to reject
             assertThatIllegalArgumentException()
-                .isThrownBy { ExceptionHandler(0x10000, 0, 0, 0).serialized() }
+                .isThrownBy { ExceptionHandler(0x10000, 0x10001, 0, 0).serialized() }
                 .withMessageContaining("does not fit a u2")
+        }
+
+        @Test
+        fun `rejects a range covering no instruction`() {
+            // a location the jvm would refuse at load time, which no u2 check can see
+            assertThatIllegalArgumentException()
+                .isThrownBy { ExceptionHandler(4, 4, 8, 0) }
+                .withMessageContaining("[4, 4) covers no instruction")
         }
     }
 

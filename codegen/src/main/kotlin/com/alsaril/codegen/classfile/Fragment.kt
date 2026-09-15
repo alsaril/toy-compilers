@@ -4,8 +4,9 @@ import com.alsaril.codegen.classfile.attributes.*
 import java.nio.ByteBuffer
 import kotlin.math.max
 
-internal class UnpatchedJumps {
-    var count = 0
+internal class OutstandingPatches {
+    var jumps = 0
+    var handlers = 0
 }
 
 data class Fragment(
@@ -17,6 +18,7 @@ data class Fragment(
     val size: Int, // the sum of lengths in content
 ) {
     internal var unpatchedJumps: () -> Int = { 0 }
+    internal var unpatchedHandlers: () -> Int = { 0 }
 
     fun bytecode(): ByteArray = if (content.size == 1) content.first() else {
         require(unpatchedJumps() == 0) {
@@ -71,6 +73,12 @@ private fun ExceptionHandler.shiftedBy(offset: Int) = copy(
 fun List<Fragment>.join(): Fragment {
     if (size == 1) return first()
 
+    val owed = sumOf { it.unpatchedHandlers() }
+    require(owed == 0) {
+        "joining rewrites the handler rows of a fragment, so the $owed outstanding " +
+                "handler patch(es) would not reach the result: patch before joining"
+    }
+
     val content = mutableListOf<ByteArray>()
     val frames = mutableListOf<StackMapFrame>()
     val handlers = mutableListOf<ExceptionHandler>()
@@ -88,5 +96,8 @@ fun List<Fragment>.join(): Fragment {
     }
 
     return Fragment(content, frames, handlers, maxStack, maxLocals, totalSize)
-        .also { joined -> joined.unpatchedJumps = { sumOf { it.unpatchedJumps() } } }
+        .also { joined ->
+            joined.unpatchedJumps = { sumOf { it.unpatchedJumps() } }
+            joined.unpatchedHandlers = { sumOf { it.unpatchedHandlers() } }
+        }
 }

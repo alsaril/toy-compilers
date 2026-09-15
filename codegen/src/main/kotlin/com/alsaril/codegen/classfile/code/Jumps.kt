@@ -28,6 +28,6 @@ private fun CodeBuilder.jumpTemplate(opcode: Int, dest: Int?): (Int) -> Unit {
         return {}
     } else {
         s2(0) // placeholder
-        return deferred { target -> s2At(target - start, pos) }
+        return deferredJump { target -> s2At(target - start, pos) }
     }
 }

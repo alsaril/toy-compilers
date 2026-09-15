@@ -182,6 +182,39 @@ class CodeBuilderTest {
         }
 
         @Test
+        fun `refuses a fragment whose handler is still waiting for a location`() {
+            // given a fragment whose range is closed but not yet given a handler, so the
+            // row would be appended to the source after the splice had copied it
+            val source = builder()
+            val from = source.`try`()
+            source.nop()
+            source.`catch`(from, type = null)
+            val open = source.build()
+
+            // then
+            assertThatIllegalArgumentException()
+                .isThrownBy { builder().apply { fragment(open) } }
+                .withMessageContaining("patch before splicing")
+        }
+
+        @Test
+        fun `takes the same fragment once its handler has been patched`() {
+            // given
+            val source = builder()
+            val from = source.`try`()
+            source.nop()
+            val handler = source.`catch`(from, type = null)
+            val open = source.build()
+
+            // when the location is supplied before the splice rather than after
+            handler(1)
+
+            // then the row is copied along with the bytes, shifted by where it landed
+            assertThat(handlers { nop(); fragment(open) })
+                .containsExactly(ExceptionHandler(1, 2, 2, catchType = 0))
+        }
+
+        @Test
         fun `takes the same fragment once its jump has been patched`() {
             // given
             val source = builder()

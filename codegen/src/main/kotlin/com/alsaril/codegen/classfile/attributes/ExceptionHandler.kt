@@ -9,6 +9,12 @@ data class ExceptionHandler(
     val handlerPc: Int,
     val catchType: Int
 ) : Writable {
+    init {
+        require(startPc < endPc) {
+            "exception range [$startPc, $endPc) covers no instruction, so it must not be recorded"
+        }
+    }
+
     override fun ClassWriter.write() {
         short(startPc)
         short(endPc)

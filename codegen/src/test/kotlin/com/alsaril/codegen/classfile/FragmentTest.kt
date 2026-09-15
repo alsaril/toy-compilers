@@ -149,6 +149,23 @@ class FragmentTest {
         }
 
         @Test
+        fun `refuses a fragment whose handler is still waiting for a location`() {
+            // given a range closed but not yet given a handler. Unlike a jump, which is
+            // patched into a block the join goes on sharing, a handler row is rewritten
+            // into a new list against where its fragment landed
+            val source = builder()
+            val from = source.`try`()
+            source.nop()
+            source.`catch`(from, type = null)
+            val open = source.build()
+
+            // then
+            assertThatIllegalArgumentException()
+                .isThrownBy { listOf(open, builder().apply { nop() }.build()).join() }
+                .withMessageContaining("patch before joining")
+        }
+
+        @Test
         fun `carries the jumps still waiting from every fragment it joined`() {
             // given one fragment owing a target joined with one that does not
             val source = builder()

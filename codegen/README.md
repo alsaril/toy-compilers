@@ -78,6 +78,21 @@ to jump, and the type it catches. `try` marks the start of the range and `catch`
 it, returning a patcher that records the handler once its location is known — the same
 closure trick as a jump. A `catch` with no type matches any throwable.
 
+**A patcher records a row rather than overwriting one**, which is the one way it differs
+from a jump's. Patching a jump twice retargets it, so the second call is as good as the
+first; patching a handler twice would append a second row and leave the first behind,
+dead, since the jvm takes the earliest match. So a handler patcher is single-use and
+says so:
+
+```
+this catch has already been given a handler
+```
+
+`try` itself records nothing at all — it is `TryPointer(loc())`, an offset and no more —
+so a range that is opened and never closed emits nothing and costs nothing. That is
+unlike an unpatched jump, which leaves a live `goto +0` behind, and is why only one of
+the two is counted.
+
 ## Three ways to define a method
 
 **Regular** — emit straight into the method:
@@ -121,13 +136,30 @@ splicing copies bytes.** `join()` reuses the arrays its fragments hold, so a jum
 *after* the join still lands, as does `bytecode()` on a single unsplit block. `fragment()`
 copies the bytes into the builder, so it cannot — the patch would reach the fragment it was
 taken from and never the copy. Rather than lose it quietly, each fragment carries a live
-count of the jumps still waiting for a target, and the copying paths refuse one that still
-owes:
+count of the patches still waiting, and the copying paths refuse one that still owes.
+
+**The two kinds are counted apart, because they do not survive the same operations.** A
+jump patch writes into the byte array a fragment holds; a handler patch appends a row to
+the list it holds. So joining, which shares the arrays but rewrites every row against
+where its fragment landed, is safe for one and not the other — and flattening, which
+copies the arrays but never reads the rows, is the other way about. Splicing copies both:
+
+| | jump | handler |
+|---|---|---|
+| `join()` | shares the block, patch still lands | rewrites the row, **refused** |
+| `bytecode()` over several blocks | copies the bytes, **refused** | rows untouched |
+| `fragment()` | copies the bytes, **refused** | copies the row, **refused** |
 
 ```
 splicing copies the bytes of a fragment ... patch before splicing
+splicing copies the handler rows of a fragment ... patch before splicing
 flattening several blocks copies them ... patch before flattening
+joining rewrites the handler rows of a fragment ... patch before joining
 ```
+
+A fragment patched and then left alone is the case all of this protects: a handler
+recorded after its builder was frozen still reaches the fragment that builder produced,
+the same way a late jump does.
 
 ## Method limits
 
@@ -207,9 +239,16 @@ s1(value)  // its operand, a signed byte
 `s2At` is the same check for a branch offset patched in after the fact, once its target
 is known.
 
-One constraint neither place can express gets its own check: `code_length` is a `u4` on
-the wire that the JVMS caps at `1..65535` — a method may be neither empty nor larger — so
-`CodeAttribute` checks both ends in its `init`.
+Two constraints neither place can express get their own check:
+
+- `code_length` is a `u4` on the wire that the JVMS caps at `1..65535` — a method may be
+  neither empty nor larger — so `CodeAttribute` checks both ends in its `init`.
+- An exception table row must cover at least one instruction. Each of its four locations
+  fits a `u2` on its own, so the writer sees nothing wrong with `start_pc == end_pc`; the
+  jvm refuses it at load time with `ClassFormatError: Illegal exception table range`. It
+  is a relation between two fields rather than the width of either, so `ExceptionHandler`
+  checks it in its `init` — the one place every row passes through, hand-built or
+  patched.
 
 Each check raises an `IllegalArgumentException` naming the value and the width it did not
 fit, at the point the value is emitted.

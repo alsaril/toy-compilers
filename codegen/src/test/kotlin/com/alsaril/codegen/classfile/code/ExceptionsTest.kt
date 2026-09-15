@@ -5,6 +5,8 @@ import com.alsaril.codegen.constantpool.ConstantClassInfo
 import com.alsaril.codegen.constantpool.ConstantUtf8Info
 import com.alsaril.codegen.constantpool.UpdatableConstantPool
 import org.assertj.core.api.Assertions.assertThat
+import org.assertj.core.api.Assertions.assertThatIllegalArgumentException
+import org.assertj.core.api.Assertions.assertThatIllegalStateException
 import org.junit.jupiter.api.Test
 
 /**
@@ -40,8 +42,37 @@ class ExceptionsTest {
     fun `catches everything when no type is given`() {
         // catch_type 0 is the JVMS encoding for "any throwable", which is what a
         // finally block needs
-        assertThat(handlers { `catch`(`try`(), type = null)(loc()) })
-            .containsExactly(ExceptionHandler(0, 0, 0, catchType = 0))
+        val recorded = handlers {
+            val from = `try`()
+            nop()
+            `catch`(from, type = null)(loc())
+        }
+
+        assertThat(recorded).containsExactly(ExceptionHandler(0, 1, 1, catchType = 0))
+    }
+
+    @Test
+    fun `refuses a range that covers no instruction`() {
+        // given a catch closing the range at the offset the try opened it
+        assertThatIllegalArgumentException()
+            .isThrownBy { handlers { `catch`(`try`(), type = null)(loc()) } }
+            .withMessageContaining("[0, 0) covers no instruction")
+    }
+
+    @Test
+    fun `refuses to give one catch a second handler`() {
+        // given a patcher already used, so the row it appended cannot be retargeted
+        assertThatIllegalStateException()
+            .isThrownBy {
+                handlers {
+                    val from = `try`()
+                    nop()
+                    val handler = `catch`(from, type = null)
+                    handler(loc())
+                    handler(loc())
+                }
+            }
+            .withMessageContaining("already been given a handler")
     }
 
     @Test

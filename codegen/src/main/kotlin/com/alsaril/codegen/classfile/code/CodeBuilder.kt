@@ -1,7 +1,7 @@
 package com.alsaril.codegen.classfile.code
 
 import com.alsaril.codegen.classfile.Fragment
-import com.alsaril.codegen.classfile.UnpatchedJumps
+import com.alsaril.codegen.classfile.OutstandingPatches
 import com.alsaril.codegen.classfile.attributes.ExceptionHandler
 import com.alsaril.codegen.classfile.attributes.StackMapFrame
 import com.alsaril.codegen.classfile.recordAt
@@ -22,7 +22,7 @@ class CodeBuilder(
     private val exceptionHandlers = mutableListOf<ExceptionHandler>()
     private var base = 0
     private var frozen: ByteArray? = null
-    private val unpatched = UnpatchedJumps()
+    private val unpatched = OutstandingPatches()
     private var maxStack = 0
     private var maxLocals = 0
 
@@ -31,21 +31,35 @@ class CodeBuilder(
         with(bytecode.toByteArray()) {
             frozen = this
             return Fragment(listOf(this), frames, exceptionHandlers, maxStack, maxLocals, this.size)
-                .also { it.unpatchedJumps = unpatched::count }
+                .also {
+                    it.unpatchedJumps = unpatched::jumps
+                    it.unpatchedHandlers = unpatched::handlers
+                }
         }
     }
 
     fun loc() = bytecode.size
 
-    internal fun deferred(patch: (Int) -> Unit): (Int) -> Unit {
-        unpatched.count++
+    internal fun deferredJump(patch: (Int) -> Unit): (Int) -> Unit {
+        unpatched.jumps++
         var pending = true
         return { target ->
             if (pending) {
                 pending = false
-                unpatched.count--
+                unpatched.jumps--
             }
             patch(target)
+        }
+    }
+
+    private fun deferredHandler(record: (Int) -> Unit): (Int) -> Unit {
+        unpatched.handlers++
+        var pending = true
+        return { handlerPc ->
+            check(pending) { "this catch has already been given a handler" }
+            pending = false
+            unpatched.handlers--
+            record(handlerPc)
         }
     }
 
@@ -100,6 +114,10 @@ class CodeBuilder(
             "splicing copies the bytes of a fragment, so its ${fragment.unpatchedJumps()} " +
                     "outstanding jump patch(es) would not reach the copy: patch before splicing"
         }
+        require(fragment.unpatchedHandlers() == 0) {
+            "splicing copies the handler rows of a fragment, so its ${fragment.unpatchedHandlers()} " +
+                    "outstanding handler patch(es) would not reach the copy: patch before splicing"
+        }
 
         val pos = loc()
         fragment.content.forEach { chunk -> chunk.forEach(bytecode::add) }
@@ -112,9 +130,9 @@ class CodeBuilder(
 
     fun `catch`(from: TryPointer, type: ClassPointer?): (Int) -> Unit {
         val to = loc()
-        return {
+        return deferredHandler { handlerPc ->
             exceptionHandlers.add(
-                ExceptionHandler(from.index, to, it, type?.index ?: 0)
+                ExceptionHandler(from.index, to, handlerPc, type?.index ?: 0)
             )
         }
     }
