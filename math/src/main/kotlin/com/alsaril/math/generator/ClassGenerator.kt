@@ -1,5 +1,6 @@
 package com.alsaril.math.generator
 
+import com.alsaril.codegen.classfile.ClassFileBuilder
 import com.alsaril.codegen.classfile.ClassFileBuilder.Companion.classFile
 import com.alsaril.codegen.classfile.MethodAccessFlag.FINAL
 import com.alsaril.codegen.classfile.MethodAccessFlag.PRIVATE
@@ -21,7 +22,7 @@ object ClassGenerator {
         .generateEval(ast)
         .build()
 
-    private fun com.alsaril.codegen.classfile.ClassFileBuilder.emitGetFloat() =
+    private fun ClassFileBuilder.emitGetFloat() =
         method("getFloat", "(Ljava/util/Map;Ljava/lang/String;)F", 4, PRIVATE, STATIC, FINAL) {
             aload(0)
             aload(1)

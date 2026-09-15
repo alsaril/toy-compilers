@@ -27,7 +27,7 @@ class CodeBuilder(
     private var maxLocals = 0
 
     fun build(): Fragment {
-        frozen?.let { throw IllegalStateException() }
+        frozen?.let { throw IllegalStateException("this builder has already been built") }
         with(bytecode.toByteArray()) {
             frozen = this
             return Fragment(listOf(this), frames, exceptionHandlers, maxStack, maxLocals, this.size)
@@ -92,7 +92,7 @@ class CodeBuilder(
     }
 
     private fun put(value: Int) {
-        frozen?.let { throw IllegalStateException() }
+        frozen?.let { throw IllegalStateException("building freezes the code, so nothing more can be emitted") }
         bytecode.add(value.toByte())
     }
 

@@ -11,6 +11,11 @@ import kotlin.math.max
 import kotlin.math.min
 
 private const val methodLengthLimit = 8000 // hotspot threshold, however can be as big as 65535
+// a merge checks the sum of two preludes rather than the prelude of their union, which
+// over-counts when they share variables and under-counts when their union crosses into a
+// wider store band. The excess saturates at 513 bytes rather than growing with the
+// expression — the README derives it — so holding the budget that far below the limit
+// covers it by construction
 private const val mergeExcess = 513
 private const val bodyLengthLimit = methodLengthLimit - mergeExcess
 
@@ -95,7 +100,7 @@ private fun ClassFileBuilder.defineMethod(
 ): Pair<String, String> {
     val name = "f${counter.inc()}"
 
-    method(name, descriptor, maxStack = 0, PUBLIC, STATIC, FINAL) {
+    method(name, descriptor, maxStack = 0, PRIVATE, STATIC, FINAL) {
         val variables = context.virtualInstructionsBuilder.sortedVariables()
         val o2n = variables.asSequence().mapIndexed { index, old -> old to index }.toMap()
 

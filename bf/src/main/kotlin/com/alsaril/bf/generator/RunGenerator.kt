@@ -17,12 +17,12 @@ object RunGenerator {
 
     private const val methodLengthLimit = 8000 // hotspot threshold, however can be as big as 65535
 
-    private val inIndex = 0
-    private val outIndex = 1
-    private val memsizeIndex = 2
-    private val arrayIndex = 3
-    private val stateIndex = 4 // pointer, cycles
-    private val readIndex = 5
+    private const val inIndex = 0
+    private const val outIndex = 1
+    private const val memsizeIndex = 2
+    private const val arrayIndex = 3
+    private const val stateIndex = 4 // pointer, cycles
+    private const val readIndex = 5
 
     fun ClassFileBuilder.generateRun(instructions: List<Instruction>) = apply {
         val generation = Generation(bodyLengthLimit(), loopOverhead())
