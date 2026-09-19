@@ -14,7 +14,7 @@ class ClassWriterTest {
 
     @Test
     fun `appends in call order`() {
-        assertThat(toBytes { byte(1); short(2); byte(3) })
+        assertThat(toBytes { u1(1); u2(2); u1(3) })
             .containsExactly(*bytesOf(0x01, 0x00, 0x02, 0x03))
     }
 
@@ -23,14 +23,14 @@ class ClassWriterTest {
 
         @Test
         fun `byte writes one byte`() {
-            assertThat(toBytes { byte(0x7F) }).containsExactly(*bytesOf(0x7F))
-            assertThat(toBytes { byte(0xFF) }).containsExactly(*bytesOf(0xFF))
+            assertThat(toBytes { u1(0x7F) }).containsExactly(*bytesOf(0x7F))
+            assertThat(toBytes { u1(0xFF) }).containsExactly(*bytesOf(0xFF))
         }
 
         @Test
         fun `short writes two big-endian bytes`() {
-            assertThat(toBytes { short(0x0102) }).containsExactly(*bytesOf(0x01, 0x02))
-            assertThat(toBytes { short(0xFFFF) }).containsExactly(*bytesOf(0xFF, 0xFF))
+            assertThat(toBytes { u2(0x0102) }).containsExactly(*bytesOf(0x01, 0x02))
+            assertThat(toBytes { u2(0xFFFF) }).containsExactly(*bytesOf(0xFF, 0xFF))
         }
 
         @Test
@@ -76,27 +76,27 @@ class ClassWriterTest {
         @Test
         fun `byte rejects a value wider than a u1`() {
             assertThatExceptionOfType(IllegalArgumentException::class.java)
-                .isThrownBy { toBytes { byte(0x1FF) } }
+                .isThrownBy { toBytes { u1(0x1FF) } }
                 .withMessageContaining("does not fit a u1")
 
             assertThatExceptionOfType(IllegalArgumentException::class.java)
-                .isThrownBy { toBytes { byte(-1) } }
+                .isThrownBy { toBytes { u1(-1) } }
         }
 
         @Test
         fun `short rejects a value wider than a u2`() {
             assertThatExceptionOfType(IllegalArgumentException::class.java)
-                .isThrownBy { toBytes { short(65536) } }
+                .isThrownBy { toBytes { u2(65536) } }
                 .withMessageContaining("does not fit a u2")
 
             assertThatExceptionOfType(IllegalArgumentException::class.java)
-                .isThrownBy { toBytes { short(-1) } }
+                .isThrownBy { toBytes { u2(-1) } }
         }
 
         @Test
         fun `accepts the widest value each still holds`() {
-            assertThat(toBytes { byte(0xFF) }).containsExactly(*bytesOf(0xFF))
-            assertThat(toBytes { short(0xFFFF) }).containsExactly(*bytesOf(0xFF, 0xFF))
+            assertThat(toBytes { u1(0xFF) }).containsExactly(*bytesOf(0xFF))
+            assertThat(toBytes { u2(0xFFFF) }).containsExactly(*bytesOf(0xFF, 0xFF))
         }
     }
 }

@@ -57,7 +57,7 @@ internal fun ClassFileBuilder.generateEval(ast: Node) = apply {
     val context = materialize(ast, vars, n2i, counter)
     val (name, _) = defineMethod(context, vars, counter)
 
-    method("eval", descriptor, maxStack = 1, PUBLIC, FINAL) {
+    method("eval", descriptor, PUBLIC, FINAL) {
         aload(1)
         invokestatic(method(self(), name, descriptor))
         freturn()
@@ -73,7 +73,6 @@ private fun CodeBuilder.accessorLine(name: String, slot: Int) {
 
 private fun CodeBuilder.emitAccessor(vars: List<String>, variables: List<Int>) {
     variables.forEachIndexed { index, old -> accessorLine(vars[old], index) }
-    maxStack(2)
 }
 
 private fun ClassFileBuilder.preludeLines(vars: List<String>): IntArray {
@@ -100,13 +99,12 @@ private fun ClassFileBuilder.defineMethod(
 ): Pair<String, String> {
     val name = "f${counter.inc()}"
 
-    method(name, descriptor, maxStack = 0, PRIVATE, STATIC, FINAL) {
+    method(name, descriptor, PRIVATE, STATIC, FINAL) {
         val variables = context.virtualInstructionsBuilder.sortedVariables()
         val o2n = variables.asSequence().mapIndexed { index, old -> old to index }.toMap()
 
         emitAccessor(vars, variables)
         context.virtualInstructionsBuilder.emitRealTransforming(this, o2n, callSlots)
-        maxStack(context.maxStack)
         freturn()
     }
 

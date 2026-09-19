@@ -18,37 +18,37 @@ data class ClassFile(
 
     override fun ClassWriter.write() {
         // magic
-        byte(0xca); byte(0xfe); byte(0xba); byte(0xbe)
+        u1(0xca); u1(0xfe); u1(0xba); u1(0xbe)
 
         // minor_version, major_version: 1.8
-        short(0); short(52)
+        u2(0); u2(52)
 
         // constant_pool_count, constant_pool
         write(constantPool)
 
         // access_flags
-        short(ACC_PUBLIC or ACC_FINAL)
+        u2(ACC_PUBLIC or ACC_FINAL)
 
         // this_class
-        short(thisClassIndex)
+        u2(thisClassIndex)
 
         // super_class: Object
-        short(parentIndex)
+        u2(parentIndex)
 
         // interfaces_count: 1
-        short(ifaceIndexes.size)
+        u2(ifaceIndexes.size)
 
         // interfaces: single interface
-        ifaceIndexes.forEach(::short)
+        ifaceIndexes.forEach(::u2)
 
         // fields_count, fields: 0
-        short(0)
+        u2(0)
 
         // methods_count, methods
-        short(methods.size)
+        u2(methods.size)
         methods.forEach(::write)
 
         // attributes_count, attributes: 0
-        short(0)
+        u2(0)
     }
 }

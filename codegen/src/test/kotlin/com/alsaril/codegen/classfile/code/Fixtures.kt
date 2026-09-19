@@ -1,6 +1,7 @@
 package com.alsaril.codegen.classfile.code
 
 import com.alsaril.codegen.classfile.attributes.ExceptionHandler
+import com.alsaril.codegen.classfile.bytecode
 import com.alsaril.codegen.classfile.attributes.StackMapFrame
 import com.alsaril.codegen.constantpool.UpdatableConstantPool
 
@@ -11,7 +12,8 @@ fun builder(cp: UpdatableConstantPool = UpdatableConstantPool()) = CodeBuilder(c
 
 fun bytecode(block: CodeBuilder.() -> Unit): ByteArray = builder().apply(block).build().bytecode()
 
-fun frames(block: CodeBuilder.() -> Unit): List<StackMapFrame> = builder().apply(block).build().frames
+fun frames(block: CodeBuilder.() -> Unit): List<StackMapFrame> =
+    builder().apply(block).build().frames.values.toList()
 
 fun handlers(block: CodeBuilder.() -> Unit): List<ExceptionHandler> =
     builder().apply(block).build().exceptionHandlers

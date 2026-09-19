@@ -10,7 +10,7 @@ class StackMapTableAttribute(
     private val entries: List<StackMapFrame>
 ) : AttributeInfo(nameIndex) {
     override fun ClassWriter.writeContent() {
-        short(entries.size)
+        u2(entries.size)
         entries.forEach(::write)
     }
 }
@@ -29,7 +29,7 @@ data class SameFrame(
     }
 
     override fun ClassWriter.write() {
-        byte(offsetDelta)
+        u1(offsetDelta)
     }
 }
 
@@ -37,8 +37,8 @@ data class SameFrameExtended(
     override val offsetDelta: Int,
 ) : StackMapFrame {
     override fun ClassWriter.write() {
-        byte(251) // frame_type
-        short(offsetDelta)
+        u1(251) // frame_type
+        u2(offsetDelta)
     }
 }
 
@@ -60,7 +60,7 @@ data class SameLocals1StackItemFrameShort(
     }
 
     override fun ClassWriter.write() {
-        byte(offsetDelta + 64)
+        u1(offsetDelta + 64)
         write(stack)
     }
 }
@@ -70,8 +70,8 @@ data class SameLocals1StackItemFrameExtended(
     override val stack: VerificationTypeInfo,
 ) : SameLocals1StackItemFrame {
     override fun ClassWriter.write() {
-        byte(247) // frame_type
-        short(offsetDelta)
+        u1(247) // frame_type
+        u2(offsetDelta)
         write(stack)
     }
 }
@@ -85,8 +85,8 @@ data class AppendFrame(
     }
 
     override fun ClassWriter.write() {
-        byte(251 + locals.size) // frame_type
-        short(offsetDelta)
+        u1(251 + locals.size) // frame_type
+        u2(offsetDelta)
         locals.forEach(::write)
     }
 }
@@ -97,11 +97,11 @@ data class FullFrame(
     val stack: List<VerificationTypeInfo>,
 ) : StackMapFrame {
     override fun ClassWriter.write() {
-        byte(255) // frame_type
-        short(offsetDelta)
-        short(locals.size)
+        u1(255) // frame_type
+        u2(offsetDelta)
+        u2(locals.size)
         locals.forEach(::write)
-        short(stack.size)
+        u2(stack.size)
         stack.forEach(::write)
     }
 }
@@ -115,14 +115,14 @@ enum class SimpleVerificationTypeInfo(
     IntegerVariableInfo(1),
     FloatVariableInfo(2);
 
-    override fun ClassWriter.write() = byte(tag)
+    override fun ClassWriter.write() = u1(tag)
 }
 
 data class ObjectVariableInfo(
     private val cpoolIndex: Int,
 ) : VerificationTypeInfo {
     override fun ClassWriter.write() {
-        byte(7)
-        short(cpoolIndex)
+        u1(7)
+        u2(cpoolIndex)
     }
 }

@@ -29,7 +29,6 @@ class CompilerTest {
     private fun ClassFileBuilder.withConstructor() = method(
         "<init>",
         "()V",
-        maxStack = 1,
         PUBLIC,
     ) {
         aload(0)
@@ -40,7 +39,6 @@ class CompilerTest {
     private fun ClassFileBuilder.withCount(value: Int) = method(
         "count",
         "()I",
-        maxStack = 1,
         PUBLIC,
         FINAL,
     ) {
@@ -130,7 +128,7 @@ class CompilerTest {
                     classFile("GenRunnable", "java/lang/Object")
                         .iface("java/lang/Runnable")
                         .withConstructor()
-                        .method("run", "()V", maxStack = 0, PUBLIC) { `return`() }
+                        .method("run", "()V", PUBLIC) { `return`() }
                         .build()
                 },
                 Runnable::class.java,
@@ -173,7 +171,7 @@ class CompilerTest {
                             classFile("GenOther", "java/lang/Object")
                                 .iface("java/lang/Runnable")
                                 .withConstructor()
-                                .method("run", "()V", maxStack = 0, PUBLIC) { `return`() }
+                                .method("run", "()V", PUBLIC) { `return`() }
                                 .build()
                         },
                         Counter::class.java,

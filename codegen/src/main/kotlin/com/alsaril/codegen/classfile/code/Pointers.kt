@@ -2,7 +2,7 @@ package com.alsaril.codegen.classfile.code
 
 data class ClassPointer(val index: Int)
 
-data class MethodDescriptor(val index: Int)
+data class MethodDescriptor(val index: Int, val slots: Int? = 0)
 
 data class FieldDescriptor(val index: Int)
 

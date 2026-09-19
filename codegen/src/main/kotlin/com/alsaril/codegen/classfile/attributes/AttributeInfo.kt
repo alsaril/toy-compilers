@@ -9,7 +9,7 @@ abstract class AttributeInfo(
 ) : Writable {
     final override fun ClassWriter.write() {
         val content = toBytes { writeContent() }
-        short(nameIndex)
+        u2(nameIndex)
         int(content.size)
         bytes(content)
     }

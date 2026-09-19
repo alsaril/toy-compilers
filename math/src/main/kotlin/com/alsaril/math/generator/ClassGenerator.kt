@@ -13,7 +13,7 @@ object ClassGenerator {
 
     fun generate(ast: Node) = classFile("Impl", parent = "java/lang/Object")
         .iface("com/alsaril/math/Program")
-        .method("<init>", "()V", maxStack = 1, PUBLIC) {
+        .method("<init>", "()V", PUBLIC) {
             aload(0)
             invokespecial(method(parent(), "<init>", "()V"))
             `return`()
@@ -23,10 +23,10 @@ object ClassGenerator {
         .build()
 
     private fun ClassFileBuilder.emitGetFloat() =
-        method("getFloat", "(Ljava/util/Map;Ljava/lang/String;)F", 4, PRIVATE, STATIC, FINAL) {
+        method("getFloat", "(Ljava/util/Map;Ljava/lang/String;)F", PRIVATE, STATIC, FINAL) {
             aload(0)
             aload(1)
-            invokeinterface(imethod(clazz("java/util/Map"), "get", "(Ljava/lang/Object;)Ljava/lang/Object;"), 2)
+            invokeinterface(imethod(clazz("java/util/Map"), "get", "(Ljava/lang/Object;)Ljava/lang/Object;"))
             dup()
             instanceof(clazz("java/lang/Float"))
             val err = ifeq()
@@ -35,9 +35,10 @@ object ClassGenerator {
             invokevirtual(method(clazz("java/lang/Float"), "floatValue", "()F"))
             freturn()
 
-            err(loc())
-            frameStack(objInfo("java/lang/Object"))
-            new(clazz("java/util/NoSuchElementException"))
+            val dest = new(clazz("java/util/NoSuchElementException"))
+            frameStack(dest, objInfo("java/lang/Object"))
+            link(err, dest)
+
             dup()
             aload(1)
             invokespecial(method(clazz("java/util/NoSuchElementException"), "<init>", "(Ljava/lang/String;)V"))

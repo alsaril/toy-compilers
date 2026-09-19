@@ -2,6 +2,7 @@ package com.alsaril.codegen.classfile.code
 
 import com.alsaril.codegen.bytesOf
 import com.alsaril.codegen.classfile.PrimitiveType.*
+import com.alsaril.codegen.classfile.bytecode
 import com.alsaril.codegen.constantpool.ConstantClassInfo
 import com.alsaril.codegen.constantpool.ConstantFieldRefInfo
 import com.alsaril.codegen.constantpool.ConstantInterfaceMethodRefInfo
@@ -50,7 +51,7 @@ class InvocationsTest {
             val descriptor = builder.imethod(builder.clazz("A"), "f", "()V")
 
             // then
-            assertThat(descriptor).isEqualTo(MethodDescriptor(6))
+            assertThat(descriptor).isEqualTo(MethodDescriptor(6, slots = 1))
             assertThat(cp.build().entries).last()
                 .isEqualTo(ConstantInterfaceMethodRefInfo(classNameIndex = 2, nameAndTypeIndex = 5))
         }
@@ -120,7 +121,7 @@ class InvocationsTest {
 
         @Test
         fun `writes invokeinterface with its argument count and trailing zero`() {
-            assertThat(bytecode { invokeinterface(MethodDescriptor(1), count = 2) })
+            assertThat(bytecode { invokeinterface(MethodDescriptor(1, slots = 2)) })
                 .containsExactly(*bytesOf(0xB9, 0x00, 0x01, 0x02, 0x00))
         }
 

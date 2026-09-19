@@ -1,103 +1,38 @@
 package com.alsaril.codegen.classfile
 
-import com.alsaril.codegen.classfile.attributes.*
-import java.nio.ByteBuffer
-import kotlin.math.max
+import com.alsaril.codegen.classfile.attributes.ExceptionHandler
+import com.alsaril.codegen.classfile.attributes.StackMapFrame
+import com.alsaril.codegen.classfile.code.BytecodeSerializer
+import com.alsaril.codegen.classfile.code.Instruction
+import java.util.*
 
-internal class OutstandingPatches {
-    var jumps = 0
-    var handlers = 0
-}
 
 data class Fragment(
-    val content: List<ByteArray>,
-    val frames: List<StackMapFrame>,
+    val instructions: List<Instruction>,
+    val jumps: Map<Instruction, Instruction>, // backed by identity
+    val frames: Map<Instruction, StackMapFrame>, // backed by identity
     val exceptionHandlers: List<ExceptionHandler>,
-    val maxStack: Int,
-    val maxLocals: Int,
-    val size: Int, // the sum of lengths in content
-) {
-    internal var unpatchedJumps: () -> Int = { 0 }
-    internal var unpatchedHandlers: () -> Int = { 0 }
-
-    fun bytecode(): ByteArray = if (content.size == 1) content.first() else {
-        require(unpatchedJumps() == 0) {
-            "flattening several blocks copies them, so the ${unpatchedJumps()} outstanding " +
-                    "jump patch(es) would not reach the result: patch before flattening"
-        }
-        ByteBuffer.allocate(size).apply { content.forEach(::put) }.array()
-    }
-}
-
-internal fun Fragment.recordAt(
-    position: Int,
-    base: Int,
-    frames: MutableList<StackMapFrame>,
-    handlers: MutableList<ExceptionHandler>,
-): Int {
-    var next = base
-
-    this.frames.firstOrNull()?.let { first ->
-        val patchedOffset = first.offsetDelta + position - next
-
-        if (patchedOffset != -1) {
-            val patched = first.movedTo(patchedOffset)
-            frames.add(patched)
-            next += patched.offsetDelta + 1
-        }
-    }
-
-    this.frames.asSequence().drop(1).forEach {
-        frames.add(it)
-        next += it.offsetDelta + 1
-    }
-
-    exceptionHandlers.forEach { handlers.add(it.shiftedBy(position)) }
-
-    return next
-}
-
-private fun StackMapFrame.movedTo(offsetDelta: Int) = when (this) {
-    is SameFrame, is SameFrameExtended -> sameFrame(offsetDelta)
-    is AppendFrame -> copy(offsetDelta = offsetDelta)
-    is FullFrame -> copy(offsetDelta = offsetDelta)
-    is SameLocals1StackItemFrame -> sameLocals1StackItem(offsetDelta, stack)
-}
-
-private fun ExceptionHandler.shiftedBy(offset: Int) = copy(
-    startPc = startPc + offset,
-    endPc = endPc + offset,
-    handlerPc = handlerPc + offset,
+    val size: Int,
 )
+
+fun Fragment.bytecode(): ByteArray = BytecodeSerializer.emit(this).first
 
 fun List<Fragment>.join(): Fragment {
     if (size == 1) return first()
 
-    val owed = sumOf { it.unpatchedHandlers() }
-    require(owed == 0) {
-        "joining rewrites the handler rows of a fragment, so the $owed outstanding " +
-                "handler patch(es) would not reach the result: patch before joining"
-    }
-
-    val content = mutableListOf<ByteArray>()
-    val frames = mutableListOf<StackMapFrame>()
-    val handlers = mutableListOf<ExceptionHandler>()
-    var base = 0
-    var totalSize = 0
-    var maxStack = 0
-    var maxLocals = 0
+    val instructions = mutableListOf<Instruction>()
+    val jumps = IdentityHashMap<Instruction, Instruction>()
+    val frames = IdentityHashMap<Instruction, StackMapFrame>()
+    val exceptionHandlers = mutableListOf<ExceptionHandler>()
+    var size = 0
 
     forEach { fragment ->
-        content.addAll(fragment.content)
-        base = fragment.recordAt(totalSize, base, frames, handlers)
-        maxStack = max(maxStack, fragment.maxStack)
-        maxLocals = max(maxLocals, fragment.maxLocals)
-        totalSize += fragment.size
+        instructions.addAll(fragment.instructions)
+        jumps.putAll(fragment.jumps)
+        frames.putAll(fragment.frames)
+        exceptionHandlers.addAll(fragment.exceptionHandlers)
+        size += fragment.size
     }
 
-    return Fragment(content, frames, handlers, maxStack, maxLocals, totalSize)
-        .also { joined ->
-            joined.unpatchedJumps = { sumOf { it.unpatchedJumps() } }
-            joined.unpatchedHandlers = { sumOf { it.unpatchedHandlers() } }
-        }
+    return Fragment(instructions, jumps, frames, exceptionHandlers, size)
 }
