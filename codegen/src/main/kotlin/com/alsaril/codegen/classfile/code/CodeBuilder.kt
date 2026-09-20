@@ -38,23 +38,30 @@ class CodeBuilder(
         val index = instructions.size
         instructions.add(instruction)
         size += width(instruction)
-        return LabelImpl(index)
+        return LabelImpl(this, index)
     }
 
     internal fun frame(frame: StackMapFrame) {
         frames.add(frame)
     }
 
-    private data class LabelImpl(override val index: Int) : Label
+    private class LabelImpl(val owner: CodeBuilder, val index: Int) : Label
+
+    internal fun indexOf(label: Label): Int {
+        require(label is LabelImpl && label.owner === this) {
+            "this label was handed out by another builder, so it names nothing here"
+        }
+        return label.index
+    }
 
     fun link(from: Label, dest: Label) {
-        from as LabelImpl; dest as LabelImpl
-        jumps[from.index] = dest.index
+        jumps[indexOf(from)] = indexOf(dest)
     }
 
     fun `catch`(from: Label, to: Label, handler: Label, type: ClassPointer?) {
-        from as LabelImpl; to as LabelImpl; handler as LabelImpl
-        exceptionHandlers.add(ExceptionHandler(from.index, to.index, handler.index, type?.index ?: 0))
+        exceptionHandlers.add(
+            ExceptionHandler(indexOf(from), indexOf(to), indexOf(handler), type?.index ?: 0)
+        )
     }
 
     fun fragment(fragment: Fragment): Label {
@@ -72,7 +79,7 @@ class CodeBuilder(
             .map { it.shift(count) }
             .forEach(exceptionHandlers::add)
         size += fragment.size
-        return LabelImpl(count)
+        return LabelImpl(this, count)
     }
 
     fun transform(transform: (Int, Instruction) -> Instruction?): CodeBuilder {
@@ -99,6 +106,4 @@ class CodeBuilder(
     )
 }
 
-sealed interface Label {
-    val index: Int
-}
+sealed interface Label

@@ -12,6 +12,7 @@ import com.alsaril.codegen.classfile.attributes.StackMapFrame
 import com.alsaril.codegen.classfile.bytecode
 import com.alsaril.codegen.classfile.code.instruction.FLoad
 import org.assertj.core.api.Assertions.assertThat
+import org.assertj.core.api.Assertions.assertThatIllegalArgumentException
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
@@ -38,6 +39,54 @@ class CodeBuilderTest {
         assertThat(builder.build().size).isEqualTo(1)
         builder.goto()
         assertThat(builder.build().size).isEqualTo(4)
+    }
+
+    @Nested
+    inner class Labels {
+
+        @Test
+        fun `refuses a jump target from another builder`() {
+            // given a label naming instruction 0 of a builder that is not this one
+            val elsewhere = builder().apply { nop() }
+            val target = elsewhere.nop()
+
+            // then it is refused rather than reaching instruction 0 of this one
+            assertThatIllegalArgumentException()
+                .isThrownBy { builder().apply { link(goto(), target) } }
+                .withMessageContaining("handed out by another builder")
+        }
+
+        @Test
+        fun `refuses a frame anchored on another builder's label`() {
+            val target = builder().nop()
+
+            assertThatIllegalArgumentException()
+                .isThrownBy { builder().apply { nop(); frameSame(target) } }
+                .withMessageContaining("handed out by another builder")
+        }
+
+        @Test
+        fun `refuses a guarded range from another builder`() {
+            val other = builder()
+            val from = other.nop()
+            val to = other.nop()
+
+            assertThatIllegalArgumentException()
+                .isThrownBy { builder().apply { nop(); nop(); `catch`(from, to, to, type = null) } }
+                .withMessageContaining("handed out by another builder")
+        }
+
+        @Test
+        fun `takes the label a splice hands back, which this builder owns`() {
+            val piece = builder().apply { aconst_null() }.build()
+
+            val code = bytecode {
+                val jump = goto()
+                link(jump, fragment(piece))
+            }
+
+            assertThat(code).containsExactly(*bytesOf(0xA7, 0x00, 0x03, 0x01))
+        }
     }
 
     @Nested
@@ -106,7 +155,7 @@ class CodeBuilderTest {
             val byIndex = frames.toMap()
             repeat(size) { i ->
                 val label = nop()
-                byIndex[i]?.let { frame(patchOffset(it, label.index)) }
+                byIndex[i]?.let { frame(patchOffset(it, indexOf(label))) }
             }
         }.build()
 

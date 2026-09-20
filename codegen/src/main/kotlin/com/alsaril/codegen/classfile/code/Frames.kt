@@ -15,18 +15,18 @@ fun CodeBuilder.objInfo(name: String): VarInfo = ObjInfo(clazz(name).index)
 
 internal data class ObjInfo(val index: Int) : VarInfo
 
-fun CodeBuilder.frameSame(label: Label) = frame(sameFrame(label.index))
+fun CodeBuilder.frameSame(label: Label) = frame(sameFrame(indexOf(label)))
 
 fun CodeBuilder.frameStack(label: Label, varInfo: VarInfo) = frame(
-    sameLocals1StackItem(label.index, varInfo2Writable(varInfo))
+    sameLocals1StackItem(indexOf(label), varInfo2Writable(varInfo))
 )
 
 fun CodeBuilder.frameAppend(label: Label, vararg varInfos: VarInfo) = frame(
-    AppendFrame(label.index, varInfos.map(::varInfo2Writable))
+    AppendFrame(indexOf(label), varInfos.map(::varInfo2Writable))
 )
 
 fun CodeBuilder.frameFull(label: Label, locals: List<VarInfo>, stack: List<VarInfo>) = frame(
-    FullFrame(label.index, locals.map(::varInfo2Writable), stack.map(::varInfo2Writable))
+    FullFrame(indexOf(label), locals.map(::varInfo2Writable), stack.map(::varInfo2Writable))
 )
 
 private fun varInfo2Writable(varInfo: VarInfo) = when (varInfo) {
