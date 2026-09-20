@@ -90,7 +90,6 @@ class CodeBuilder(
 
     fun size() = size
 
-    @Suppress("UNCHECKED_CAST")
     fun build() = Fragment(
         instructions.toList(),
         jumps.toMap(),

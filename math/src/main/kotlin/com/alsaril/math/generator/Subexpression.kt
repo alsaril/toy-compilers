@@ -6,7 +6,7 @@ import com.alsaril.codegen.classfile.code.fload
 import com.alsaril.codegen.classfile.code.instruction.FLoad
 
 internal class Subexpression(private val bytecodeBuilder: CodeBuilder) {
-    private val statistics = mutableMapOf<Int, Counter>()
+    private val statistics = mutableMapOf<Int, Int>()
 
     fun exact(call: CodeBuilder.() -> Unit): Subexpression {
         bytecodeBuilder.call()
@@ -15,7 +15,7 @@ internal class Subexpression(private val bytecodeBuilder: CodeBuilder) {
 
     fun fload(index: Int): Subexpression {
         bytecodeBuilder.fload(index + callSlots)
-        statistics.computeIfAbsent(index) { Counter() }.inc()
+        statistics.merge(index, 1, Int::plus)
         return this
     }
 
@@ -27,14 +27,12 @@ internal class Subexpression(private val bytecodeBuilder: CodeBuilder) {
 
     fun extend(other: Subexpression): Subexpression {
         bytecodeBuilder.fragment(other.build())
-        other.statistics.forEach { (i, counter) ->
-            statistics.merge(i, counter) { c1, c2 -> c1 + c2 }
-        }
+        other.statistics.forEach { (i, uses) -> statistics.merge(i, uses, Int::plus) }
         return this
     }
 
     fun variablesByUse() = statistics.asSequence()
-        .sortedByDescending { it.value.get() }
+        .sortedByDescending { it.value }
         .map { it.key }
         .toList()
 

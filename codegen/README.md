@@ -37,16 +37,19 @@ descriptor costs one entry. Long and double correctly occupy two slots.
 things about it that matter:
 
 ```kotlin
-internal data object AConstNull : NoArgInstruction(0x01), PushesOne
-internal data class ILoadW(override val index: Int) : WideTwoBytesArgInstruction(0x15, index), PushesOne, TouchesLocal
+data object AConstNull : NoArgInstruction(0x01), PushesOne
+data class ILoad(override val index: Int) : LocalSlotInstruction(0x1a, 0x15), PushesOne
 ```
 
-- **`Encodings.kt`** — how an instruction and its operands reach the stream. Each shape
-  owns the width check for the operand it writes, so an opcode names a shape and inherits
-  the check.
-- **`Effects.kt`** — what it does to the operand stack and to the local slots. Eight mixins
-  (`PushesOne`, `PopsOne`, `PopsTwoPushesOne`, `Invocation`, `TouchesLocal`, …) cover 56 of
-  the 59 effects; the `dup` family states its own.
+- **`Encodings.kt`** — how an instruction and its operands reach the stream, and the width
+  check for the operand each shape writes. `LocalSlotInstruction` goes one further and
+  picks the opcode itself — the compact form for slots 0–3, the operand form to 255, the
+  wide prefix past that — so a slot is a number an instruction carries rather than a choice
+  frozen into its type, and re-slotting one re-encodes it.
+- **`Effects.kt`** — what an instruction does to the operand stack and to the local slots.
+  Eight mixins (`PushesOne`, `PopsOne`, `PopsTwoPushesOne`, `Invocation`, `TouchesLocal`, …)
+  supply the effect for every opcode but four: the three `dup` forms, each one of a kind,
+  and `getstatic`, whose depth comes from the field's type rather than from the opcode.
 - **`Instruction.kt`** — the opcodes, and the sealed interface both axes refine.
 
 `Instruction` is sealed, so all three files must stay in that one package — nothing outside
@@ -76,10 +79,10 @@ alongside `checkcast`, `instanceof`, `newarray`, `getstatic` and the invoke fami
 constant that has an opcode of its own (0, 1, 2) uses it; anything else goes to the pool as
 `ldc`. `newarray` takes the `PrimitiveType` of its element and encodes the atype code itself.
 
-**Local slots widen automatically.** `iload`, `fload`, `aload` and the stores pick the
-compact opcode for slots 0–3, the one-operand form up to 255, and the `wide` prefix past
-that — a caller names a slot, never an encoding. The ceiling is 65535, which is
-`max_locals`' own limit, and the [width checks](#width-checks) reject anything beyond.
+**Local slots widen automatically.** `iload`, `fload`, `aload` and the stores take a slot
+and nothing else; which of the three encodings that slot needs is settled when the
+instruction is written, as above. The ceiling is 65535, which is `max_locals`' own limit,
+and the [width checks](#width-checks) reject anything beyond.
 
 **Jumps name a label.** A branch either takes its destination up front or is linked once
 the target exists; the operand is a placeholder until layout resolves it:
