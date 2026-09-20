@@ -3,7 +3,7 @@ package com.alsaril.codegen.classfile
 import com.alsaril.codegen.classfile.attributes.ExceptionHandler
 import com.alsaril.codegen.classfile.attributes.StackMapFrame
 import com.alsaril.codegen.classfile.code.BytecodeSerializer
-import com.alsaril.codegen.classfile.code.Instruction
+import com.alsaril.codegen.classfile.code.instruction.Instruction
 
 
 data class Fragment(

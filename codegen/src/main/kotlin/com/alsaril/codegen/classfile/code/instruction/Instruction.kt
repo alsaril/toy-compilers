@@ -1,4 +1,4 @@
-package com.alsaril.codegen.classfile.code
+package com.alsaril.codegen.classfile.code.instruction
 
 import com.alsaril.codegen.ClassWriter
 import com.alsaril.codegen.Writable
@@ -6,116 +6,6 @@ import com.alsaril.codegen.Writable
 sealed interface Instruction : Writable {
     fun stackEffects(): Pair<Int, Int> = 0 to 0
     fun locals(): Int? = null
-}
-
-internal interface PushesOne : Instruction {
-    override fun stackEffects() = 0 to 1
-}
-
-internal interface PopsOne : Instruction {
-    override fun stackEffects() = 1 to 0
-}
-
-internal interface PopsTwo : Instruction {
-    override fun stackEffects() = 2 to 0
-}
-
-internal interface PopsThree : Instruction {
-    override fun stackEffects() = 3 to 0
-}
-
-internal interface PopsOnePushesOne : Instruction {
-    override fun stackEffects() = 1 to 1
-}
-
-internal interface PopsTwoPushesOne : Instruction {
-    override fun stackEffects() = 2 to 1
-}
-
-internal interface Invocation : Instruction {
-    val argSlots: Int
-    val returnSlots: Int
-
-    override fun stackEffects() = argSlots to returnSlots
-}
-
-internal interface TouchesLocal : Instruction {
-    val index: Int
-
-    override fun locals() = index
-}
-
-abstract class NoArgInstruction(val code: Int) : Instruction {
-    override fun ClassWriter.write() = u1(code)
-}
-
-abstract class OneMixedArgInstruction(val code: Int, val arg: Int) : Instruction {
-    override fun ClassWriter.write() {
-        u1(code + arg)
-    }
-}
-
-abstract class OneByteArgInstruction(val code: Int, val arg: Int) : Instruction {
-    init {
-        require(arg in 0..0xff) { "$arg does not fit a u1" }
-    }
-
-    override fun ClassWriter.write() {
-        u1(code)
-        u1(arg)
-    }
-}
-
-abstract class OneSignedByteArgInstruction(val code: Int, val arg: Int) : Instruction {
-    init {
-        require(arg in Byte.MIN_VALUE..Byte.MAX_VALUE) { "$arg does not fit an s1" }
-    }
-
-    override fun ClassWriter.write() {
-        u1(code)
-        s1(arg)
-    }
-}
-
-abstract class TwoBytesArgInstruction(val code: Int, val arg: Int) : Instruction {
-    init {
-        require(arg in 0..0xffff) { "$arg does not fit a u2" }
-    }
-
-    override fun ClassWriter.write() {
-        u1(code)
-        u2(arg)
-    }
-}
-
-abstract class TwoSignedBytesArgInstruction(val code: Int, val arg: Int) : Instruction {
-    init {
-        require(arg in Short.MIN_VALUE..Short.MAX_VALUE) { "$arg does not fit an s2" }
-    }
-
-    override fun ClassWriter.write() {
-        u1(code)
-        s2(arg)
-    }
-}
-
-abstract class WideTwoBytesArgInstruction(val code: Int, val arg: Int) : Instruction {
-    init {
-        require(arg in 0..0xffff) { "$arg does not fit a u2" }
-    }
-
-    override fun ClassWriter.write() {
-        u1(0xc4)
-        u1(code)
-        u2(arg)
-    }
-}
-
-abstract class JumpTemplateInstruction(val code: Int) : Instruction {
-    override fun ClassWriter.write() {
-        u1(code)
-        s2(0)
-    }
 }
 
 internal data object Nop : NoArgInstruction(0x00)
@@ -300,7 +190,8 @@ internal data class InvokeSpecial(val index: Int, override val argSlots: Int, ov
 internal data class InvokeStatic(val index: Int, override val argSlots: Int, override val returnSlots: Int) :
     TwoBytesArgInstruction(0xb8, index), Invocation
 
-internal data class InvokeInterface(val index: Int, override val argSlots: Int, override val returnSlots: Int) : Invocation {
+internal data class InvokeInterface(val index: Int, override val argSlots: Int, override val returnSlots: Int) :
+    Invocation {
     init {
         require(index in 0..0xffff) { "$index does not fit a u2" }
     }

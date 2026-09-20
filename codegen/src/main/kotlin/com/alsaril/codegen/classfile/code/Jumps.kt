@@ -1,5 +1,7 @@
 package com.alsaril.codegen.classfile.code
 
+import com.alsaril.codegen.classfile.code.instruction.*
+
 fun CodeBuilder.ifeq(dest: Label? = null) = jumpTemplate(IfEq, dest)
 
 fun CodeBuilder.ifne(dest: Label? = null) = jumpTemplate(IfNe, dest)

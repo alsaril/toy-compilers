@@ -1,5 +1,7 @@
 package com.alsaril.codegen.classfile.code
 
+import com.alsaril.codegen.classfile.code.instruction.*
+
 fun CodeBuilder.nop() = add(Nop)
 
 // const

@@ -2,6 +2,7 @@ package com.alsaril.codegen.classfile.code
 
 import com.alsaril.codegen.classfile.PrimitiveType
 import com.alsaril.codegen.classfile.PrimitiveType.*
+import com.alsaril.codegen.classfile.code.instruction.*
 import com.alsaril.codegen.classfile.parseFunctionDescriptor
 import com.alsaril.codegen.constantpool.UpdatableConstantPool.RefType.*
 

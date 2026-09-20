@@ -3,6 +3,7 @@ package com.alsaril.codegen.classfile.code
 import com.alsaril.codegen.DosWriter
 import com.alsaril.codegen.classfile.Fragment
 import com.alsaril.codegen.classfile.attributes.*
+import com.alsaril.codegen.classfile.code.instruction.*
 import com.alsaril.codegen.write
 import java.io.ByteArrayOutputStream
 import java.io.DataOutputStream
