@@ -30,7 +30,7 @@ class InvocationsTest {
             val descriptor = builder.method(builder.clazz("A"), "f", "()V")
 
             // then
-            assertThat(descriptor).isEqualTo(MethodDescriptor(6))
+            assertThat(descriptor).isEqualTo(MethodDescriptor(6, argSlots = 0, returnSlots = 0))
             assertThat(cp.build().entries).containsExactly(
                 ConstantUtf8Info("A"),
                 ConstantClassInfo(nameIndex = 1),
@@ -51,7 +51,7 @@ class InvocationsTest {
             val descriptor = builder.imethod(builder.clazz("A"), "f", "()V")
 
             // then
-            assertThat(descriptor).isEqualTo(MethodDescriptor(6, slots = 1))
+            assertThat(descriptor).isEqualTo(MethodDescriptor(6, argSlots = 1, returnSlots = 0))
             assertThat(cp.build().entries).last()
                 .isEqualTo(ConstantInterfaceMethodRefInfo(classNameIndex = 2, nameAndTypeIndex = 5))
         }
@@ -111,17 +111,17 @@ class InvocationsTest {
 
         @Test
         fun `writes the invoke family with the ref index`() {
-            assertThat(bytecode { invokevirtual(MethodDescriptor(0x0102)) })
+            assertThat(bytecode { invokevirtual(MethodDescriptor(0x0102, argSlots = 0, returnSlots = 0)) })
                 .containsExactly(*bytesOf(0xB6, 0x01, 0x02))
-            assertThat(bytecode { invokespecial(MethodDescriptor(1)) })
+            assertThat(bytecode { invokespecial(MethodDescriptor(1, argSlots = 0, returnSlots = 0)) })
                 .containsExactly(*bytesOf(0xB7, 0x00, 0x01))
-            assertThat(bytecode { invokestatic(MethodDescriptor(1)) })
+            assertThat(bytecode { invokestatic(MethodDescriptor(1, argSlots = 0, returnSlots = 0)) })
                 .containsExactly(*bytesOf(0xB8, 0x00, 0x01))
         }
 
         @Test
         fun `writes invokeinterface with its argument count and trailing zero`() {
-            assertThat(bytecode { invokeinterface(MethodDescriptor(1, slots = 2)) })
+            assertThat(bytecode { invokeinterface(MethodDescriptor(1, argSlots = 2, returnSlots = 0)) })
                 .containsExactly(*bytesOf(0xB9, 0x00, 0x01, 0x02, 0x00))
         }
 

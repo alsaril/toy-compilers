@@ -5,6 +5,7 @@ import com.alsaril.codegen.Writable
 
 sealed interface Instruction : Writable {
     fun stackEffects(): Pair<Int, Int> = 0 to 0
+    fun locals(): Int? = null
 }
 
 abstract class NoArgInstruction(val code: Int) : Instruction {
@@ -19,7 +20,7 @@ abstract class OneMixedArgInstruction(val code: Int, val arg: Int) : Instruction
 
 abstract class OneByteArgInstruction(val code: Int, val arg: Int) : Instruction {
     init {
-        require(arg in 0..0xff)
+        require(arg in 0..0xff) { "$arg does not fit a u1" }
     }
 
     override fun ClassWriter.write() {
@@ -30,7 +31,7 @@ abstract class OneByteArgInstruction(val code: Int, val arg: Int) : Instruction 
 
 abstract class OneSignedByteArgInstruction(val code: Int, val arg: Int) : Instruction {
     init {
-        require(arg in Byte.MIN_VALUE..Byte.MAX_VALUE)
+        require(arg in Byte.MIN_VALUE..Byte.MAX_VALUE) { "$arg does not fit an s1" }
     }
 
     override fun ClassWriter.write() {
@@ -41,7 +42,7 @@ abstract class OneSignedByteArgInstruction(val code: Int, val arg: Int) : Instru
 
 abstract class TwoBytesArgInstruction(val code: Int, val arg: Int) : Instruction {
     init {
-        require(arg in 0..0xffff)
+        require(arg in 0..0xffff) { "$arg does not fit a u2" }
     }
 
     override fun ClassWriter.write() {
@@ -52,7 +53,7 @@ abstract class TwoBytesArgInstruction(val code: Int, val arg: Int) : Instruction
 
 abstract class TwoSignedBytesArgInstruction(val code: Int, val arg: Int) : Instruction {
     init {
-        require(arg in Short.MIN_VALUE..Short.MAX_VALUE)
+        require(arg in Short.MIN_VALUE..Short.MAX_VALUE) { "$arg does not fit an s2" }
     }
 
     override fun ClassWriter.write() {
@@ -63,7 +64,7 @@ abstract class TwoSignedBytesArgInstruction(val code: Int, val arg: Int) : Instr
 
 abstract class WideTwoBytesArgInstruction(val code: Int, val arg: Int) : Instruction {
     init {
-        require(arg in 0..0xffff)
+        require(arg in 0..0xffff) { "$arg does not fit a u2" }
     }
 
     override fun ClassWriter.write() {
@@ -88,7 +89,7 @@ internal data object AConstNull : NoArgInstruction(0x01) {
 
 internal data class IConst(val value: Int) : OneMixedArgInstruction(0x03, value) {
     init {
-        require(value in -1..5)
+        require(value in -1..5) { "$value is out of range for iconst" }
     }
 
     override fun stackEffects() = 0 to 1
@@ -104,7 +105,7 @@ internal data class SIPush(val value: Int) : TwoSignedBytesArgInstruction(0x11, 
 
 internal data class FConst(val value: Int) : OneMixedArgInstruction(0x0b, value) {
     init {
-        require(value in 0..2)
+        require(value in 0..2) { "$value is out of range for fconst" }
     }
 
     override fun stackEffects() = 0 to 1
@@ -120,50 +121,60 @@ internal data class LdcW(val index: Int) : TwoBytesArgInstruction(0x13, index) {
 
 internal data class ILoad(val index: Int) : OneMixedArgInstruction(0x1a, index) {
     init {
-        require(index in 0..3)
+        require(index in 0..3) { "slot $index is out of range for the compact form" }
     }
 
     override fun stackEffects() = 0 to 1
+
+    override fun locals() = index
 }
 
 internal data class ILoadN(val index: Int) : OneByteArgInstruction(0x15, index) {
     override fun stackEffects() = 0 to 1
+    override fun locals() = index
 }
 
 internal data class ILoadW(val index: Int) : WideTwoBytesArgInstruction(0x15, index) {
     override fun stackEffects() = 0 to 1
+    override fun locals() = index
 }
 
 internal data class FLoad(val index: Int) : OneMixedArgInstruction(0x22, index) {
     init {
-        require(index in 0..3)
+        require(index in 0..3) { "slot $index is out of range for the compact form" }
     }
 
     override fun stackEffects() = 0 to 1
+    override fun locals() = index
 }
 
 internal data class FLoadN(val index: Int) : OneByteArgInstruction(0x17, index) {
     override fun stackEffects() = 0 to 1
+    override fun locals() = index
 }
 
 internal data class FLoadW(val index: Int) : WideTwoBytesArgInstruction(0x17, index) {
     override fun stackEffects() = 0 to 1
+    override fun locals() = index
 }
 
 internal data class ALoad(val index: Int) : OneMixedArgInstruction(0x2a, index) {
     init {
-        require(index in 0..3)
+        require(index in 0..3) { "slot $index is out of range for the compact form" }
     }
 
     override fun stackEffects() = 0 to 1
+    override fun locals() = index
 }
 
 internal data class ALoadN(val index: Int) : OneByteArgInstruction(0x19, index) {
     override fun stackEffects() = 0 to 1
+    override fun locals() = index
 }
 
 internal data class ALoadW(val index: Int) : WideTwoBytesArgInstruction(0x19, index) {
     override fun stackEffects() = 0 to 1
+    override fun locals() = index
 }
 
 internal data object IALoad : NoArgInstruction(0x2e) {
@@ -176,50 +187,59 @@ internal data object BALoad : NoArgInstruction(0x33) {
 
 internal data class IStore(val index: Int) : OneMixedArgInstruction(0x3b, index) {
     init {
-        require(index in 0..3)
+        require(index in 0..3) { "slot $index is out of range for the compact form" }
     }
 
     override fun stackEffects() = 1 to 0
+    override fun locals() = index
 }
 
 internal data class IStoreN(val index: Int) : OneByteArgInstruction(0x36, index) {
     override fun stackEffects() = 1 to 0
+    override fun locals() = index
 }
 
 internal data class IStoreW(val index: Int) : WideTwoBytesArgInstruction(0x36, index) {
     override fun stackEffects() = 1 to 0
+    override fun locals() = index
 }
 
 internal data class FStore(val index: Int) : OneMixedArgInstruction(0x43, index) {
     init {
-        require(index in 0..3)
+        require(index in 0..3) { "slot $index is out of range for the compact form" }
     }
 
     override fun stackEffects() = 1 to 0
+    override fun locals() = index
 }
 
 internal data class FStoreN(val index: Int) : OneByteArgInstruction(0x38, index) {
     override fun stackEffects() = 1 to 0
+    override fun locals() = index
 }
 
 internal data class FStoreW(val index: Int) : WideTwoBytesArgInstruction(0x38, index) {
     override fun stackEffects() = 1 to 0
+    override fun locals() = index
 }
 
 internal data class AStore(val index: Int) : OneMixedArgInstruction(0x4b, index) {
     init {
-        require(index in 0..3)
+        require(index in 0..3) { "slot $index is out of range for the compact form" }
     }
 
     override fun stackEffects() = 1 to 0
+    override fun locals() = index
 }
 
 internal data class AStoreN(val index: Int) : OneByteArgInstruction(0x3a, index) {
     override fun stackEffects() = 1 to 0
+    override fun locals() = index
 }
 
 internal data class AStoreW(val index: Int) : WideTwoBytesArgInstruction(0x3a, index) {
     override fun stackEffects() = 1 to 0
+    override fun locals() = index
 }
 
 internal data object IAStore : NoArgInstruction(0x4f) {
@@ -260,7 +280,8 @@ internal data object FNeg : NoArgInstruction(0x76) {
 
 internal data class IInc(val index: Int, val delta: Int) : Instruction {
     init {
-        require(index in 0..0xff && delta in Byte.MIN_VALUE..Byte.MAX_VALUE)
+        require(index in 0..0xff) { "$index does not fit a u1" }
+        require(delta in Byte.MIN_VALUE..Byte.MAX_VALUE) { "$delta does not fit an s1" }
     }
 
     override fun ClassWriter.write() {
@@ -268,11 +289,14 @@ internal data class IInc(val index: Int, val delta: Int) : Instruction {
         u1(index)
         s1(delta)
     }
+
+    override fun locals() = index
 }
 
 internal data class IIncW(val index: Int, val delta: Int) : Instruction {
     init {
-        require(index in 0..0xffff && delta in Short.MIN_VALUE..Short.MAX_VALUE)
+        require(index in 0..0xffff) { "$index does not fit a u2" }
+        require(delta in Short.MIN_VALUE..Short.MAX_VALUE) { "$delta does not fit an s2" }
     }
 
     override fun ClassWriter.write() {
@@ -281,6 +305,8 @@ internal data class IIncW(val index: Int, val delta: Int) : Instruction {
         u2(index)
         s2(delta)
     }
+
+    override fun locals() = index
 }
 
 internal data object Dup : NoArgInstruction(0x59) {
@@ -364,7 +390,7 @@ internal data class InvokeStatic(val index: Int, val argSlots: Int, val returnSl
 
 internal data class InvokeInterface(val index: Int, val argSlots: Int, val returnSlots: Int) : Instruction {
     init {
-        require(index in 0..0xffff)
+        require(index in 0..0xffff) { "$index does not fit a u2" }
     }
 
     override fun ClassWriter.write() {

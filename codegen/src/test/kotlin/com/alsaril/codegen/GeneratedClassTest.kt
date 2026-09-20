@@ -101,58 +101,56 @@ class GeneratedClassTest {
 
     @Test
     fun `links a body spliced together from fragments`() {
-        // TODO(ir): jump targets are Instruction links now, and frames are not emitted yet
-        // // given
-        // val builder = classFile("GenSpliced", "java/lang/Object")
-        // val chooses = builder.emitFragment {
-        //     iload(0)
-        //     val otherwise = ifeq()
-        //     iconst(1)
-        //     val done = goto()
+        // given a fragment whose branches reach its own instructions
+        val builder = classFile("GenSpliced", "java/lang/Object")
+        val chooses = builder.emitFragment {
+            iload(0)
+            val otherwise = ifeq()
+            iconst(1)
+            val done = goto()
 
-        //     otherwise(loc())
-        //     frameSame()
-        //     iconst(2)
+            val elseBranch = nop()
+            link(otherwise, elseBranch)
+            frameSame(elseBranch)
+            iconst(2)
 
-        //     done(loc())
-        //     frameStack(IntInfo)
-        // }
+            val exit = ireturn()
+            link(done, exit)
+            frameStack(exit, IntInfo)
+        }
 
-        // // when it is spliced in behind something else, so it does not land at zero
-        // val (name, bytes) = builder
-        //     .method("f", "(I)I", PUBLIC, STATIC) {
-        //         nop()
-        //         fragment(chooses)
-        //         ireturn()
-        //     }
-        //     .build()
-        // val method = loadClass(name, bytes)
-        //     .getDeclaredMethod("f", Int::class.javaPrimitiveType)
+        // when it is spliced in behind something else, so it does not land at zero
+        val (name, bytes) = builder
+            .method("f", "(I)I", PUBLIC, STATIC) {
+                nop()
+                fragment(chooses)
+            }
+            .build()
+        val method = loadClass(name, bytes)
+            .getDeclaredMethod("f", Int::class.javaPrimitiveType)
 
-        // // then which value comes back says the branch still reaches its own target
-        // assertThat(method.invoke(null, 0)).isEqualTo(2)
-        // assertThat(method.invoke(null, 1)).isEqualTo(1)
+        // then which value comes back says the branch still reaches its own target
+        assertThat(method.invoke(null, 0)).isEqualTo(2)
+        assertThat(method.invoke(null, 1)).isEqualTo(1)
     }
 
     @Test
     fun `raises max_stack to the depth the body reaches`() {
-        // TODO(ir): max_stack is derived from the instruction list, not declared by the body
-        // // given a method declaring no stack at all, with the depth coming from the body
-        // val (name, bytes) = classFile("GenDeepStack", "java/lang/Object")
-        //     .method("f", "()I", PUBLIC, STATIC) {
-        //         maxStack(3)
-        //         iconst(1)
-        //         iconst(1)
-        //         iconst(1)
-        //         iadd()
-        //         iadd()
-        //         ireturn()
-        //     }
-        //     .build()
-        // val method = loadClass(name, bytes).getDeclaredMethod("f")
+        // given a body three deep, with the depth coming from the instructions alone
+        val (name, bytes) = classFile("GenDeepStack", "java/lang/Object")
+            .method("f", "()I", PUBLIC, STATIC) {
+                iconst(1)
+                iconst(1)
+                iconst(1)
+                iadd()
+                iadd()
+                ireturn()
+            }
+            .build()
+        val method = loadClass(name, bytes).getDeclaredMethod("f")
 
-        // // then the verifier accepted a body three deep, so the declared 0 was raised
-        // assertThatNoException().isThrownBy { method.invoke(null) }
+        // then the verifier accepted a body three deep, so the derived depth covered it
+        assertThatNoException().isThrownBy { method.invoke(null) }
     }
 
     @Test
@@ -175,84 +173,81 @@ class GeneratedClassTest {
 
     @Test
     fun `lands a branch on the offset its frame sits at`() {
-        // TODO(ir): jump targets are Instruction links now, and frames are not emitted yet
-        // // given a body that jumps over the throw, so returning at all says the offset held
-        // val (name, bytes) = classFile("GenBranch", "java/lang/Object")
-        //     .iface("java/lang/Runnable")
-        //     .withConstructor()
-        //     .method("run", "()V", PUBLIC) {
-        //         iconst(0)
-        //         val jump = ifeq()
+        // given a body that jumps over the throw, so returning at all says the offset held
+        val (name, bytes) = classFile("GenBranch", "java/lang/Object")
+            .iface("java/lang/Runnable")
+            .withConstructor()
+            .method("run", "()V", PUBLIC) {
+                iconst(0)
+                val jump = ifeq()
 
-        //         construct(clazz("java/lang/IllegalStateException"), "<init>", "()V")
-        //         athrow()
+                construct(clazz("java/lang/IllegalStateException"), "<init>", "()V")
+                athrow()
 
-        //         jump(loc())
-        //         frameSame()
-        //         `return`()
-        //     }
-        //     .build()
-        // val instance = loadClass(name, bytes).getDeclaredConstructor()
-        //     .newInstance() as Runnable
+                val target = `return`()
+                link(jump, target)
+                frameSame(target)
+            }
+            .build()
+        val instance = loadClass(name, bytes).getDeclaredConstructor()
+            .newInstance() as Runnable
 
-        // // then
-        // assertThatNoException().isThrownBy { instance.run() }
+        // then
+        assertThatNoException().isThrownBy { instance.run() }
     }
 
     @Test
     fun `names an integer local a branch target carries`() {
-        // TODO(ir): jump targets are Instruction links now, and frames are not emitted yet
-        // // given both paths writing slot 1 before they meet
-        // val (name, bytes) = classFile("GenIntFrame", "java/lang/Object")
-        //     .method("f", "(I)I", PUBLIC, STATIC) {
-        //         iconst(2)
-        //         istore(1)
+        // given both paths writing slot 1 before they meet
+        val (name, bytes) = classFile("GenIntFrame", "java/lang/Object")
+            .method("f", "(I)I", PUBLIC, STATIC) {
+                iconst(2)
+                istore(1)
 
-        //         iload(0)
-        //         val jump = ifeq()
-        //         iconst(1)
-        //         istore(1)
+                iload(0)
+                val jump = ifeq()
+                iconst(1)
+                istore(1)
 
-        //         jump(loc())
-        //         frameAppend(IntInfo)
-        //         iload(1)
-        //         ireturn()
-        //     }
-        //     .build()
-        // val method = loadClass(name, bytes)
-        //     .getDeclaredMethod("f", Int::class.javaPrimitiveType)
+                val target = iload(1)
+                link(jump, target)
+                frameAppend(target, IntInfo)
+                ireturn()
+            }
+            .build()
+        val method = loadClass(name, bytes)
+            .getDeclaredMethod("f", Int::class.javaPrimitiveType)
 
-        // // then which value comes back says which path the jump offset chose
-        // assertThat(method.invoke(null, 0)).isEqualTo(2)
-        // assertThat(method.invoke(null, 1)).isEqualTo(1)
+        // then which value comes back says which path the jump offset chose
+        assertThat(method.invoke(null, 0)).isEqualTo(2)
+        assertThat(method.invoke(null, 1)).isEqualTo(1)
     }
 
     @Test
     fun `names a float local a branch target carries`() {
-        // TODO(ir): jump targets are Instruction links now, and frames are not emitted yet
-        // // given both paths writing slot 1 before they meet
-        // val (name, bytes) = classFile("GenFloatFrame", "java/lang/Object")
-        //     .method("f", "(I)F", PUBLIC, STATIC) {
-        //         fconst(2)
-        //         fstore(1)
+        // given both paths writing slot 1 before they meet
+        val (name, bytes) = classFile("GenFloatFrame", "java/lang/Object")
+            .method("f", "(I)F", PUBLIC, STATIC) {
+                fconst(2)
+                fstore(1)
 
-        //         iload(0)
-        //         val jump = ifeq()
-        //         fconst(1)
-        //         fstore(1)
+                iload(0)
+                val jump = ifeq()
+                fconst(1)
+                fstore(1)
 
-        //         jump(loc())
-        //         frameAppend(FloatInfo)
-        //         fload(1)
-        //         freturn()
-        //     }
-        //     .build()
-        // val method = loadClass(name, bytes)
-        //     .getDeclaredMethod("f", Int::class.javaPrimitiveType)
+                val target = fload(1)
+                link(jump, target)
+                frameAppend(target, FloatInfo)
+                freturn()
+            }
+            .build()
+        val method = loadClass(name, bytes)
+            .getDeclaredMethod("f", Int::class.javaPrimitiveType)
 
-        // // then which value comes back says which path the jump offset chose
-        // assertThat(method.invoke(null, 0)).isEqualTo(2.0f)
-        // assertThat(method.invoke(null, 1)).isEqualTo(1.0f)
+        // then which value comes back says which path the jump offset chose
+        assertThat(method.invoke(null, 0)).isEqualTo(2.0f)
+        assertThat(method.invoke(null, 1)).isEqualTo(1.0f)
     }
 
     @Test

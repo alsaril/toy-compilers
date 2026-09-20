@@ -53,11 +53,12 @@ class CodeBuilder(
     }
 
     fun fragment(fragment: Fragment) {
+        val count = instructions.size
         instructions.addAll(fragment.instructions)
-        fragment.jumps.asSequence().map { (from, to) -> from + size to to + size }.forEach {
+        fragment.jumps.asSequence().map { (from, to) -> from + count to to + count }.forEach {
             jumps[it.first] = it.second
         }
-        fragment.frames.asSequence().map { (from, frame) -> from + size to frame }.forEach {
+        fragment.frames.asSequence().map { (from, frame) -> from + count to frame }.forEach {
             frames[it.first] = it.second
         }
         exceptionHandlers.addAll(fragment.exceptionHandlers)

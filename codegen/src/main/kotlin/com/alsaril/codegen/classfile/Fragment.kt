@@ -23,17 +23,19 @@ fun List<Fragment>.join(): Fragment {
     val jumps = mutableMapOf<Int, Int>()
     val frames = mutableMapOf<Int, StackMapFrame>()
     val exceptionHandlers = mutableListOf<ExceptionHandler>()
+    var count = 0
     var size = 0
 
     forEach { fragment ->
         instructions.addAll(fragment.instructions)
-        fragment.jumps.asSequence().map { (from, to) -> from + size to to + size }.forEach {
+        fragment.jumps.asSequence().map { (from, to) -> from + count to to + count }.forEach {
             jumps[it.first] = it.second
         }
-        fragment.frames.asSequence().map { (from, frame) -> from + size to frame }.forEach {
+        fragment.frames.asSequence().map { (from, frame) -> from + count to frame }.forEach {
             frames[it.first] = it.second
         }
         exceptionHandlers.addAll(fragment.exceptionHandlers)
+        count += fragment.instructions.size
         size += fragment.size
     }
 

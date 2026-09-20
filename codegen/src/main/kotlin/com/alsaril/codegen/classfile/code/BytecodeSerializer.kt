@@ -42,7 +42,7 @@ object BytecodeSerializer {
 
             val nextPcs: List<Int> = nextPcs(instruction, pc, jumps)
             val nextStack: Int = nextStack(enterStack, instruction)
-            //maxLocals = max(maxLocals, locals(instruction))
+            instruction.locals()?.let { maxLocals = max(maxLocals, it + 1) }
 
             nextPcs.forEach {
                 if (it !in stackSize.indices) {
@@ -52,21 +52,23 @@ object BytecodeSerializer {
             }
         }
 
-        stackSize.forEach { require(it != -1) }
+        stackSize.forEachIndexed { pc, depth -> require(depth != -1) { "instruction $pc is unreachable" } }
         val maxStack = stackSize.max()
         return maxStack to maxLocals
     }
 
     private fun nextStack(enterStack: Int, instruction: Instruction): Int {
         val (popCnt, pushCnt) = instruction.stackEffects()
-        require(enterStack >= popCnt)
+        require(enterStack >= popCnt) { "$instruction pops $popCnt from a stack $enterStack deep" }
         return enterStack - popCnt + pushCnt
     }
 
     private fun nextPcs(instruction: Instruction, pc: Int, jumps: Map<Int, Int>): List<Int> {
         val dest = jumps[pc]
         return when (instruction) {
-            IfEq, IfNe, IfGe, IfGt, IfICmpLt, IfICmpGe, Goto, IfNull, IfNotNull -> listOf(pc + 1, dest!!)
+            IfEq, IfNe, IfGe, IfGt, IfICmpLt, IfICmpGe, IfNull, IfNotNull -> listOf(pc + 1, dest!!)
+            Goto -> listOf(dest!!)
+            Return, IReturn, FReturn, AThrow -> emptyList()
             else -> listOf(pc + 1)
         }
     }

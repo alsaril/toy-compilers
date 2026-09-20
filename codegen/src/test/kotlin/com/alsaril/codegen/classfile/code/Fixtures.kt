@@ -17,5 +17,8 @@ fun frames(
     block: CodeBuilder.() -> Unit,
 ): List<StackMapFrame> = BytecodeSerializer.emit(builder(cp).apply(block).build()).second
 
+fun framesOf(fragment: com.alsaril.codegen.classfile.Fragment): List<StackMapFrame> =
+    BytecodeSerializer.emit(fragment).second
+
 fun handlers(block: CodeBuilder.() -> Unit): List<ExceptionHandler> =
     builder().apply(block).build().exceptionHandlers
