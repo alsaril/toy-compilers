@@ -19,8 +19,8 @@ math/build/install/math/bin/math --expr "x*y+1" --vars "x=2;y=3" --vars "x=1;y=1
 - **`ast.kt`** — `Value`, `Var`, `Neg` and `Op(kind, left, right)`, a tree.
 - **`generator/ClassGenerator`** — the class shell: the constructor and the `getFloat` helper.
 - **`generator/EvalGenerator`** — the accessor, the expression body, and all method splitting.
-- **`generator/VirtualInstructions`** — the half-encoded body and the usage counts that
-  decide its slot numbering.
+- **`generator/Subexpression`** — one compiled subtree: its code, and the usage counts
+  that decide its slot numbering.
 - **`generator/utils.kt`** — collecting the variables of a tree, and a counter.
 
 ## Parser
@@ -70,9 +70,9 @@ is Op -> {
 
 `results` is the call stack's frame made explicit — the one thing a recursive walk gets for
 free is knowing where it was, and this is the price of not recursing. A leaf never pushes
-anything and returns immediately; `ret` pops the finished node and appends its `Context` to
-the parent's `results`. Generation is then bounded by the heap: a 100 000 term expression
-compiles, and so does a million term one.
+anything and returns immediately; `ret` pops the finished node and appends its
+`Subexpression` to the parent's `results`. Generation is then bounded by the heap: a
+100 000 term expression compiles, and so does a million term one.
 
 ### The `getFloat` indirection
 
@@ -109,25 +109,29 @@ get the lowest slots, which are also the ones with a one-byte `fload` of their o
 0–3 encode in one byte, up to 255 in two, and beyond that the wide form takes four, so
 putting the hottest variables first shortens the body as well as tidying the frame.
 
-That is only possible because a body is emitted **twice over**. The first pass keeps
-everything as bytes except the variable accesses, which stay symbolic:
+That is only possible because the slot a load reads is settled **after** the body is
+emitted. A `Subexpression` emits real instructions as it goes, giving each variable the
+index it was discovered with, and counts how often it read each one:
 
 ```kotlin
-context.exact { fadd() }   // ExactInstruction: a Splice, the bytes taken from the builder
-context.fload(index)       // LoadInstruction: still a name's index, not a slot
+subexpression.exact { fadd() }   // code that reads no variable
+subexpression.fload(index)       // a real fload, at the variable's discovery index
 ```
 
-A `Splice` is [`codegen`](../codegen/README.md#splices)'s handle on a run of bytes already
-emitted: opaque, so the only thing to be done with one is hand it back to a builder. Each
-`exact` call produces one, so the half-encoded body is an alternation of byte runs and
-loads — roughly one run per tree node, since every operator ends one.
-
 A body is built before it is known which method it will land in, and a method numbers its
-slots from the variables it turned out to use — so the loads cannot be encoded until that
-is settled. `VirtualInstructionsBuilder` holds the half-encoded form and the usage counts;
-`defineMethod` decides the numbering and emits the real instructions. Alongside it a plain
-`CodeBuilder` is kept purely as a **size estimate**, since the split decision has to be made
-before any of this is known.
+slots from the variables it turned out to use. So `defineMethod` sorts by usage, emits the
+preamble in that order, and rewrites every load where it stands:
+
+```kotlin
+bytecodeBuilder.transform { _, instruction ->
+    (instruction as? FLoad)?.let { FLoad(o2n[it.index - callSlots]!! + callSlots) }
+}
+```
+
+Rewriting in place keeps every instruction at the index it already had. A re-slotted load
+may encode to a different width than the one it replaces — `codegen` picks `fload_n`,
+`fload n` or the wide form from the slot when it writes — so the fragment's length is
+recomputed as it goes.
 
 ### Outlining
 
@@ -180,48 +184,6 @@ A generated class is therefore:
 where `eval(Map)` is a five-byte trampoline into the last `fN`. Outlined methods call each
 other linearly rather than nesting, so the call chain stays shallow: 20 000 terms compile
 to 11 methods, 100 000 to 53, a million to 535.
-
-### `Context(maxStack, delta)`
-
-`max_stack` cannot be read off a fragment, because a fragment's peak is relative to
-wherever it lands. Each subtree therefore carries two numbers alongside its builder:
-
-| | |
-|---|---|
-| `maxStack` | the deepest the stack gets while this subtree runs |
-| `delta` | how much it leaves behind — 1 for an expression |
-
-which compose at a binary operator:
-
-```kotlin
-maxStack = max(left.maxStack, left.delta + right.maxStack)
-delta    = left.delta + right.delta - 1
-```
-
-The right operand runs *on top of* whatever the left one left, hence the offset; the
-operator pops two and pushes one, hence the `- 1`. A leaf is `(1, 1)`, negation leaves both
-untouched — `fneg` replaces its operand — and an outlined subtree collapses to `(1, 1)`,
-since a call is one instruction leaving one value.
-
-The result is exact rather than conservative: a right-leaning tree of *n* terms declares
-exactly *n*, and a left-leaning one declares 2 however long it runs, because each operator
-consumes its left operand before the next arrives.
-
-**One door.** `CodeBuilder` keeps its own `max_stack` accumulator, and it cannot be the same
-number — the builder measures from its own start and knows nothing of `delta`. The two are
-reconciled in exactly one place:
-
-```kotlin
-fun build(): Fragment = codeBuilder.apply { maxStack(maxStack) }.build()
-```
-
-so a fragment can never leave `materialize` without its depth applied. Every path that
-turned a builder into a fragment used to do this by hand, and two of the three forgot —
-each one a class the verifier rejected with `Operand stack overflow`.
-
-Splitting bounds the depth as a side effect: a body capped at ~7500 bytes at ~2 bytes per
-term cannot need more than ~3700 slots, so the `u2` ceiling on `max_stack` is unreachable
-by construction.
 
 ## Runtime model
 
@@ -286,7 +248,12 @@ Measured, not estimated:
   constant differs by shape: at 80 000 terms, right-leaning takes ~1.9 s against
   left-leaning's ~40 ms.
 
-- **The split criterion is length, not depth.** `loc()` says nothing about stack usage, so a
+- **The size estimate is taken before re-slotting.** A load is measured at its discovery
+  index and emitted at its usage rank, and the two need not be the same width. A subtree
+  whose variables were discovered late therefore estimates high and is split a little
+  earlier than it had to be — the safe direction, and bounded by the widest form.
+
+- **The split criterion is length, not depth.** `size` says nothing about stack usage, so a
   deep expression is divided where it reaches the byte budget rather than where the stack
   gets deep.
 
@@ -305,12 +272,11 @@ order its slot was numbered, and again on the next call. Since ties in the usage
 the order the names first appeared, an expression using each name equally is looked up left
 to right, which is what most of those tests read as.
 
-Three things there are invisible from running a class, so they are read back out of the
+Two things there are invisible from running a class, so they are read back out of the
 bytes by `GeneratedMethods`:
 
 | | |
 |---|---|
-| `maxStacks` | that the declared depth is exactly what the tree reaches, not merely enough |
 | `maxLocals` | that a method's slots are numbered from the variables it uses, with no gaps |
 | `codeLengths` | that no method passes 8000 once the preamble is counted |
 

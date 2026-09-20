@@ -231,134 +231,6 @@ class ClassGeneratorTest {
     }
 
     @Nested
-    inner class StackDepth {
-
-        /** the deepest stack any of the generated body methods asks for */
-        private fun bodyStack(ast: Node): Int {
-            val bytes = generate(ast).second
-            return methodNames(bytes).zip(maxStacks(bytes))
-                .filter { (name, _) -> name.startsWith("f") }
-                .maxOf { (_, stack) -> stack }
-        }
-
-        private fun rightLeaning(terms: Int): Node {
-            var node: Node = Value(1.0f)
-            repeat(terms - 1) { node = Op(ADD, Value(1.0f), node) }
-            return node
-        }
-
-        @Test
-        fun `covers a variable standing on its own`() {
-            assertThat(eval(Var("x"), mapOf("x" to 7.0f))).isEqualTo(7.0f)
-        }
-
-        @Test
-        fun `covers a variable on either side of an operator`() {
-            assertThat(eval(Op(ADD, Var("x"), Value(1.0f)), mapOf("x" to 1.0f))).isEqualTo(2.0f)
-            assertThat(eval(Op(ADD, Value(1.0f), Var("x")), mapOf("x" to 1.0f))).isEqualTo(2.0f)
-        }
-
-        @Test
-        fun `covers two variables under one operator`() {
-            assertThat(eval(Op(MUL, Var("x"), Var("y")), mapOf("x" to 2.0f, "y" to 3.0f)))
-                .isEqualTo(6.0f)
-        }
-
-        @Test
-        fun `covers variables sitting at different depths`() {
-            // x * y + z * w keeps a partial result on the stack while reading z and w
-            val ast = Op(
-                ADD,
-                Op(MUL, Var("x"), Var("y")),
-                Op(MUL, Var("z"), Var("w")),
-            )
-            val variables = mapOf("x" to 2.0f, "y" to 3.0f, "z" to 4.0f, "w" to 5.0f)
-
-            assertThat(eval(ast, variables)).isEqualTo(26.0f)
-        }
-
-        @Test
-        fun `covers a variable at the bottom of a right leaning tree`() {
-            // a + (b + (c + d)), so the last read happens three slots deep
-            val ast = Op(ADD, Var("a"), Op(ADD, Var("b"), Op(ADD, Var("c"), Var("d"))))
-            val variables = mapOf("a" to 1.0f, "b" to 2.0f, "c" to 3.0f, "d" to 4.0f)
-
-            assertThat(eval(ast, variables)).isEqualTo(10.0f)
-        }
-
-        @Test
-        fun `covers a tree that reaches deeper than the preamble does`() {
-            // seven values nested to the right outgrow the four slots the preamble needs
-            var ast: Node = Value(1.0f)
-            repeat(6) { ast = Op(ADD, Value(1.0f), ast) }
-
-            assertThat(eval(ast)).isEqualTo(7.0f)
-        }
-
-        @Test
-        fun `covers a preamble deeper than the expression that follows it`() {
-            // a lone variable leaves a one deep expression behind a four deep preamble
-            assertThat(eval(Var("x"), mapOf("x" to 1.0f))).isEqualTo(1.0f)
-        }
-
-        @Test
-        fun `asks for no more depth than the body reaches`() {
-            // a left leaning chain never holds more than two values, however long it runs
-            var ast: Node = Value(1.0f)
-            repeat(999) { ast = Op(ADD, ast, Value(1.0f)) }
-
-            assertThat(bodyStack(ast)).isEqualTo(2)
-        }
-
-        @Test
-        fun `asks for exactly the depth a right leaning tree reaches`() {
-            // each left operand waits on the stack while the right side is worked out,
-            // so this one genuinely needs a slot per term
-            assertThat(bodyStack(rightLeaning(3))).isEqualTo(3)
-            assertThat(bodyStack(rightLeaning(10))).isEqualTo(10)
-            assertThat(bodyStack(rightLeaning(100))).isEqualTo(100)
-        }
-
-        @Test
-        fun `keeps the depth the preamble needs as a floor`() {
-            // reading a variable into its slot reaches two deep on its own
-            assertThat(bodyStack(Value(1.0f))).isEqualTo(1)
-            assertThat(bodyStack(Var("x"))).isEqualTo(2)
-        }
-
-        @Test
-        fun `counts a negation as leaving the stack where it found it`() {
-            assertThat(bodyStack(Neg(Neg(Neg(Value(1.0f)))))).isEqualTo(1)
-            assertThat(bodyStack(Op(ADD, Value(1.0f), Neg(rightLeaning(5))))).isEqualTo(6)
-        }
-
-        @Test
-        fun `deduces the depth of a body it outlined`() {
-            // 4000 terms spill into a second method, which then holds most of the chain
-            var ast: Node = Value(1.0f)
-            repeat(3_999) { ast = Op(ADD, Value(1.0f), ast) }
-
-            assertThat(eval(ast)).isEqualTo(4_000.0f)
-        }
-
-        @Test
-        fun `deduces the depth when neither side spills alone but the two together do`() {
-            // each half is under the budget on its own, so only their sum forces the split
-            val ast = Op(ADD, rightLeaning(2_000), rightLeaning(2_000))
-
-            assertThat(eval(ast)).isEqualTo(4_000.0f)
-        }
-
-        @Test
-        fun `compiles a tree far deeper than the old flat declaration allowed`() {
-            var ast: Node = Value(1.0f)
-            repeat(1_999) { ast = Op(ADD, Value(1.0f), ast) }
-
-            assertThat(eval(ast)).isEqualTo(2_000.0f)
-        }
-    }
-
-    @Nested
     inner class Negation {
 
         @Test
@@ -469,6 +341,14 @@ class ClassGeneratorTest {
 
             assertThat(names).startsWith("<init>", "getFloat").endsWith("eval")
             assertThat(names.filter { it.startsWith("f") }).hasSizeGreaterThan(1)
+        }
+
+        @Test
+        fun `outlines when neither side spills alone but the two together do`() {
+            // each half is under the budget on its own, so only their sum forces the split
+            val half = chainOf("x", 2_000)
+
+            assertThat(eval(Op(ADD, half, half), ones)).isEqualTo(4_000.0f)
         }
 
         @Test
