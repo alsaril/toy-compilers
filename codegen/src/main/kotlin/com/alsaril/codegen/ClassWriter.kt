@@ -30,7 +30,7 @@ fun toBytes(serializer: ClassWriter.() -> Unit): ByteArray {
 // rather than at each of the several dozen call sites
 class DosWriter(private val dos: DataOutput) : ClassWriter {
     override fun s1(value: Int) {
-        require(value in Byte.MIN_VALUE..Byte.MAX_VALUE) { "$value does not fit a s1" }
+        require(value in Byte.MIN_VALUE..Byte.MAX_VALUE) { "$value does not fit an s1" }
         dos.writeByte(value)
     }
 
@@ -40,7 +40,7 @@ class DosWriter(private val dos: DataOutput) : ClassWriter {
     }
 
     override fun s2(value: Int) {
-        require(value in Short.MIN_VALUE..Short.MAX_VALUE) { "$value does not fit a s2" }
+        require(value in Short.MIN_VALUE..Short.MAX_VALUE) { "$value does not fit an s2" }
         dos.writeShort(value)
     }
 
