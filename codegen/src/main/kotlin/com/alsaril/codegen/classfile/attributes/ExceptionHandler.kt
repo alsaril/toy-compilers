@@ -21,4 +21,6 @@ data class ExceptionHandler(
         u2(handlerPc)
         u2(catchType)
     }
+
+    fun shift(delta: Int) = copy(startPc = startPc + delta, endPc = endPc + delta, handlerPc = handlerPc + delta)
 }

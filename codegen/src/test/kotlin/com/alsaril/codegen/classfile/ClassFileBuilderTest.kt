@@ -2,7 +2,11 @@ package com.alsaril.codegen.classfile
 
 import com.alsaril.codegen.bytesOf
 import com.alsaril.codegen.classfile.code.CodeBuilder
+import com.alsaril.codegen.classfile.code.aconst_null
 import com.alsaril.codegen.classfile.code.aload
+import com.alsaril.codegen.classfile.code.astore
+import com.alsaril.codegen.classfile.code.athrow
+import com.alsaril.codegen.classfile.code.dup
 import com.alsaril.codegen.classfile.code.iadd
 import com.alsaril.codegen.classfile.code.iconst
 import com.alsaril.codegen.classfile.code.invokevirtual
@@ -147,6 +151,22 @@ class ClassFileBuilderTest {
             }).isOne()
         }
 
+        @Test
+        fun `takes the depth of a handler reached only by a throw`() {
+            // nothing falls into the handler, so it is walked only because a handler entry
+            // is a root of its own, and it starts with the throwable already on the stack
+            assertThat(stack("()V", STATIC) {
+                val guarded = aconst_null()
+                athrow()
+
+                val caught = dup() // the throwable, duplicated: two deep
+                `catch`(guarded, to = caught, handler = caught, type = null)
+                astore(1)
+                astore(2)
+                `return`()
+            }).isEqualTo(2)
+        }
+
         // both overloads derive the depth, so a caller assembling fragments itself is
         // treated the same as one handing over a body
         @Test
@@ -221,6 +241,20 @@ class ClassFileBuilderTest {
         @Test
         fun `counts the slot a body reaches as an index, so one local needs one slot`() {
             assertThat(locals("()V", STATIC) { iconst(0); istore(0); `return`() }).isOne()
+        }
+
+        @Test
+        fun `counts the slots a handler body reaches`() {
+            // the handler is reachable only through a throw, so slot 4 is seen only if the
+            // handler entry is walked too
+            assertThat(locals("()V", STATIC) {
+                val guarded = aconst_null()
+                athrow()
+
+                val caught = astore(4)
+                `catch`(guarded, to = caught, handler = caught, type = null)
+                `return`()
+            }).isEqualTo(5)
         }
 
         @Test

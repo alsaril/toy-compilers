@@ -9,7 +9,6 @@ import com.alsaril.codegen.constantpool.UpdatableConstantPool
 import com.alsaril.codegen.write
 import java.io.ByteArrayOutputStream
 import java.io.DataOutputStream
-import java.util.*
 
 @DslMarker
 annotation class CodeDsl
@@ -41,15 +40,16 @@ class CodeBuilder(
         frames.add(frame)
     }
 
-    internal fun addExceptionHandler(exceptionHandler: ExceptionHandler) {
-        exceptionHandlers.add(exceptionHandler)
-    }
-
-    private data class LabelImpl(override val index: Int): Label
+    private data class LabelImpl(override val index: Int) : Label
 
     fun link(from: Label, dest: Label) {
         from as LabelImpl; dest as LabelImpl
         jumps[from.index] = dest.index
+    }
+
+    fun `catch`(from: Label, to: Label, handler: Label, type: ClassPointer?) {
+        from as LabelImpl; to as LabelImpl; handler as LabelImpl
+        exceptionHandlers.add(ExceptionHandler(from.index, to.index, handler.index, type?.index ?: 0))
     }
 
     fun fragment(fragment: Fragment) {
@@ -62,7 +62,10 @@ class CodeBuilder(
             .asSequence()
             .map { frame -> patchOffset(frame, frame.offsetDelta + count) }
             .forEach(frames::add)
-        exceptionHandlers.addAll(fragment.exceptionHandlers)
+        fragment.exceptionHandlers
+            .asSequence()
+            .map { it.shift(count) }
+            .forEach(exceptionHandlers::add)
         size += fragment.size
     }
 

@@ -2,7 +2,10 @@ package com.alsaril.codegen.classfile.code
 
 import com.alsaril.codegen.DosWriter
 import com.alsaril.codegen.classfile.Fragment
-import com.alsaril.codegen.classfile.attributes.*
+import com.alsaril.codegen.classfile.attributes.CodeAttribute
+import com.alsaril.codegen.classfile.attributes.ExceptionHandler
+import com.alsaril.codegen.classfile.attributes.StackMapFrame
+import com.alsaril.codegen.classfile.attributes.StackMapTableAttribute
 import com.alsaril.codegen.classfile.code.instruction.*
 import com.alsaril.codegen.write
 import java.io.ByteArrayOutputStream
@@ -12,7 +15,7 @@ import kotlin.math.max
 
 object BytecodeSerializer {
     fun serialize(fragment: Fragment, headerLocals: Int, cpEntry: (String) -> Int): CodeAttribute {
-        val (maxStack, maxLocals) = analyze(fragment.instructions, fragment.jumps)
+        val (maxStack, maxLocals) = analyze(fragment.instructions, fragment.jumps, fragment.exceptionHandlers)
         val (bytecode, frames, exceptionHandlers) = emit(fragment)
 
         return CodeAttribute(
@@ -25,11 +28,13 @@ object BytecodeSerializer {
         )
     }
 
-    private fun analyze(instructions: List<Instruction>, jumps: Map<Int, Int>): Pair<Int, Int> {
+    private fun analyze(instructions: List<Instruction>, jumps: Map<Int, Int>, exceptionHandlers: List<ExceptionHandler>): Pair<Int, Int> {
         val stackSize = IntArray(instructions.size) { -1 }
         var maxLocals = 0
         val deque = ArrayDeque<Pair<Int, Int>>()
-        deque.addLast(0 to 0)
+
+        deque.addLast(0 to 0) // entry
+        exceptionHandlers.forEach { deque.addLast(it.handlerPc to 1) } // handlers
 
         while (deque.isNotEmpty()) {
             val (pc, enterStack) = deque.removeFirst()
@@ -111,9 +116,11 @@ object BytecodeSerializer {
                 patchOffset(frame, loc - prev - 1).also { prev = loc }
             }
 
-        // handlers
+        val exceptionHandlers = fragment.exceptionHandlers.map {
+            it.copy(startPc = i2loc[it.startPc]!!, endPc = i2loc[it.endPc]!!, handlerPc = i2loc[it.handlerPc]!!)
+        }
 
-        return Triple(code, frames, emptyList())
+        return Triple(code, frames, exceptionHandlers)
     }
 
     internal fun ByteArray.s2At(pos: Int, value: Int) {

@@ -36,7 +36,10 @@ fun List<Fragment>.join(): Fragment {
             .asSequence()
             .map { frame -> patchOffset(frame, frame.offsetDelta + count) }
             .forEach(frames::add)
-        exceptionHandlers.addAll(fragment.exceptionHandlers)
+        fragment.exceptionHandlers
+            .asSequence()
+            .map { it.shift(count) }
+            .forEach(exceptionHandlers::add)
         count += fragment.instructions.size
         size += fragment.size
     }

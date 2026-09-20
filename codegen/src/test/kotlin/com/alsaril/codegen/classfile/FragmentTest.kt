@@ -13,6 +13,7 @@ import com.alsaril.codegen.classfile.attributes.SimpleVerificationTypeInfo.Integ
 import com.alsaril.codegen.classfile.attributes.StackMapFrame
 import com.alsaril.codegen.classfile.code.aconst_null
 import com.alsaril.codegen.classfile.code.builder
+import com.alsaril.codegen.classfile.code.instruction.Nop
 import com.alsaril.codegen.classfile.code.framesOf
 import com.alsaril.codegen.classfile.code.goto
 import com.alsaril.codegen.classfile.code.iconst
@@ -210,102 +211,99 @@ class FragmentTest {
     @Nested
     inner class JoinedHandlers {
 
+        // `size` nops guarded by rows already written against this fragment's own indices
+        private fun guarded(size: Int, vararg handlers: ExceptionHandler) =
+            Fragment(List(size) { Nop }, emptyMap(), emptyList(), handlers.toList(), size)
+
         @Test
         fun `hands back a lone fragment's handlers untouched`() {
-            // TODO(ir): joining concatenates instruction lists, so nothing is rewritten against an offset
-            // // given
-            // val handler = ExceptionHandler(1, 2, 2, catchType = 3)
-            // val only = guarded(3, handler)
+            // given
+            val handler = ExceptionHandler(1, 2, 2, catchType = 3)
+            val only = guarded(3, handler)
 
-            // // then
-            // assertThat(listOf(only).join().exceptionHandlers).containsExactly(handler)
+            // then
+            assertThat(listOf(only).join().exceptionHandlers).containsExactly(handler)
         }
 
         @Test
         fun `leaves the handlers of the first fragment where they are`() {
-            // TODO(ir): joining concatenates instruction lists, so nothing is rewritten against an offset
-            // // given
-            // val joined = listOf(
-            //     guarded(4, ExceptionHandler(0, 2, 3, catchType = 0)),
-            //     guarded(1),
-            // ).join()
+            // given
+            val joined = listOf(
+                guarded(4, ExceptionHandler(0, 2, 3, catchType = 0)),
+                guarded(1),
+            ).join()
 
-            // // then
-            // assertThat(joined.exceptionHandlers)
-            //     .containsExactly(ExceptionHandler(0, 2, 3, catchType = 0))
+            // then
+            assertThat(joined.exceptionHandlers)
+                .containsExactly(ExceptionHandler(0, 2, 3, catchType = 0))
         }
 
         @Test
         fun `shifts every location by how far its fragment moved`() {
-            // TODO(ir): joining concatenates instruction lists, so nothing is rewritten against an offset
-            // // given a handler covering the whole of a fragment that lands at offset 5
-            // val joined = listOf(
-            //     guarded(5),
-            //     guarded(4, ExceptionHandler(0, 2, 3, catchType = 7)),
-            // ).join()
+            // given a handler covering the whole of a fragment that lands at index 5
+            val joined = listOf(
+                guarded(5),
+                guarded(4, ExceptionHandler(0, 2, 3, catchType = 7)),
+            ).join()
 
-            // // then the range and the handler move together, and the caught type does not
-            // assertThat(joined.exceptionHandlers)
-            //     .containsExactly(ExceptionHandler(5, 7, 8, catchType = 7))
+            // then the range and the handler move together, and the caught type does not
+            assertThat(joined.exceptionHandlers)
+                .containsExactly(ExceptionHandler(5, 7, 8, catchType = 7))
         }
 
         @Test
         fun `collects the handlers of every fragment in order`() {
-            // TODO(ir): joining concatenates instruction lists, so nothing is rewritten against an offset
-            // // given
-            // val joined = listOf(
-            //     guarded(2, ExceptionHandler(0, 1, 1, catchType = 0)),
-            //     guarded(2, ExceptionHandler(0, 1, 1, catchType = 0)),
-            //     guarded(2, ExceptionHandler(0, 1, 1, catchType = 0)),
-            // ).join()
+            // given
+            val joined = listOf(
+                guarded(2, ExceptionHandler(0, 1, 1, catchType = 0)),
+                guarded(2, ExceptionHandler(0, 1, 1, catchType = 0)),
+                guarded(2, ExceptionHandler(0, 1, 1, catchType = 0)),
+            ).join()
 
-            // // then the order the jvm searches them in survives the join
-            // assertThat(joined.exceptionHandlers).containsExactly(
-            //     ExceptionHandler(0, 1, 1, catchType = 0),
-            //     ExceptionHandler(2, 3, 3, catchType = 0),
-            //     ExceptionHandler(4, 5, 5, catchType = 0),
-            // )
+            // then the order the jvm searches them in survives the join
+            assertThat(joined.exceptionHandlers).containsExactly(
+                ExceptionHandler(0, 1, 1, catchType = 0),
+                ExceptionHandler(2, 3, 3, catchType = 0),
+                ExceptionHandler(4, 5, 5, catchType = 0),
+            )
         }
 
         @Test
         fun `keeps several handlers of one fragment together`() {
-            // TODO(ir): joining concatenates instruction lists, so nothing is rewritten against an offset
-            // // given
-            // val joined = listOf(
-            //     guarded(1),
-            //     guarded(
-            //         4,
-            //         ExceptionHandler(0, 1, 2, catchType = 0),
-            //         ExceptionHandler(1, 2, 3, catchType = 0),
-            //     ),
-            // ).join()
+            // given
+            val joined = listOf(
+                guarded(1),
+                guarded(
+                    4,
+                    ExceptionHandler(0, 1, 2, catchType = 0),
+                    ExceptionHandler(1, 2, 3, catchType = 0),
+                ),
+            ).join()
 
-            // // then
-            // assertThat(joined.exceptionHandlers).containsExactly(
-            //     ExceptionHandler(1, 2, 3, catchType = 0),
-            //     ExceptionHandler(2, 3, 4, catchType = 0),
-            // )
+            // then
+            assertThat(joined.exceptionHandlers).containsExactly(
+                ExceptionHandler(1, 2, 3, catchType = 0),
+                ExceptionHandler(2, 3, 4, catchType = 0),
+            )
         }
 
         @Test
-        fun `moves handlers and frames by the same offsets`() {
-            // TODO(ir): joining concatenates instruction lists, so nothing is rewritten against an offset
-            // // given a fragment carrying both
-            // val body = Fragment(
-            //     listOf(ByteArray(3)),
-            //     listOf(SameLocals1StackItemFrameShort(1, IntegerVariableInfo)),
-            //     listOf(ExceptionHandler(0, 1, 1, catchType = 0)),
-            //     maxStack = 0,
-            //     maxLocals = 0,
-            //     size = 3,
-            // )
-            // val joined = listOf(fragment(2), body).join()
+        fun `moves handlers and frames by the same amount`() {
+            // given a fragment carrying both
+            val body = Fragment(
+                List(3) { Nop },
+                emptyMap(),
+                listOf(SameLocals1StackItemFrameShort(1, IntegerVariableInfo)),
+                listOf(ExceptionHandler(0, 1, 1, catchType = 0)),
+                size = 3,
+            )
+            val joined = listOf(fragment(2), body).join()
 
-            // // then the frame delta counts from the previous frame and the handler from zero
-            // assertThat(joined.frames)
-            //     .containsExactly(SameLocals1StackItemFrameShort(3, IntegerVariableInfo))
-            // assertThat(joined.exceptionHandlers)
-            //     .containsExactly(ExceptionHandler(2, 3, 3, catchType = 0))
+            // then the frame delta counts from the previous frame and the handler from zero
+            assertThat(framesOf(joined))
+                .containsExactly(SameLocals1StackItemFrameShort(3, IntegerVariableInfo))
+            assertThat(joined.exceptionHandlers)
+                .containsExactly(ExceptionHandler(2, 3, 3, catchType = 0))
         }
     }
 }

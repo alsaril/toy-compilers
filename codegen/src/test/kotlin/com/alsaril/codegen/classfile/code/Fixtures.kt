@@ -20,5 +20,8 @@ fun frames(
 fun framesOf(fragment: com.alsaril.codegen.classfile.Fragment): List<StackMapFrame> =
     BytecodeSerializer.emit(fragment).second
 
+fun handlersOf(fragment: com.alsaril.codegen.classfile.Fragment): List<ExceptionHandler> =
+    BytecodeSerializer.emit(fragment).third
+
 fun handlers(block: CodeBuilder.() -> Unit): List<ExceptionHandler> =
     builder().apply(block).build().exceptionHandlers
