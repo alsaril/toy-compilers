@@ -1,18 +1,7 @@
 package com.alsaril.codegen.classfile
 
 import com.alsaril.codegen.bytesOf
-import com.alsaril.codegen.classfile.code.CodeBuilder
-import com.alsaril.codegen.classfile.code.aconst_null
-import com.alsaril.codegen.classfile.code.aload
-import com.alsaril.codegen.classfile.code.astore
-import com.alsaril.codegen.classfile.code.athrow
-import com.alsaril.codegen.classfile.code.dup
-import com.alsaril.codegen.classfile.code.iadd
-import com.alsaril.codegen.classfile.code.iconst
-import com.alsaril.codegen.classfile.code.invokevirtual
-import com.alsaril.codegen.classfile.code.ireturn
-import com.alsaril.codegen.classfile.code.method
-import com.alsaril.codegen.classfile.code.istore
+import com.alsaril.codegen.classfile.code.*
 import com.alsaril.codegen.methodLimits
 import com.alsaril.codegen.classfile.ClassFileBuilder.Companion.classFile
 import com.alsaril.codegen.classfile.MethodAccessFlag.PUBLIC
@@ -165,6 +154,31 @@ class ClassFileBuilderTest {
                 astore(2)
                 `return`()
             }).isEqualTo(2)
+        }
+
+        @Test
+        fun `counts the slots a static field puts on the stack`() {
+            // a long occupies two stack slots, everything else here one
+            assertThat(stack("()V", STATIC) { getstatic(field(clazz("A"), "x", "J")); `return`() })
+                .isEqualTo(2)
+            assertThat(stack("()V", STATIC) { getstatic(field(clazz("A"), "x", "I")); `return`() })
+                .isOne()
+        }
+
+        @Test
+        fun `counts an array round trip`() {
+            // deepest at the store: arrayref, arrayref, index, value
+            assertThat(stack("()I", STATIC) {
+                iconst(1)
+                newarray(PrimitiveType.INT)
+                dup()
+                iconst(0)
+                iconst(7)
+                iastore()
+                iconst(0)
+                iaload()
+                ireturn()
+            }).isEqualTo(4)
         }
 
         // both overloads derive the depth, so a caller assembling fragments itself is

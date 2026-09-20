@@ -7,14 +7,13 @@ fun CodeBuilder.nop() = add(Nop)
 // const
 fun CodeBuilder.aconst_null() = add(AConstNull)
 
-fun CodeBuilder.iconst(value: Int) {
+fun CodeBuilder.iconst(value: Int) =
     when (value) {
         in -1..5 -> IConst(value)
         in Byte.MIN_VALUE..Byte.MAX_VALUE -> BIPush(value)
         in Short.MIN_VALUE..Short.MAX_VALUE -> SIPush(value)
         else -> throw IllegalArgumentException("The value is too big for iconst/bipush/sipush, ldc should be used")
     }.let(::add)
-}
 
 fun CodeBuilder.fconst(value: Int) =
     if (value in 0..2) {

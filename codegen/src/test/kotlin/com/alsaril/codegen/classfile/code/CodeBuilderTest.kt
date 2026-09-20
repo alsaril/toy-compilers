@@ -2,6 +2,7 @@ package com.alsaril.codegen.classfile.code
 
 import com.alsaril.codegen.bytesOf
 import com.alsaril.codegen.classfile.attributes.AppendFrame
+import com.alsaril.codegen.classfile.attributes.ExceptionHandler
 import com.alsaril.codegen.classfile.attributes.FullFrame
 import com.alsaril.codegen.classfile.attributes.SameFrame
 import com.alsaril.codegen.classfile.attributes.SameFrameExtended
@@ -114,6 +115,37 @@ class CodeBuilderTest {
             // of a fragment spliced in at 2, so the second sits at 2 and is one past the first
             assertThat(frames { nop(); frameSame(nop()); fragment(framed(3, 0 to SameFrame(0))) })
                 .containsExactly(SameFrame(1), SameFrame(0))
+        }
+
+        @Test
+        fun `slides an exception handler by where the fragment landed`() {
+            // given a fragment guarding its own first instruction
+            val piece = builder().apply {
+                val from = nop()
+                val caught = nop()
+                `catch`(from, caught, caught, type = null)
+            }.build()
+
+            // then the row moves with the code it guards
+            assertThat(builder().apply { repeat(4) { nop() }; fragment(piece) }.build().exceptionHandlers)
+                .containsExactly(ExceptionHandler(4, 5, 5, catchType = 0))
+        }
+
+        @Test
+        fun `slides every handler of the fragment`() {
+            // given
+            val piece = builder().apply {
+                val a = nop(); val b = nop(); val c = nop(); val d = nop()
+                `catch`(a, b, b, type = null)
+                `catch`(c, d, d, type = null)
+            }.build()
+
+            // then
+            assertThat(builder().apply { nop(); fragment(piece) }.build().exceptionHandlers)
+                .containsExactly(
+                    ExceptionHandler(1, 2, 2, catchType = 0),
+                    ExceptionHandler(3, 4, 4, catchType = 0),
+                )
         }
 
         @Test

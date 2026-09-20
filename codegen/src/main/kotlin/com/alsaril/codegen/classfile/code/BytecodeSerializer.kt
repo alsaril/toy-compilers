@@ -29,6 +29,8 @@ object BytecodeSerializer {
     }
 
     private fun analyze(instructions: List<Instruction>, jumps: Map<Int, Int>, exceptionHandlers: List<ExceptionHandler>): Pair<Int, Int> {
+        require(instructions.isNotEmpty()) { "a method body must hold at least one instruction" }
+
         val stackSize = IntArray(instructions.size) { -1 }
         var maxLocals = 0
         val deque = ArrayDeque<Pair<Int, Int>>()
@@ -41,7 +43,10 @@ object BytecodeSerializer {
             if (stackSize[pc] == -1) {
                 stackSize[pc] = enterStack
             } else if (stackSize[pc] != enterStack) {
-                throw IllegalStateException()
+                throw IllegalStateException(
+                    "${instructions[pc]} at $pc is reached with a stack ${stackSize[pc]} deep " +
+                            "on one path and $enterStack deep on another"
+                )
             } else continue
 
             val instruction = instructions[pc]
@@ -52,7 +57,9 @@ object BytecodeSerializer {
 
             nextPcs.forEach {
                 if (it !in stackSize.indices) {
-                    throw IllegalStateException()
+                    throw IllegalStateException(
+                        "$instruction at $pc continues to $it, which is past the last instruction"
+                    )
                 }
                 deque.addLast(it to nextStack)
             }
@@ -70,10 +77,11 @@ object BytecodeSerializer {
     }
 
     private fun nextPcs(instruction: Instruction, pc: Int, jumps: Map<Int, Int>): List<Int> {
-        val dest = jumps[pc]
+        fun target() = requireNotNull(jumps[pc]) { "$instruction at $pc was never linked to a target" }
+
         return when (instruction) {
-            IfEq, IfNe, IfGe, IfGt, IfICmpLt, IfICmpGe, IfNull, IfNotNull -> listOf(pc + 1, dest!!)
-            Goto -> listOf(dest!!)
+            IfEq, IfNe, IfGe, IfGt, IfICmpLt, IfICmpGe, IfNull, IfNotNull -> listOf(pc + 1, target())
+            Goto -> listOf(target())
             Return, IReturn, FReturn, AThrow -> emptyList()
             else -> listOf(pc + 1)
         }
@@ -91,22 +99,22 @@ object BytecodeSerializer {
 
         val code = output.toByteArray()
 
+        fun loc(index: Int, what: String) = requireNotNull(i2loc[index]) {
+            "$what names instruction $index, which this fragment does not hold"
+        }
+
         fragment.jumps.forEach { (from, to) ->
             val instruction = fragment.instructions[from]
-            when (instruction) {
-                IfEq, IfNe, IfGe, IfGt, IfICmpLt, IfICmpGe, Goto, IfNull, IfNotNull -> {
-                    val fromLoc = i2loc[from]!!
-                    val toLoc = i2loc[to]!!
-                    code.s2At(fromLoc + 1, toLoc - fromLoc)
-                }
-
-                else -> throw IllegalArgumentException()
+            require(instruction is JumpTemplateInstruction) {
+                "instruction $from is linked to $to, but $instruction is not a jump"
             }
+            val fromLoc = loc(from, "a jump")
+            code.s2At(fromLoc + 1, loc(to, "a jump target") - fromLoc)
         }
 
         var prev = -1
         val frames = fragment.frames
-            .groupBy { frame -> i2loc[frame.offsetDelta]!! }
+            .groupBy { frame -> loc(frame.offsetDelta, "a frame") }
             .toSortedMap()
             .map { (loc, atLoc) ->
                 val frame = atLoc.first()
@@ -117,7 +125,11 @@ object BytecodeSerializer {
             }
 
         val exceptionHandlers = fragment.exceptionHandlers.map {
-            it.copy(startPc = i2loc[it.startPc]!!, endPc = i2loc[it.endPc]!!, handlerPc = i2loc[it.handlerPc]!!)
+            it.copy(
+                startPc = loc(it.startPc, "a guarded range"),
+                endPc = loc(it.endPc, "a guarded range"),
+                handlerPc = loc(it.handlerPc, "a handler"),
+            )
         }
 
         return Triple(code, frames, exceptionHandlers)

@@ -4,6 +4,7 @@ import com.alsaril.codegen.classfile.PrimitiveType
 import com.alsaril.codegen.classfile.PrimitiveType.*
 import com.alsaril.codegen.classfile.code.instruction.*
 import com.alsaril.codegen.classfile.parseFunctionDescriptor
+import com.alsaril.codegen.classfile.parseType
 import com.alsaril.codegen.constantpool.UpdatableConstantPool.RefType.*
 
 fun CodeBuilder.method(classPointer: ClassPointer, name: String, descriptor: String): MethodDescriptor {
@@ -26,11 +27,12 @@ fun CodeBuilder.imethod(classPointer: ClassPointer, name: String, descriptor: St
 
 fun CodeBuilder.field(classPointer: ClassPointer, name: String, descriptor: String): FieldDescriptor {
     val ref = cp.putRef(classPointer.index, name, descriptor, FIELD)
-    return FieldDescriptor(ref)
+    return FieldDescriptor(ref, parseType(descriptor).slots)
 }
 
 // get
-fun CodeBuilder.getstatic(fieldDescriptor: FieldDescriptor) = add(GetStatic(fieldDescriptor.index))
+fun CodeBuilder.getstatic(fieldDescriptor: FieldDescriptor) =
+    add(GetStatic(fieldDescriptor.index, fieldDescriptor.slots))
 
 // invoke
 fun CodeBuilder.invokevirtual(methodDescriptor: MethodDescriptor) =

@@ -179,7 +179,9 @@ internal data object IfNull : JumpTemplateInstruction(0xc6), PopsOne
 
 internal data object IfNotNull : JumpTemplateInstruction(0xc7), PopsOne
 
-internal data class GetStatic(val index: Int) : TwoBytesArgInstruction(0xb2, index), PushesOne
+internal data class GetStatic(val index: Int, val slots: Int) : TwoBytesArgInstruction(0xb2, index) {
+    override fun stackEffects() = 0 to slots
+}
 
 internal data class InvokeVirtual(val index: Int, override val argSlots: Int, override val returnSlots: Int) :
     TwoBytesArgInstruction(0xb6, index), Invocation

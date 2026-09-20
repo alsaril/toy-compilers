@@ -85,7 +85,7 @@ class InvocationsTest {
             val descriptor = builder.field(builder.clazz("A"), "x", "I")
 
             // then
-            assertThat(descriptor).isEqualTo(FieldDescriptor(6))
+            assertThat(descriptor).isEqualTo(FieldDescriptor(6, slots = 1))
             assertThat(cp.build().entries).last()
                 .isEqualTo(ConstantFieldRefInfo(classNameIndex = 2, nameAndTypeIndex = 5))
         }
@@ -141,6 +141,20 @@ class InvocationsTest {
         }
 
         @Test
+        fun `counts the slots a field type occupies`() {
+            // given
+            val builder = builder()
+            val a = builder.clazz("A")
+
+            // then a long or a double is two slots wide on the stack, everything else one
+            assertThat(builder.field(a, "x", "I").slots).isOne()
+            assertThat(builder.field(a, "x", "Ljava/lang/String;").slots).isOne()
+            assertThat(builder.field(a, "x", "[J").slots).isOne()
+            assertThat(builder.field(a, "x", "J").slots).isEqualTo(2)
+            assertThat(builder.field(a, "x", "D").slots).isEqualTo(2)
+        }
+
+        @Test
         fun `reuses one pool entry for a repeated lookup`() {
             // given
             val cp = UpdatableConstantPool()
@@ -177,7 +191,7 @@ class InvocationsTest {
 
         @Test
         fun `writes getstatic with the field index`() {
-            assertThat(bytecode { getstatic(FieldDescriptor(3)) })
+            assertThat(bytecode { getstatic(FieldDescriptor(3, slots = 1)) })
                 .containsExactly(*bytesOf(0xB2, 0x00, 0x03))
         }
 

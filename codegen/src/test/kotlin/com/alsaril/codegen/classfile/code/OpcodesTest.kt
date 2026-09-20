@@ -82,6 +82,13 @@ class OpcodesTest {
         }
 
         @Test
+        fun `hands back the label of the instruction it added`() {
+            // like every other emitter, so a constant can be a branch target
+            assertThat(bytecode { val target = iconst(0); goto(target) })
+                .containsExactly(*bytesOf(0x03, 0xA7, 0xFF, 0xFF))
+        }
+
+        @Test
         fun `rejects a value that needs a constant pool entry`() {
             assertThatIllegalArgumentException().isThrownBy { bytecode { iconst(32768) } }
             assertThatIllegalArgumentException().isThrownBy { bytecode { iconst(-32769) } }
