@@ -149,6 +149,19 @@ class CodeBuilderTest {
         }
 
         @Test
+        fun `hands back the label of where the fragment landed`() {
+            // given a jump that has to reach code arriving from somewhere else
+            val code = bytecode {
+                val jump = goto()
+                val landed = fragment(piece { aconst_null(); iconst(-1) })
+                link(jump, landed)
+            }
+
+            // then the label names the fragment's first instruction, past the jump
+            assertThat(code).containsExactly(*bytesOf(0xA7, 0x00, 0x03, 0x01, 0x02))
+        }
+
+        @Test
         fun `shifts the links of a fragment by instructions rather than bytes`() {
             // given a fragment reaching its own target
             val open = builder().apply {

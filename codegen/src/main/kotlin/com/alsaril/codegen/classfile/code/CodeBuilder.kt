@@ -52,7 +52,7 @@ class CodeBuilder(
         exceptionHandlers.add(ExceptionHandler(from.index, to.index, handler.index, type?.index ?: 0))
     }
 
-    fun fragment(fragment: Fragment) {
+    fun fragment(fragment: Fragment): Label {
         val count = instructions.size
         instructions.addAll(fragment.instructions)
         fragment.jumps.asSequence().map { (from, to) -> from + count to to + count }.forEach {
@@ -67,6 +67,7 @@ class CodeBuilder(
             .map { it.shift(count) }
             .forEach(exceptionHandlers::add)
         size += fragment.size
+        return LabelImpl(count)
     }
 
     @Suppress("UNCHECKED_CAST")
