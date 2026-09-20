@@ -15,25 +15,29 @@ fun CodeBuilder.objInfo(name: String): VarInfo = ObjInfo(clazz(name).index)
 
 internal data class ObjInfo(val index: Int) : VarInfo
 
-fun CodeBuilder.frameSame(label: Label) = frame(label, SameFrame(0))
+fun CodeBuilder.frameSame(label: Label) = frame(sameFrame(label.index))
 
 fun CodeBuilder.frameStack(label: Label, varInfo: VarInfo) = frame(
-    label,
-    SameLocals1StackItemFrameShort(0, varInfo2Writable(varInfo))
+    sameLocals1StackItem(label.index, varInfo2Writable(varInfo))
 )
 
 fun CodeBuilder.frameAppend(label: Label, vararg varInfos: VarInfo) = frame(
-    label,
-    AppendFrame(0, varInfos.map(::varInfo2Writable))
+    AppendFrame(label.index, varInfos.map(::varInfo2Writable))
 )
 
 fun CodeBuilder.frameFull(label: Label, locals: List<VarInfo>, stack: List<VarInfo>) = frame(
-    label,
-    FullFrame(0, locals.map(::varInfo2Writable), stack.map(::varInfo2Writable))
+    FullFrame(label.index, locals.map(::varInfo2Writable), stack.map(::varInfo2Writable))
 )
 
 private fun varInfo2Writable(varInfo: VarInfo) = when (varInfo) {
     IntInfo -> IntegerVariableInfo
     FloatInfo -> FloatVariableInfo
     is ObjInfo -> ObjectVariableInfo(varInfo.index)
+}
+
+fun patchOffset(frame: StackMapFrame, newOffset: Int) = when (frame) {
+    is AppendFrame -> frame.copy(offsetDelta = newOffset)
+    is FullFrame -> frame.copy(offsetDelta = newOffset)
+    is SameFrame, is SameFrameExtended -> sameFrame(offsetDelta = newOffset)
+    is SameLocals1StackItemFrame -> sameLocals1StackItem(offsetDelta = newOffset, frame.stack)
 }

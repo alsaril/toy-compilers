@@ -17,6 +17,7 @@ import com.alsaril.codegen.classfile.code.framesOf
 import com.alsaril.codegen.classfile.code.goto
 import com.alsaril.codegen.classfile.code.iconst
 import com.alsaril.codegen.classfile.code.nop
+import com.alsaril.codegen.classfile.code.patchOffset
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
@@ -28,7 +29,7 @@ class FragmentTest {
         val byIndex = frames.toMap()
         repeat(size) { i ->
             val label = nop()
-            byIndex[i]?.let { frame(label, it) }
+            byIndex[i]?.let { frame(patchOffset(it, label.index)) }
         }
     }.build()
 
@@ -46,7 +47,7 @@ class FragmentTest {
 
         @Test
         fun `is empty when there is no content`() {
-            assertThat(Fragment(emptyList(), emptyMap(), emptyMap(), emptyList(), size = 0).bytecode())
+            assertThat(Fragment(emptyList(), emptyMap(), emptyList(), emptyList(), size = 0).bytecode())
                 .isEmpty()
         }
     }

@@ -13,6 +13,7 @@ import com.alsaril.codegen.constantpool.ConstantClassInfo
 import com.alsaril.codegen.constantpool.ConstantUtf8Info
 import com.alsaril.codegen.constantpool.UpdatableConstantPool
 import org.assertj.core.api.Assertions.assertThat
+import org.assertj.core.api.Assertions.assertThatIllegalArgumentException
 import org.junit.jupiter.api.Test
 
 class FramesTest {
@@ -67,14 +68,29 @@ class FramesTest {
     }
 
     @Test
-    fun `records one frame when two land on the same offset`() {
-        // two frames cannot share a bytecode offset, so the first one wins
+    fun `records one frame when two equal ones land on the same offset`() {
+        // an offset is named once, so asking for the same frame twice collapses
         assertThat(frames {
             nop()
             val target = nop()
             frameSame(target)
             frameSame(target)
         }).containsExactly(SameFrame(1))
+    }
+
+    @Test
+    fun `refuses two frames that disagree on one offset`() {
+        // there is only one delta to write, so the two cannot both be recorded
+        assertThatIllegalArgumentException()
+            .isThrownBy {
+                frames {
+                    nop()
+                    val target = nop()
+                    frameSame(target)
+                    frameStack(target, IntInfo)
+                }
+            }
+            .withMessageContaining("frames at offset 1 disagree")
     }
 
     @Test

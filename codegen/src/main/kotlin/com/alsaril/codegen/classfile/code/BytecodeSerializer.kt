@@ -99,20 +99,17 @@ object BytecodeSerializer {
             }
         }
 
-        // todo test several frames at one loc
         var prev = -1
         val frames = fragment.frames
-            .asSequence()
-            .map { (instruction, frame) -> i2loc[instruction]!! to frame }
-            .sortedBy { it.first }
-            .map { (loc, frame) ->
-                when (frame) {
-                    is AppendFrame -> frame.copy(offsetDelta = loc - prev - 1)
-                    is FullFrame -> frame.copy(offsetDelta = loc - prev - 1)
-                    is SameFrame, is SameFrameExtended -> sameFrame(offsetDelta = loc - prev - 1)
-                    is SameLocals1StackItemFrame -> sameLocals1StackItem(offsetDelta = loc - prev - 1, frame.stack)
-                }.also { prev = loc }
-            }.toList()
+            .groupBy { frame -> i2loc[frame.offsetDelta]!! }
+            .toSortedMap()
+            .map { (loc, atLoc) ->
+                val frame = atLoc.first()
+                require(atLoc.all { it == frame }) {
+                    "frames at offset $loc disagree, so the offset cannot be named once: ${atLoc.distinct()}"
+                }
+                patchOffset(frame, loc - prev - 1).also { prev = loc }
+            }
 
         // handlers
 

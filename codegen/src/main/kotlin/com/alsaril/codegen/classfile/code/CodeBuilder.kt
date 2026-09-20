@@ -22,7 +22,7 @@ class CodeBuilder(
 ) {
     private val instructions = mutableListOf<Instruction>()
     private val jumps = mutableMapOf<Int, Int>()
-    private val frames = mutableMapOf<Int, StackMapFrame>()
+    private val frames = mutableListOf<StackMapFrame>()
     private val exceptionHandlers = mutableListOf<ExceptionHandler>()
     private var size = 0
 
@@ -37,16 +37,15 @@ class CodeBuilder(
         return LabelImpl(index)
     }
 
-    internal fun frame(label: Label, frame: StackMapFrame) {
-        label as LabelImpl
-        frames[label.index] = frame
+    internal fun frame(frame: StackMapFrame) {
+        frames.add(frame)
     }
 
     internal fun addExceptionHandler(exceptionHandler: ExceptionHandler) {
         exceptionHandlers.add(exceptionHandler)
     }
 
-    private data class LabelImpl(val index: Int): Label
+    private data class LabelImpl(override val index: Int): Label
 
     fun link(from: Label, dest: Label) {
         from as LabelImpl; dest as LabelImpl
@@ -59,9 +58,10 @@ class CodeBuilder(
         fragment.jumps.asSequence().map { (from, to) -> from + count to to + count }.forEach {
             jumps[it.first] = it.second
         }
-        fragment.frames.asSequence().map { (from, frame) -> from + count to frame }.forEach {
-            frames[it.first] = it.second
-        }
+        fragment.frames
+            .asSequence()
+            .map { frame -> patchOffset(frame, frame.offsetDelta + count) }
+            .forEach(frames::add)
         exceptionHandlers.addAll(fragment.exceptionHandlers)
         size += fragment.size
     }
@@ -70,10 +70,12 @@ class CodeBuilder(
     fun build() = Fragment(
         instructions.toList(),
         jumps.toMap(),
-        frames.toMap(),
+        frames.toList(),
         exceptionHandlers.toList(),
         size
     )
 }
 
-sealed interface Label
+sealed interface Label {
+    val index: Int
+}

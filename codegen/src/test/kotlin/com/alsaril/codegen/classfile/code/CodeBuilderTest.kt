@@ -49,7 +49,7 @@ class CodeBuilderTest {
             val byIndex = frames.toMap()
             repeat(size) { i ->
                 val label = nop()
-                byIndex[i]?.let { frame(label, it) }
+                byIndex[i]?.let { frame(patchOffset(it, label.index)) }
             }
         }.build()
 
