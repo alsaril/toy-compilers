@@ -15,7 +15,7 @@ import kotlin.math.max
 
 object BytecodeSerializer {
     fun serialize(fragment: Fragment, headerLocals: Int, cpEntry: (String) -> Int): CodeAttribute {
-        val (maxStack, maxLocals) = analyze(fragment.instructions, fragment.jumps, fragment.exceptionHandlers)
+        val (maxStack, maxLocals) = analyze(fragment)
         val (bytecode, frames, exceptionHandlers) = emit(fragment)
 
         return CodeAttribute(
@@ -28,7 +28,8 @@ object BytecodeSerializer {
         )
     }
 
-    private fun analyze(instructions: List<Instruction>, jumps: Map<Int, Int>, exceptionHandlers: List<ExceptionHandler>): Pair<Int, Int> {
+    private fun analyze(fragment: Fragment): Pair<Int, Int> {
+        val instructions = fragment.instructions
         require(instructions.isNotEmpty()) { "a method body must hold at least one instruction" }
 
         val stackSize = IntArray(instructions.size) { -1 }
@@ -36,7 +37,7 @@ object BytecodeSerializer {
         val deque = ArrayDeque<Pair<Int, Int>>()
 
         deque.addLast(0 to 0) // entry
-        exceptionHandlers.forEach { deque.addLast(it.handlerPc to 1) } // handlers
+        fragment.exceptionHandlers.forEach { deque.addLast(it.handlerPc to 1) } // handlers
 
         while (deque.isNotEmpty()) {
             val (pc, enterStack) = deque.removeFirst()
@@ -51,8 +52,8 @@ object BytecodeSerializer {
 
             val instruction = instructions[pc]
 
-            val nextPcs: List<Int> = nextPcs(instruction, pc, jumps)
-            val nextStack: Int = nextStack(enterStack, instruction)
+            val nextPcs: List<Int> = nextPcs(instruction, pc, fragment.jumps)
+            val nextStack: Int = nextStack(enterStack, pc, instruction)
             instruction.locals()?.let { maxLocals = max(maxLocals, it + 1) }
 
             nextPcs.forEach {
@@ -70,9 +71,9 @@ object BytecodeSerializer {
         return maxStack to maxLocals
     }
 
-    private fun nextStack(enterStack: Int, instruction: Instruction): Int {
+    private fun nextStack(enterStack: Int, pc: Int, instruction: Instruction): Int {
         val (popCnt, pushCnt) = instruction.stackEffects()
-        require(enterStack >= popCnt) { "$instruction pops $popCnt from a stack $enterStack deep" }
+        require(enterStack >= popCnt) { "$instruction at $pc pops $popCnt from a stack $enterStack deep" }
         return enterStack - popCnt + pushCnt
     }
 

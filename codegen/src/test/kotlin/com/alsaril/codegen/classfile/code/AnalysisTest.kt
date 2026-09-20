@@ -67,7 +67,7 @@ class AnalysisTest {
     fun `refuses an instruction that pops more than the stack holds`() {
         assertThatIllegalArgumentException()
             .isThrownBy { method { iadd(); `return`() } }
-            .withMessageContaining("pops 2 from a stack 0 deep")
+            .withMessageContaining("IAdd at 0 pops 2 from a stack 0 deep")
     }
 
     @Test
