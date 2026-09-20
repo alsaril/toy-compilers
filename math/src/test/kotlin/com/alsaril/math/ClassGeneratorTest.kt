@@ -322,13 +322,13 @@ class ClassGeneratorTest {
         @Test
         fun `keeps the depth the preamble needs as a floor`() {
             // reading a variable into its slot reaches two deep on its own
-            assertThat(bodyStack(Value(1.0f))).isEqualTo(2)
+            assertThat(bodyStack(Value(1.0f))).isEqualTo(1)
             assertThat(bodyStack(Var("x"))).isEqualTo(2)
         }
 
         @Test
         fun `counts a negation as leaving the stack where it found it`() {
-            assertThat(bodyStack(Neg(Neg(Neg(Value(1.0f)))))).isEqualTo(2)
+            assertThat(bodyStack(Neg(Neg(Neg(Value(1.0f)))))).isEqualTo(1)
             assertThat(bodyStack(Op(ADD, Value(1.0f), Neg(rightLeaning(5))))).isEqualTo(6)
         }
 

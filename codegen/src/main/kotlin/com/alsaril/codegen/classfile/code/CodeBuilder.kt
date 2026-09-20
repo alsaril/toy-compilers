@@ -28,11 +28,16 @@ class CodeBuilder(
     private val buffer = ByteArrayOutputStream(3)
     private val writer = DosWriter(DataOutputStream(buffer))
 
+    private fun width(instruction: Instruction): Int {
+        buffer.reset()
+        writer.write(instruction)
+        return buffer.size()
+    }
+
     internal fun add(instruction: Instruction): Label {
         val index = instructions.size
         instructions.add(instruction)
-        buffer.reset(); writer.write(instruction)
-        size += buffer.size()
+        size += width(instruction)
         return LabelImpl(index)
     }
 
@@ -69,6 +74,21 @@ class CodeBuilder(
         size += fragment.size
         return LabelImpl(count)
     }
+
+    fun transform(transform: (Int, Instruction) -> Instruction?): CodeBuilder {
+        var i = 0
+        val iterator = instructions.listIterator()
+        while (iterator.hasNext()) {
+            val instruction = iterator.next()
+            transform(i++, instruction)?.let { replacement ->
+                size += width(replacement) - width(instruction)
+                iterator.set(replacement)
+            }
+        }
+        return this
+    }
+
+    fun size() = size
 
     @Suppress("UNCHECKED_CAST")
     fun build() = Fragment(

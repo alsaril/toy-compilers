@@ -10,6 +10,7 @@ import com.alsaril.codegen.classfile.attributes.SameLocals1StackItemFrameShort
 import com.alsaril.codegen.classfile.attributes.SimpleVerificationTypeInfo.IntegerVariableInfo
 import com.alsaril.codegen.classfile.attributes.StackMapFrame
 import com.alsaril.codegen.classfile.bytecode
+import com.alsaril.codegen.classfile.code.instruction.FLoad
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
@@ -37,6 +38,61 @@ class CodeBuilderTest {
         assertThat(builder.build().size).isEqualTo(1)
         builder.goto()
         assertThat(builder.build().size).isEqualTo(4)
+    }
+
+    @Nested
+    inner class Transforming {
+
+        @Test
+        fun `replaces an instruction without moving the ones around it`() {
+            val code = bytecode {
+                nop()
+                fload(1)
+                nop()
+                transform { i, instruction -> if (i == 1) FLoad(2) else null }
+            }
+
+            assertThat(code).containsExactly(*bytesOf(0x00, 0x24, 0x00))
+        }
+
+        @Test
+        fun `keeps the size in step when a replacement encodes wider`() {
+            // given a compact load, which is one byte
+            val builder = builder().apply { fload(1) }
+            assertThat(builder.size()).isOne()
+
+            // when it is re-slotted past the compact range, taking the wide form
+            builder.transform { _, _ -> FLoad(300) }
+
+            // then the size follows the bytes rather than the instruction it replaced
+            assertThat(builder.size()).isEqualTo(4)
+            assertThat(builder.build().size).isEqualTo(4)
+            assertThat(builder.build().bytecode()).hasSize(4)
+        }
+
+        @Test
+        fun `keeps the size in step when a replacement encodes narrower`() {
+            // given
+            val builder = builder().apply { fload(300) }
+            assertThat(builder.size()).isEqualTo(4)
+
+            // when
+            builder.transform { _, _ -> FLoad(1) }
+
+            // then
+            assertThat(builder.size()).isOne()
+            assertThat(builder.build().size).isOne()
+            assertThat(builder.build().bytecode()).hasSize(1)
+        }
+
+        @Test
+        fun `leaves the size alone when nothing is replaced`() {
+            val builder = builder().apply { fload(300); nop() }
+
+            builder.transform { _, _ -> null }
+
+            assertThat(builder.size()).isEqualTo(5)
+        }
     }
 
     @Nested

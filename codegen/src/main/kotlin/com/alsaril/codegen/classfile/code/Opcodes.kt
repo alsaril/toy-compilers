@@ -31,22 +31,22 @@ fun CodeBuilder.ldc(pointer: DataPointer) = pointer.index.let { index ->
 }
 
 // load
-fun CodeBuilder.iload(index: Int) = add(instructionFamily(index, ::ILoad, ::ILoadN, ::ILoadW))
+fun CodeBuilder.iload(index: Int) = add(ILoad(index))
 
-fun CodeBuilder.fload(index: Int) = add(instructionFamily(index, ::FLoad, ::FLoadN, ::FLoadW))
+fun CodeBuilder.fload(index: Int) = add(FLoad(index))
 
-fun CodeBuilder.aload(index: Int) = add(instructionFamily(index, ::ALoad, ::ALoadN, ::ALoadW))
+fun CodeBuilder.aload(index: Int) = add(ALoad(index))
 
 fun CodeBuilder.iaload() = add(IALoad)
 
 fun CodeBuilder.baload() = add(BALoad)
 
 // store
-fun CodeBuilder.istore(index: Int) = add(instructionFamily(index, ::IStore, ::IStoreN, ::IStoreW))
+fun CodeBuilder.istore(index: Int) = add(IStore(index))
 
-fun CodeBuilder.fstore(index: Int) = add(instructionFamily(index, ::FStore, ::FStoreN, ::FStoreW))
+fun CodeBuilder.fstore(index: Int) = add(FStore(index))
 
-fun CodeBuilder.astore(index: Int) = add(instructionFamily(index, ::AStore, ::AStoreN, ::AStoreW))
+fun CodeBuilder.astore(index: Int) = add(AStore(index))
 
 fun CodeBuilder.iastore() = add(IAStore)
 
@@ -91,13 +91,3 @@ fun CodeBuilder.`return`() = add(Return)
 
 fun CodeBuilder.athrow() = add(AThrow)
 
-private fun instructionFamily(
-    index: Int,
-    short: (Int) -> Instruction,
-    long: (Int) -> Instruction,
-    wide: (Int) -> Instruction
-) = when {
-    index < 4 -> short(index)
-    index < 0x100 -> long(index)
-    else -> wide(index)
-}

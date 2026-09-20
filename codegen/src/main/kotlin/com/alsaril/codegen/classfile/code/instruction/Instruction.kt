@@ -8,113 +8,60 @@ sealed interface Instruction : Writable {
     fun locals(): Int? = null
 }
 
-internal data object Nop : NoArgInstruction(0x00)
+data object Nop : NoArgInstruction(0x00)
 
-internal data object AConstNull : NoArgInstruction(0x01), PushesOne
+data object AConstNull : NoArgInstruction(0x01), PushesOne
 
-internal data class IConst(val value: Int) : OneMixedArgInstruction(0x03, value), PushesOne {
+data class IConst(val value: Int) : OneMixedArgInstruction(0x03, value), PushesOne {
     init {
         require(value in -1..5) { "$value is out of range for iconst" }
     }
 }
 
-internal data class BIPush(val value: Int) : OneSignedByteArgInstruction(0x10, value), PushesOne
+data class BIPush(val value: Int) : OneSignedByteArgInstruction(0x10, value), PushesOne
 
-internal data class SIPush(val value: Int) : TwoSignedBytesArgInstruction(0x11, value), PushesOne
+data class SIPush(val value: Int) : TwoSignedBytesArgInstruction(0x11, value), PushesOne
 
-internal data class FConst(val value: Int) : OneMixedArgInstruction(0x0b, value), PushesOne {
+data class FConst(val value: Int) : OneMixedArgInstruction(0x0b, value), PushesOne {
     init {
         require(value in 0..2) { "$value is out of range for fconst" }
     }
 }
 
-internal data class Ldc(val index: Int) : OneByteArgInstruction(0x12, index), PushesOne
+data class ILoad(override val index: Int) : LocalSlotInstruction(0x1a, 0x15), PushesOne
+data class FLoad(override val index: Int) : LocalSlotInstruction(0x22, 0x17), PushesOne
+data class ALoad(override val index: Int) : LocalSlotInstruction(0x2a, 0x19), PushesOne
+data class IStore(override val index: Int) : LocalSlotInstruction(0x3b, 0x36), PopsOne
+data class FStore(override val index: Int) : LocalSlotInstruction(0x43, 0x38), PopsOne
+data class AStore(override val index: Int) : LocalSlotInstruction(0x4b, 0x3a), PopsOne
 
-internal data class LdcW(val index: Int) : TwoBytesArgInstruction(0x13, index), PushesOne
+data class Ldc(val index: Int) : OneByteArgInstruction(0x12, index), PushesOne
 
-internal data class ILoad(override val index: Int) : OneMixedArgInstruction(0x1a, index), PushesOne, TouchesLocal {
-    init {
-        require(index in 0..3) { "slot $index is out of range for the compact form" }
-    }
-}
+data class LdcW(val index: Int) : TwoBytesArgInstruction(0x13, index), PushesOne
 
-internal data class ILoadN(override val index: Int) : OneByteArgInstruction(0x15, index), PushesOne, TouchesLocal
+data object IALoad : NoArgInstruction(0x2e), PopsTwoPushesOne
 
-internal data class ILoadW(override val index: Int) : WideTwoBytesArgInstruction(0x15, index), PushesOne, TouchesLocal
+data object BALoad : NoArgInstruction(0x33), PopsTwoPushesOne
 
-internal data class FLoad(override val index: Int) : OneMixedArgInstruction(0x22, index), PushesOne, TouchesLocal {
-    init {
-        require(index in 0..3) { "slot $index is out of range for the compact form" }
-    }
-}
+data object IAStore : NoArgInstruction(0x4f), PopsThree
 
-internal data class FLoadN(override val index: Int) : OneByteArgInstruction(0x17, index), PushesOne, TouchesLocal
+data object BAStore : NoArgInstruction(0x54), PopsThree
 
-internal data class FLoadW(override val index: Int) : WideTwoBytesArgInstruction(0x17, index), PushesOne, TouchesLocal
+data object IAdd : NoArgInstruction(0x60), PopsTwoPushesOne
 
-internal data class ALoad(override val index: Int) : OneMixedArgInstruction(0x2a, index), PushesOne, TouchesLocal {
-    init {
-        require(index in 0..3) { "slot $index is out of range for the compact form" }
-    }
-}
+data object ISub : NoArgInstruction(0x64), PopsTwoPushesOne
 
-internal data class ALoadN(override val index: Int) : OneByteArgInstruction(0x19, index), PushesOne, TouchesLocal
+data object FAdd : NoArgInstruction(0x62), PopsTwoPushesOne
 
-internal data class ALoadW(override val index: Int) : WideTwoBytesArgInstruction(0x19, index), PushesOne, TouchesLocal
+data object FSub : NoArgInstruction(0x66), PopsTwoPushesOne
 
-internal data object IALoad : NoArgInstruction(0x2e), PopsTwoPushesOne
+data object FMul : NoArgInstruction(0x6a), PopsTwoPushesOne
 
-internal data object BALoad : NoArgInstruction(0x33), PopsTwoPushesOne
+data object FDiv : NoArgInstruction(0x6e), PopsTwoPushesOne
 
-internal data class IStore(override val index: Int) : OneMixedArgInstruction(0x3b, index), PopsOne, TouchesLocal {
-    init {
-        require(index in 0..3) { "slot $index is out of range for the compact form" }
-    }
-}
+data object FNeg : NoArgInstruction(0x76), PopsOnePushesOne
 
-internal data class IStoreN(override val index: Int) : OneByteArgInstruction(0x36, index), PopsOne, TouchesLocal
-
-internal data class IStoreW(override val index: Int) : WideTwoBytesArgInstruction(0x36, index), PopsOne, TouchesLocal
-
-internal data class FStore(override val index: Int) : OneMixedArgInstruction(0x43, index), PopsOne, TouchesLocal {
-    init {
-        require(index in 0..3) { "slot $index is out of range for the compact form" }
-    }
-}
-
-internal data class FStoreN(override val index: Int) : OneByteArgInstruction(0x38, index), PopsOne, TouchesLocal
-
-internal data class FStoreW(override val index: Int) : WideTwoBytesArgInstruction(0x38, index), PopsOne, TouchesLocal
-
-internal data class AStore(override val index: Int) : OneMixedArgInstruction(0x4b, index), PopsOne, TouchesLocal {
-    init {
-        require(index in 0..3) { "slot $index is out of range for the compact form" }
-    }
-}
-
-internal data class AStoreN(override val index: Int) : OneByteArgInstruction(0x3a, index), PopsOne, TouchesLocal
-
-internal data class AStoreW(override val index: Int) : WideTwoBytesArgInstruction(0x3a, index), PopsOne, TouchesLocal
-
-internal data object IAStore : NoArgInstruction(0x4f), PopsThree
-
-internal data object BAStore : NoArgInstruction(0x54), PopsThree
-
-internal data object IAdd : NoArgInstruction(0x60), PopsTwoPushesOne
-
-internal data object ISub : NoArgInstruction(0x64), PopsTwoPushesOne
-
-internal data object FAdd : NoArgInstruction(0x62), PopsTwoPushesOne
-
-internal data object FSub : NoArgInstruction(0x66), PopsTwoPushesOne
-
-internal data object FMul : NoArgInstruction(0x6a), PopsTwoPushesOne
-
-internal data object FDiv : NoArgInstruction(0x6e), PopsTwoPushesOne
-
-internal data object FNeg : NoArgInstruction(0x76), PopsOnePushesOne
-
-internal data class IInc(override val index: Int, val delta: Int) : TouchesLocal {
+data class IInc(override val index: Int, val delta: Int) : TouchesLocal {
     init {
         require(index in 0..0xff) { "$index does not fit a u1" }
         require(delta in Byte.MIN_VALUE..Byte.MAX_VALUE) { "$delta does not fit an s1" }
@@ -127,7 +74,7 @@ internal data class IInc(override val index: Int, val delta: Int) : TouchesLocal
     }
 }
 
-internal data class IIncW(override val index: Int, val delta: Int) : TouchesLocal {
+data class IIncW(override val index: Int, val delta: Int) : TouchesLocal {
     init {
         require(index in 0..0xffff) { "$index does not fit a u2" }
         require(delta in Short.MIN_VALUE..Short.MAX_VALUE) { "$delta does not fit an s2" }
@@ -141,58 +88,58 @@ internal data class IIncW(override val index: Int, val delta: Int) : TouchesLoca
     }
 }
 
-internal data object Dup : NoArgInstruction(0x59) {
+data object Dup : NoArgInstruction(0x59) {
     override fun stackEffects() = 1 to 2
 }
 
-internal data object Dup2 : NoArgInstruction(0x5c) {
+data object Dup2 : NoArgInstruction(0x5c) {
     override fun stackEffects() = 2 to 4
 }
 
-internal data object DupX2 : NoArgInstruction(0x5b) {
+data object DupX2 : NoArgInstruction(0x5b) {
     override fun stackEffects() = 3 to 4
 }
 
-internal data object IReturn : NoArgInstruction(0xac), PopsOne
+data object IReturn : NoArgInstruction(0xac), PopsOne
 
-internal data object FReturn : NoArgInstruction(0xae), PopsOne
+data object FReturn : NoArgInstruction(0xae), PopsOne
 
-internal data object Return : NoArgInstruction(0xb1)
+data object Return : NoArgInstruction(0xb1)
 
-internal data object AThrow : NoArgInstruction(0xbf), PopsOne
+data object AThrow : NoArgInstruction(0xbf), PopsOne
 
-internal data object IfEq : JumpTemplateInstruction(0x99), PopsOne
+data object IfEq : JumpTemplateInstruction(0x99), PopsOne
 
-internal data object IfNe : JumpTemplateInstruction(0x9a), PopsOne
+data object IfNe : JumpTemplateInstruction(0x9a), PopsOne
 
-internal data object IfGe : JumpTemplateInstruction(0x9c), PopsOne
+data object IfGe : JumpTemplateInstruction(0x9c), PopsOne
 
-internal data object IfGt : JumpTemplateInstruction(0x9d), PopsOne
+data object IfGt : JumpTemplateInstruction(0x9d), PopsOne
 
-internal data object IfICmpLt : JumpTemplateInstruction(0xa1), PopsTwo
+data object IfICmpLt : JumpTemplateInstruction(0xa1), PopsTwo
 
-internal data object IfICmpGe : JumpTemplateInstruction(0xa2), PopsTwo
+data object IfICmpGe : JumpTemplateInstruction(0xa2), PopsTwo
 
-internal data object Goto : JumpTemplateInstruction(0xa7)
+data object Goto : JumpTemplateInstruction(0xa7)
 
-internal data object IfNull : JumpTemplateInstruction(0xc6), PopsOne
+data object IfNull : JumpTemplateInstruction(0xc6), PopsOne
 
-internal data object IfNotNull : JumpTemplateInstruction(0xc7), PopsOne
+data object IfNotNull : JumpTemplateInstruction(0xc7), PopsOne
 
-internal data class GetStatic(val index: Int, val slots: Int) : TwoBytesArgInstruction(0xb2, index) {
+data class GetStatic(val index: Int, val slots: Int) : TwoBytesArgInstruction(0xb2, index) {
     override fun stackEffects() = 0 to slots
 }
 
-internal data class InvokeVirtual(val index: Int, override val argSlots: Int, override val returnSlots: Int) :
+data class InvokeVirtual(val index: Int, override val argSlots: Int, override val returnSlots: Int) :
     TwoBytesArgInstruction(0xb6, index), Invocation
 
-internal data class InvokeSpecial(val index: Int, override val argSlots: Int, override val returnSlots: Int) :
+data class InvokeSpecial(val index: Int, override val argSlots: Int, override val returnSlots: Int) :
     TwoBytesArgInstruction(0xb7, index), Invocation
 
-internal data class InvokeStatic(val index: Int, override val argSlots: Int, override val returnSlots: Int) :
+data class InvokeStatic(val index: Int, override val argSlots: Int, override val returnSlots: Int) :
     TwoBytesArgInstruction(0xb8, index), Invocation
 
-internal data class InvokeInterface(val index: Int, override val argSlots: Int, override val returnSlots: Int) :
+data class InvokeInterface(val index: Int, override val argSlots: Int, override val returnSlots: Int) :
     Invocation {
     init {
         require(index in 0..0xffff) { "$index does not fit a u2" }
@@ -206,10 +153,10 @@ internal data class InvokeInterface(val index: Int, override val argSlots: Int, 
     }
 }
 
-internal data class New(val index: Int) : TwoBytesArgInstruction(0xbb, index), PushesOne
+data class New(val index: Int) : TwoBytesArgInstruction(0xbb, index), PushesOne
 
-internal data class NewArray(val type: Int) : OneByteArgInstruction(0xbc, type), PopsOnePushesOne
+data class NewArray(val type: Int) : OneByteArgInstruction(0xbc, type), PopsOnePushesOne
 
-internal data class CheckCast(val index: Int) : TwoBytesArgInstruction(0xc0, index), PopsOnePushesOne
+data class CheckCast(val index: Int) : TwoBytesArgInstruction(0xc0, index), PopsOnePushesOne
 
-internal data class InstanceOf(val index: Int) : TwoBytesArgInstruction(0xc1, index), PopsOnePushesOne
+data class InstanceOf(val index: Int) : TwoBytesArgInstruction(0xc1, index), PopsOnePushesOne

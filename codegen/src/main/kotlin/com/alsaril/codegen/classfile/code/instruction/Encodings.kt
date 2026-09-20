@@ -56,15 +56,17 @@ abstract class TwoSignedBytesArgInstruction(val code: Int, val arg: Int) : Instr
     }
 }
 
-abstract class WideTwoBytesArgInstruction(val code: Int, val arg: Int) : Instruction {
-    init {
-        require(arg in 0..0xffff) { "$arg does not fit a u2" }
-    }
-
+abstract class LocalSlotInstruction(
+    private val compact: Int,
+    private val code: Int,
+) : TouchesLocal {
     override fun ClassWriter.write() {
-        u1(0xc4)
-        u1(code)
-        u2(arg)
+        require(index in 0..0xffff) { "$index does not fit a u2" }
+        when {
+            index < 4 -> u1(compact + index)
+            index < 0x100 -> { u1(code); u1(index) }
+            else -> { u1(0xc4); u1(code); u2(index) }
+        }
     }
 }
 
