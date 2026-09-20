@@ -45,8 +45,7 @@ class ClassFileBuilder {
         vararg accessFlags: MethodAccessFlag,
     ): ClassFileBuilder {
         val d = parseFunctionDescriptor(descriptor)
-        val static = accessFlags.contains(STATIC)
-        val headerSlots = d.args.sumOf { it.slots } + (if (static) 0 else 1)
+        val headerSlots = d.argSlots(accessFlags.contains(STATIC))
         val code = serialize(fragment, headerSlots, cp::putUtf8)
         val methodInfo = MethodInfo(
             accessFlags.fold(0) { acc, flag -> acc or flag.value },

@@ -7,13 +7,20 @@ import com.alsaril.codegen.constantpool.UpdatableConstantPool.RefType.*
 
 fun CodeBuilder.method(classPointer: ClassPointer, name: String, descriptor: String): MethodDescriptor {
     val ref = cp.putRef(classPointer.index, name, descriptor, METHOD)
-    return MethodDescriptor(ref)
+    val parsed = parseFunctionDescriptor(descriptor)
+    return MethodDescriptor(ref, parsed.argSlots(true), parsed.returnSlots())
+}
+
+fun CodeBuilder.smethod(classPointer: ClassPointer, name: String, descriptor: String): MethodDescriptor {
+    val ref = cp.putRef(classPointer.index, name, descriptor, METHOD)
+    val parsed = parseFunctionDescriptor(descriptor)
+    return MethodDescriptor(ref, parsed.argSlots(false), parsed.returnSlots())
 }
 
 fun CodeBuilder.imethod(classPointer: ClassPointer, name: String, descriptor: String): MethodDescriptor {
     val ref = cp.putRef(classPointer.index, name, descriptor, INTERFACE_METHOD)
     val parsed = parseFunctionDescriptor(descriptor)
-    return MethodDescriptor(ref, slots = parsed.args.sumOf { it.slots } + 1)
+    return MethodDescriptor(ref, parsed.argSlots(false), parsed.returnSlots())
 }
 
 fun CodeBuilder.field(classPointer: ClassPointer, name: String, descriptor: String): FieldDescriptor {
@@ -25,13 +32,17 @@ fun CodeBuilder.field(classPointer: ClassPointer, name: String, descriptor: Stri
 fun CodeBuilder.getstatic(fieldDescriptor: FieldDescriptor) = add(GetStatic(fieldDescriptor.index))
 
 // invoke
-fun CodeBuilder.invokevirtual(methodDescriptor: MethodDescriptor) = add(InvokeVirtual(methodDescriptor.index))
+fun CodeBuilder.invokevirtual(methodDescriptor: MethodDescriptor) =
+    add(InvokeVirtual(methodDescriptor.index, methodDescriptor.argSlots, methodDescriptor.returnSlots))
 
-fun CodeBuilder.invokespecial(methodDescriptor: MethodDescriptor) = add(InvokeSpecial(methodDescriptor.index))
+fun CodeBuilder.invokespecial(methodDescriptor: MethodDescriptor) =
+    add(InvokeSpecial(methodDescriptor.index, methodDescriptor.argSlots, methodDescriptor.returnSlots))
 
-fun CodeBuilder.invokestatic(methodDescriptor: MethodDescriptor) = add(InvokeStatic(methodDescriptor.index))
+fun CodeBuilder.invokestatic(methodDescriptor: MethodDescriptor) =
+    add(InvokeStatic(methodDescriptor.index, methodDescriptor.argSlots, methodDescriptor.returnSlots))
 
-fun CodeBuilder.invokeinterface(methodDescriptor: MethodDescriptor,) = add(InvokeInterface(methodDescriptor.index, methodDescriptor.slots!!))
+fun CodeBuilder.invokeinterface(methodDescriptor: MethodDescriptor) =
+    add(InvokeInterface(methodDescriptor.index, methodDescriptor.argSlots, methodDescriptor.returnSlots))
 
 // class
 fun CodeBuilder.new(classPointer: ClassPointer) = add(New(classPointer.index))

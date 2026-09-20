@@ -24,213 +24,196 @@ class FramesTest {
 
     @Test
     fun `measures the first frame from the start of the method`() {
-        // TODO(ir): frames are attached to an Instruction and the serializer does not emit them yet
-        // assertThat(frames { frameSame() }).containsExactly(SameFrame(0))
-        // assertThat(frames { nop(); nop(); frameSame() }).containsExactly(SameFrame(2))
+        assertThat(frames { frameSame(iload(0)) }).containsExactly(SameFrame(0))
+        assertThat(frames { nop(); nop(); frameSame(iload(0)) }).containsExactly(SameFrame(2))
     }
 
     @Test
     fun `measures later frames from just past the previous one`() {
-        // TODO(ir): frames are attached to an Instruction and the serializer does not emit them yet
-        // // given three frames separated by one nop each
-        // val recorded = frames {
-        //     frameSame()
-        //     nop()
-        //     frameSame()
-        //     nop()
-        //     frameSame()
-        // }
+        // given three frames separated by one instruction each
+        val recorded = frames {
+            frameSame(iload(0))
+            frameSame(iload(1))
+            frameSame(iload(2))
+        }
 
-        // // then the first is at 0, and each later delta skips the implicit +1
-        // assertThat(recorded).containsExactly(SameFrame(0), SameFrame(0), SameFrame(0))
+        // then the first is at 0, and each later delta skips the implicit +1
+        assertThat(recorded).containsExactly(SameFrame(0), SameFrame(0), SameFrame(0))
     }
 
     @Test
     fun `counts every byte between two frames`() {
-        // TODO(ir): frames are attached to an Instruction and the serializer does not emit them yet
-        // // given
-        // val recorded = frames {
-        //     frameSame()
-        //     repeat(5) { nop() }
-        //     frameSame()
-        // }
+        // given
+        val recorded = frames {
+            frameSame(iload(0))
+            repeat(4) { nop() }
+            frameSame(iload(1))
+        }
 
-        // // then the second frame sits at 5, one past the base of 1
-        // assertThat(recorded).containsExactly(SameFrame(0), SameFrame(4))
+        // then the second frame sits at 5, one past the base of 1
+        assertThat(recorded).containsExactly(SameFrame(0), SameFrame(4))
     }
 
     @Test
     fun `switches to the extended form for a distant frame`() {
-        // TODO(ir): frames are attached to an Instruction and the serializer does not emit them yet
-        // // given
-        // val recorded = frames {
-        //     repeat(64) { nop() }
-        //     frameSame()
-        // }
+        // given
+        val recorded = frames {
+            repeat(64) { nop() }
+            frameSame(iload(0))
+        }
 
-        // // then
-        // assertThat(recorded).containsExactly(SameFrameExtended(64))
+        // then
+        assertThat(recorded).containsExactly(SameFrameExtended(64))
     }
 
     @Test
     fun `records one frame when two land on the same offset`() {
-        // TODO(ir): frames are attached to an Instruction and the serializer does not emit them yet
-        // // two frames cannot share a bytecode offset, so the first one wins
-        // assertThat(frames { nop(); frameSame(); frameSame() })
-        //     .containsExactly(SameFrame(1))
+        // two frames cannot share a bytecode offset, so the first one wins
+        assertThat(frames {
+            nop()
+            val target = iload(0)
+            frameSame(target)
+            frameSame(target)
+        }).containsExactly(SameFrame(1))
     }
 
     @Test
     fun `appends an integer local`() {
-        // TODO(ir): frames are attached to an Instruction and the serializer does not emit them yet
-        // assertThat(frames { frameAppend(IntInfo) })
-        //     .containsExactly(AppendFrame(0, listOf(IntegerVariableInfo)))
+        assertThat(frames { frameAppend(iload(0), IntInfo) })
+            .containsExactly(AppendFrame(0, listOf(IntegerVariableInfo)))
     }
 
     @Test
     fun `appends a float local`() {
-        // TODO(ir): frames are attached to an Instruction and the serializer does not emit them yet
-        // assertThat(frames { frameAppend(FloatInfo) })
-        //     .containsExactly(AppendFrame(0, listOf(FloatVariableInfo)))
+        assertThat(frames { frameAppend(iload(0), FloatInfo) })
+            .containsExactly(AppendFrame(0, listOf(FloatVariableInfo)))
     }
 
     @Test
     fun `describes a float on the stack`() {
-        // TODO(ir): frames are attached to an Instruction and the serializer does not emit them yet
-        // assertThat(frames { frameStack(FloatInfo) })
-        //     .containsExactly(SameLocals1StackItemFrameShort(0, FloatVariableInfo))
+        assertThat(frames { frameStack(iload(0), FloatInfo) })
+            .containsExactly(SameLocals1StackItemFrameShort(0, FloatVariableInfo))
     }
 
     @Test
     fun `keeps the local types apart in one frame`() {
-        // TODO(ir): frames are attached to an Instruction and the serializer does not emit them yet
-        // assertThat(frames { frameFull(listOf(IntInfo, FloatInfo, objInfo("[B")), listOf(FloatInfo)) })
-        //     .containsExactly(
-        //         FullFrame(
-        //             offsetDelta = 0,
-        //             locals = listOf(IntegerVariableInfo, FloatVariableInfo, ObjectVariableInfo(2)),
-        //             stack = listOf(FloatVariableInfo),
-        //         ),
-        //     )
+        assertThat(frames { frameFull(iload(0), listOf(IntInfo, FloatInfo, objInfo("[B")), listOf(FloatInfo)) })
+            .containsExactly(
+                FullFrame(
+                    offsetDelta = 0,
+                    locals = listOf(IntegerVariableInfo, FloatVariableInfo, ObjectVariableInfo(2)),
+                    stack = listOf(FloatVariableInfo),
+                ),
+            )
     }
 
     @Test
     fun `appends an object local through a constant pool class entry`() {
-        // TODO(ir): frames are attached to an Instruction and the serializer does not emit them yet
-        // // given
-        // val cp = UpdatableConstantPool()
+        // given
+        val cp = UpdatableConstantPool()
 
-        // // when
-        // val recorded = builder(cp).apply { frameAppend(objInfo("[B")) }.build().frames
+        // when
+        val recorded = frames(cp) { frameAppend(iload(0), objInfo("[B")) }
 
-        // // then the descriptor is registered as a class and referenced by index
-        // assertThat(recorded).containsExactly(AppendFrame(0, listOf(ObjectVariableInfo(2))))
-        // assertThat(cp.build().entries).containsExactly(
-        //     ConstantUtf8Info("[B"),
-        //     ConstantClassInfo(nameIndex = 1),
-        // )
+        // then the descriptor is registered as a class and referenced by index
+        assertThat(recorded).containsExactly(AppendFrame(0, listOf(ObjectVariableInfo(2))))
+        assertThat(cp.build().entries).containsExactly(
+            ConstantUtf8Info("[B"),
+            ConstantClassInfo(nameIndex = 1),
+        )
     }
 
     @Test
     fun `appends several locals in order`() {
-        // TODO(ir): frames are attached to an Instruction and the serializer does not emit them yet
-        // assertThat(frames { frameAppend(objInfo("[B"), IntInfo) })
-        //     .containsExactly(AppendFrame(0, listOf(ObjectVariableInfo(2), IntegerVariableInfo)))
+        assertThat(frames { frameAppend(iload(0), objInfo("[B"), IntInfo) })
+            .containsExactly(AppendFrame(0, listOf(ObjectVariableInfo(2), IntegerVariableInfo)))
     }
 
     @Test
     fun `advances the base past an append frame too`() {
-        // TODO(ir): frames are attached to an Instruction and the serializer does not emit them yet
-        // // given
-        // val recorded = frames {
-        //     frameAppend(IntInfo)
-        //     repeat(3) { nop() }
-        //     frameSame()
-        // }
+        // given
+        val recorded = frames {
+            frameAppend(iload(0), IntInfo)
+            repeat(2) { nop() }
+            frameSame(iload(1))
+        }
 
-        // // then
-        // assertThat(recorded).containsExactly(
-        //     AppendFrame(0, listOf(IntegerVariableInfo)),
-        //     SameFrame(2),
-        // )
+        // then
+        assertThat(recorded).containsExactly(
+            AppendFrame(0, listOf(IntegerVariableInfo)),
+            SameFrame(2),
+        )
     }
 
     @Test
     fun `describes a single stack item`() {
-        // TODO(ir): frames are attached to an Instruction and the serializer does not emit them yet
-        // // an exception handler starts with the throwable alone on the stack
-        // assertThat(frames { frameStack(IntInfo) })
-        //     .containsExactly(SameLocals1StackItemFrameShort(0, IntegerVariableInfo))
+        // an exception handler starts with the throwable alone on the stack
+        assertThat(frames { frameStack(iload(0), IntInfo) })
+            .containsExactly(SameLocals1StackItemFrameShort(0, IntegerVariableInfo))
     }
 
     @Test
     fun `switches to the extended form for a distant stack frame`() {
-        // TODO(ir): frames are attached to an Instruction and the serializer does not emit them yet
-        // val recorded = frames {
-        //     repeat(64) { nop() }
-        //     frameStack(IntInfo)
-        // }
+        val recorded = frames {
+            repeat(64) { nop() }
+            frameStack(iload(0), IntInfo)
+        }
 
-        // assertThat(recorded).containsExactly(SameLocals1StackItemFrameExtended(64, IntegerVariableInfo))
+        assertThat(recorded).containsExactly(SameLocals1StackItemFrameExtended(64, IntegerVariableInfo))
     }
 
     @Test
     fun `advances the base past a stack frame too`() {
-        // TODO(ir): frames are attached to an Instruction and the serializer does not emit them yet
-        // // given
-        // val recorded = frames {
-        //     frameStack(IntInfo)
-        //     repeat(3) { nop() }
-        //     frameSame()
-        // }
+        // given
+        val recorded = frames {
+            frameStack(iload(0), IntInfo)
+            repeat(2) { nop() }
+            frameSame(iload(1))
+        }
 
-        // // then
-        // assertThat(recorded).containsExactly(
-        //     SameLocals1StackItemFrameShort(0, IntegerVariableInfo),
-        //     SameFrame(2),
-        // )
+        // then
+        assertThat(recorded).containsExactly(
+            SameLocals1StackItemFrameShort(0, IntegerVariableInfo),
+            SameFrame(2),
+        )
     }
 
     @Test
     fun `spells out both halves of a full frame`() {
-        // TODO(ir): frames are attached to an Instruction and the serializer does not emit them yet
-        // // given
-        // val recorded = frames { frameFull(listOf(IntInfo, objInfo("[B")), listOf(IntInfo)) }
+        // given
+        val recorded = frames { frameFull(iload(0), listOf(IntInfo, objInfo("[B")), listOf(IntInfo)) }
 
-        // // then
-        // assertThat(recorded).containsExactly(
-        //     FullFrame(
-        //         offsetDelta = 0,
-        //         locals = listOf(IntegerVariableInfo, ObjectVariableInfo(2)),
-        //         stack = listOf(IntegerVariableInfo),
-        //     ),
-        // )
+        // then
+        assertThat(recorded).containsExactly(
+            FullFrame(
+                offsetDelta = 0,
+                locals = listOf(IntegerVariableInfo, ObjectVariableInfo(2)),
+                stack = listOf(IntegerVariableInfo),
+            ),
+        )
     }
 
     @Test
     fun `writes a full frame with nothing in it`() {
-        // TODO(ir): frames are attached to an Instruction and the serializer does not emit them yet
-        // assertThat(frames { frameFull(emptyList(), emptyList()) })
-        //     .containsExactly(FullFrame(0, emptyList(), emptyList()))
+        assertThat(frames { frameFull(iload(0), emptyList(), emptyList()) })
+            .containsExactly(FullFrame(0, emptyList(), emptyList()))
     }
 
     @Test
     fun `takes an object type from a class pointer as well as a name`() {
-        // TODO(ir): frames are attached to an Instruction and the serializer does not emit them yet
-        // // given
-        // val cp = UpdatableConstantPool()
+        // given
+        val cp = UpdatableConstantPool()
 
-        // // when both spellings of the same class are used
-        // val recorded = builder(cp).apply { frameFull(listOf(objInfo(self()), objInfo(THIS_CLASS)), emptyList()) }
-        //     .build().frames
+        // when both spellings of the same class are used
+        val recorded = frames(cp) { frameFull(iload(0), listOf(objInfo(self()), objInfo(THIS_CLASS)), emptyList()) }
 
-        // // then they land on the one pool entry
-        // assertThat(recorded).containsExactly(
-        //     FullFrame(0, listOf(ObjectVariableInfo(2), ObjectVariableInfo(2)), emptyList()),
-        // )
-        // assertThat(cp.build().entries).containsExactly(
-        //     ConstantUtf8Info(THIS_CLASS),
-        //     ConstantClassInfo(nameIndex = 1),
-        // )
+        // then they land on the one pool entry
+        assertThat(recorded).containsExactly(
+            FullFrame(0, listOf(ObjectVariableInfo(2), ObjectVariableInfo(2)), emptyList()),
+        )
+        assertThat(cp.build().entries).containsExactly(
+            ConstantUtf8Info(THIS_CLASS),
+            ConstantClassInfo(nameIndex = 1),
+        )
     }
 }
