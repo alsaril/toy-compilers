@@ -30,7 +30,7 @@ class InvocationsTest {
             val descriptor = builder.method(builder.clazz("A"), "f", "()V")
 
             // then
-            assertThat(descriptor).isEqualTo(MethodDescriptor(6, argSlots = 0, returnSlots = 0))
+            assertThat(descriptor).isEqualTo(MethodDescriptor(6, argSlots = 1, returnSlots = 0))
             assertThat(cp.build().entries).containsExactly(
                 ConstantUtf8Info("A"),
                 ConstantClassInfo(nameIndex = 1),
@@ -88,6 +88,56 @@ class InvocationsTest {
             assertThat(descriptor).isEqualTo(FieldDescriptor(6))
             assertThat(cp.build().entries).last()
                 .isEqualTo(ConstantFieldRefInfo(classNameIndex = 2, nameAndTypeIndex = 5))
+        }
+
+        @Test
+        fun `counts the receiver among the operands of an instance method`() {
+            // given
+            val builder = builder()
+            val a = builder.clazz("A")
+
+            // then the receiver is on the stack under the arguments, so it is an operand too
+            assertThat(builder.method(a, "f", "()V").argSlots).isOne()
+            assertThat(builder.method(a, "f", "(I)V").argSlots).isEqualTo(2)
+            assertThat(builder.method(a, "f", "(JD)V").argSlots).isEqualTo(5)
+        }
+
+        @Test
+        fun `counts only the arguments of a static method`() {
+            // given
+            val builder = builder()
+            val a = builder.clazz("A")
+
+            // then there is no receiver to take off the stack
+            assertThat(builder.smethod(a, "f", "()V").argSlots).isZero()
+            assertThat(builder.smethod(a, "f", "(I)V").argSlots).isOne()
+            assertThat(builder.smethod(a, "f", "(JD)V").argSlots).isEqualTo(4)
+        }
+
+        @Test
+        fun `counts the receiver of an interface method, which invokeinterface writes as its count`() {
+            // given
+            val builder = builder()
+            val a = builder.clazz("A")
+
+            // then
+            assertThat(builder.imethod(a, "f", "()V").argSlots).isOne()
+            assertThat(builder.imethod(a, "f", "(Ljava/lang/Object;)I").argSlots).isEqualTo(2)
+            assertThat(builder.imethod(a, "f", "(JD)V").argSlots).isEqualTo(5)
+        }
+
+        @Test
+        fun `takes the slots a call leaves behind from the return type`() {
+            // given
+            val builder = builder()
+            val a = builder.clazz("A")
+
+            // then
+            assertThat(builder.method(a, "f", "()V").returnSlots).isZero()
+            assertThat(builder.method(a, "f", "()I").returnSlots).isOne()
+            assertThat(builder.method(a, "f", "()Ljava/lang/String;").returnSlots).isOne()
+            assertThat(builder.method(a, "f", "()J").returnSlots).isEqualTo(2)
+            assertThat(builder.method(a, "f", "()D").returnSlots).isEqualTo(2)
         }
 
         @Test

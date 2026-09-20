@@ -62,7 +62,7 @@ object RunGenerator {
             aload(5)
 
             val from = `try`()
-            invokestatic(method(self(), name, descriptor))
+            invokestatic(smethod(self(), name, descriptor))
             aconst_null()
             val handler = `catch`(from, type = null)
 
@@ -171,7 +171,7 @@ object RunGenerator {
     private fun CodeBuilder.guard() {
         dup()
         iload(memsizeIndex)
-        invokestatic(method(self(), "guard", "(II)V"))
+        invokestatic(smethod(self(), "guard", "(II)V"))
     }
 
     private fun ClassFileBuilder.emitMove(times: Int, dir: Boolean) = emitFragment {
@@ -297,7 +297,7 @@ object RunGenerator {
         iload(memsizeIndex)
         aload(arrayIndex)
         aload(stateIndex)
-        invokestatic(method(self(), name, descriptor))
+        invokestatic(smethod(self(), name, descriptor))
     }
 
     private fun ClassFileBuilder.emitMethodPrefix() = emitFragment {

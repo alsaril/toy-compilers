@@ -2,9 +2,12 @@ package com.alsaril.codegen.classfile
 
 import com.alsaril.codegen.bytesOf
 import com.alsaril.codegen.classfile.code.CodeBuilder
+import com.alsaril.codegen.classfile.code.aload
 import com.alsaril.codegen.classfile.code.iadd
 import com.alsaril.codegen.classfile.code.iconst
+import com.alsaril.codegen.classfile.code.invokevirtual
 import com.alsaril.codegen.classfile.code.ireturn
+import com.alsaril.codegen.classfile.code.method
 import com.alsaril.codegen.classfile.code.istore
 import com.alsaril.codegen.methodLimits
 import com.alsaril.codegen.classfile.ClassFileBuilder.Companion.classFile
@@ -132,6 +135,16 @@ class ClassFileBuilderTest {
             // three deep in the middle, one deep by the time it returns
             assertThat(stack("()I", STATIC) { iconst(1); iconst(1); iconst(1); iadd(); iadd(); ireturn() })
                 .isEqualTo(3)
+        }
+
+        @Test
+        fun `counts the receiver an instance call takes off the stack`() {
+            // the call replaces the receiver with its int result, so the body is one deep
+            assertThat(stack("(Ljava/lang/String;)I", STATIC) {
+                aload(0)
+                invokevirtual(method(clazz("java/lang/String"), "length", "()I"))
+                ireturn()
+            }).isOne()
         }
 
         // both overloads derive the depth, so a caller assembling fragments itself is

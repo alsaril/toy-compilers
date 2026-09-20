@@ -366,6 +366,35 @@ class GeneratedClassTest {
     }
 
     @Test
+    fun `takes an instance call on one arm of a branch`() {
+        // given a call on one path only, so the two arms only agree on the depth where
+        // they meet if the receiver was counted among the call's operands
+        val (name, bytes) = classFile("GenBranchInvoke", "java/lang/Object")
+            .method("f", "(Ljava/lang/String;I)I", PUBLIC, STATIC) {
+                iconst(0)
+                istore(2)
+
+                iload(1)
+                val jump = ifeq()
+                aload(0)
+                invokevirtual(method(clazz("java/lang/String"), "length", "()I"))
+                istore(2)
+
+                val target = iload(2)
+                link(jump, target)
+                frameAppend(target, IntInfo)
+                ireturn()
+            }
+            .build()
+        val method = loadClass(name, bytes)
+            .getDeclaredMethod("f", String::class.java, Int::class.javaPrimitiveType)
+
+        // then which value comes back says which path ran, and that both verified
+        assertThat(method.invoke(null, "abcd", 0)).isEqualTo(0)
+        assertThat(method.invoke(null, "abcd", 1)).isEqualTo(4)
+    }
+
+    @Test
     fun `resolves an interface method ref and the count it is called with`() {
         // given size() reached on an Object that has to be narrowed to a List first
         val (name, bytes) = classFile("GenCast", "java/lang/Object")

@@ -59,7 +59,7 @@ internal fun ClassFileBuilder.generateEval(ast: Node) = apply {
 
     method("eval", descriptor, PUBLIC, FINAL) {
         aload(1)
-        invokestatic(method(self(), name, descriptor))
+        invokestatic(smethod(self(), name, descriptor))
         freturn()
     }
 }
@@ -67,7 +67,7 @@ internal fun ClassFileBuilder.generateEval(ast: Node) = apply {
 private fun CodeBuilder.accessorLine(name: String, slot: Int) {
     aload(0)
     ldc(string(name))
-    invokestatic(method(self(), "getFloat", "(Ljava/util/Map;Ljava/lang/String;)F"))
+    invokestatic(smethod(self(), "getFloat", "(Ljava/util/Map;Ljava/lang/String;)F"))
     fstore(slot + callSlots)
 }
 
@@ -135,7 +135,7 @@ private fun ClassFileBuilder.materialize(
         val (name, _) = defineMethod(subtree, vars, counter)
         return context(1, 1).exact {
             aload(0)
-            invokestatic(method(self(), name, descriptor))
+            invokestatic(smethod(self(), name, descriptor))
         }
     }
 

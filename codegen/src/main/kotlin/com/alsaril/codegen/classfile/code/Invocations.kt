@@ -9,19 +9,19 @@ import com.alsaril.codegen.constantpool.UpdatableConstantPool.RefType.*
 fun CodeBuilder.method(classPointer: ClassPointer, name: String, descriptor: String): MethodDescriptor {
     val ref = cp.putRef(classPointer.index, name, descriptor, METHOD)
     val parsed = parseFunctionDescriptor(descriptor)
-    return MethodDescriptor(ref, parsed.argSlots(true), parsed.returnSlots())
+    return MethodDescriptor(ref, parsed.argSlots(static = false), parsed.returnSlots())
 }
 
 fun CodeBuilder.smethod(classPointer: ClassPointer, name: String, descriptor: String): MethodDescriptor {
     val ref = cp.putRef(classPointer.index, name, descriptor, METHOD)
     val parsed = parseFunctionDescriptor(descriptor)
-    return MethodDescriptor(ref, parsed.argSlots(false), parsed.returnSlots())
+    return MethodDescriptor(ref, parsed.argSlots(static = true), parsed.returnSlots())
 }
 
 fun CodeBuilder.imethod(classPointer: ClassPointer, name: String, descriptor: String): MethodDescriptor {
     val ref = cp.putRef(classPointer.index, name, descriptor, INTERFACE_METHOD)
     val parsed = parseFunctionDescriptor(descriptor)
-    return MethodDescriptor(ref, parsed.argSlots(false), parsed.returnSlots())
+    return MethodDescriptor(ref, parsed.argSlots(static = false), parsed.returnSlots())
 }
 
 fun CodeBuilder.field(classPointer: ClassPointer, name: String, descriptor: String): FieldDescriptor {
