@@ -250,6 +250,99 @@ class GeneratedClassTest {
         assertThat(method.invoke(null, 1)).isEqualTo(1.0f)
     }
 
+    /**
+     * f(args) = 1 when the branch is taken, 0 when it falls through, so which value comes
+     * back says both that the operands were popped and that the offset reached its target.
+     */
+    private fun conditional(
+        name: String,
+        descriptor: String,
+        operands: CodeBuilder.() -> Unit,
+        jump: CodeBuilder.() -> Label,
+    ): Class<*> {
+        val (loaded, bytes) = classFile(name, "java/lang/Object")
+            .method("f", descriptor, PUBLIC, STATIC) {
+                operands()
+                val branch = jump()
+
+                iconst(0)
+                val done = goto()
+
+                val taken = iconst(1)
+                link(branch, taken)
+                frameSame(taken)
+
+                val exit = ireturn()
+                link(done, exit)
+                frameStack(exit, IntInfo)
+            }
+            .build()
+        return loadClass(loaded, bytes)
+    }
+
+    private fun againstZero(name: String, jump: CodeBuilder.() -> Label): (Int) -> Int {
+        val method = conditional(name, "(I)I", { iload(0) }, jump)
+            .getDeclaredMethod("f", Int::class.javaPrimitiveType)
+        return { a -> method.invoke(null, a) as Int }
+    }
+
+    private fun betweenInts(name: String, jump: CodeBuilder.() -> Label): (Int, Int) -> Int {
+        val method = conditional(name, "(II)I", { iload(0); iload(1) }, jump)
+            .getDeclaredMethod("f", Int::class.javaPrimitiveType, Int::class.javaPrimitiveType)
+        return { a, b -> method.invoke(null, a, b) as Int }
+    }
+
+    private fun againstNull(name: String, jump: CodeBuilder.() -> Label): (Any?) -> Int {
+        val method = conditional(name, "(Ljava/lang/Object;)I", { aload(0) }, jump)
+            .getDeclaredMethod("f", Any::class.java)
+        return { r -> method.invoke(null, r) as Int }
+    }
+
+    @Test
+    fun `branches on a comparison with zero`() {
+        val ifeq = againstZero("GenIfeq") { ifeq() }
+        assertThat(ifeq(0)).isOne()
+        assertThat(ifeq(1)).isZero()
+
+        val ifne = againstZero("GenIfne") { ifne() }
+        assertThat(ifne(1)).isOne()
+        assertThat(ifne(0)).isZero()
+
+        val ifge = againstZero("GenIfge") { ifge() }
+        assertThat(ifge(1)).isOne()
+        assertThat(ifge(0)).isOne()
+        assertThat(ifge(-1)).isZero()
+
+        val ifgt = againstZero("GenIfgt") { ifgt() }
+        assertThat(ifgt(1)).isOne()
+        assertThat(ifgt(0)).isZero()
+    }
+
+    @Test
+    fun `branches on a comparison between two ints`() {
+        // these take two operands off the stack rather than one
+        val lt = betweenInts("GenIfIcmplt") { if_icmplt() }
+        assertThat(lt(1, 2)).isOne()
+        assertThat(lt(1, 1)).isZero()
+        assertThat(lt(2, 1)).isZero()
+
+        val ge = betweenInts("GenIfIcmpge") { if_icmpge() }
+        assertThat(ge(2, 1)).isOne()
+        assertThat(ge(1, 1)).isOne()
+        assertThat(ge(1, 2)).isZero()
+    }
+
+    @Test
+    fun `branches on a comparison with null`() {
+        val isNull = againstNull("GenIfnull") { ifnull() }
+        assertThat(isNull(null)).isOne()
+        assertThat(isNull("x")).isZero()
+
+        val notNull = againstNull("GenIfnotnull") { ifnotnull() }
+        assertThat(notNull("x")).isOne()
+        assertThat(notNull(null)).isZero()
+    }
+
     @Test
     fun `covers the range it guards with an exception handler`() {
         // given a read that is in range for 0 and out of range for anything else
