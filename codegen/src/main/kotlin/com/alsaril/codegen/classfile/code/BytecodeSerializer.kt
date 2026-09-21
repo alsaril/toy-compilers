@@ -59,7 +59,7 @@ object BytecodeSerializer {
 
             val nextPcs: List<Int> = nextPcs(instruction, pc, fragment.jumps)
             val nextStack: Int = nextStack(enterStack, pc, instruction)
-            instruction.locals()?.let { maxLocals = max(maxLocals, it + 1) }
+            instruction.locals()?.let { maxLocals = max(maxLocals, it) }
 
             nextPcs.forEach {
                 if (it !in stackSize.indices) {

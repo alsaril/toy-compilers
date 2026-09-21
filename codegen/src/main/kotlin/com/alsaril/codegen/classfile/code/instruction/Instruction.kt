@@ -35,9 +35,19 @@ data class IStore(override val index: Int) : LocalSlotInstruction(0x3b, 0x36), P
 data class FStore(override val index: Int) : LocalSlotInstruction(0x43, 0x38), PopsOne
 data class AStore(override val index: Int) : LocalSlotInstruction(0x4b, 0x3a), PopsOne
 
-data class Ldc(val index: Int) : OneByteArgInstruction(0x12, index), PushesOne
+data class Ldc(val index: Int) : Instruction, PushesOne {
+    init {
+        require(index in 0..0xffff) { "$index does not fit a u2" }
+    }
 
-data class LdcW(val index: Int) : TwoBytesArgInstruction(0x13, index), PushesOne
+    override fun ClassWriter.write() {
+        if (index < 0x100) {
+            u1(0x12); u1(index)
+        } else {
+            u1(0x13); u2(index)
+        }
+    }
+}
 
 data object IALoad : NoArgInstruction(0x2e), PopsTwoPushesOne
 
@@ -63,28 +73,16 @@ data object FNeg : NoArgInstruction(0x76), PopsOnePushesOne
 
 data class IInc(override val index: Int, val delta: Int) : TouchesLocal {
     init {
-        require(index in 0..0xff) { "$index does not fit a u1" }
-        require(delta in Byte.MIN_VALUE..Byte.MAX_VALUE) { "$delta does not fit an s1" }
-    }
-
-    override fun ClassWriter.write() {
-        u1(0x84)
-        u1(index)
-        s1(delta)
-    }
-}
-
-data class IIncW(override val index: Int, val delta: Int) : TouchesLocal {
-    init {
         require(index in 0..0xffff) { "$index does not fit a u2" }
         require(delta in Short.MIN_VALUE..Short.MAX_VALUE) { "$delta does not fit an s2" }
     }
 
     override fun ClassWriter.write() {
-        u1(0xc4)
-        u1(0x84)
-        u2(index)
-        s2(delta)
+        if (index <= 0xff && delta in Byte.MIN_VALUE..Byte.MAX_VALUE) {
+            u1(0x84); u1(index); s1(delta)
+        } else {
+            u1(0xc4); u1(0x84); u2(index); s2(delta)
+        }
     }
 }
 

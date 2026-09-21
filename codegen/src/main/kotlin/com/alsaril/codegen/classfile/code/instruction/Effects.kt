@@ -34,5 +34,7 @@ internal interface Invocation : Instruction {
 internal interface TouchesLocal : Instruction {
     val index: Int
 
-    override fun locals() = index
+    val slots: Int get() = 1
+
+    override fun locals() = index + slots
 }

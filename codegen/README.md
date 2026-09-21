@@ -69,10 +69,16 @@ method("f", "()I", PUBLIC, STATIC) {
 
 `@DslMarker` (`@CodeDsl`) keeps a nested block from resolving an outer receiver.
 
-**Every emitting helper hands back a `Label`** — the position of the instruction it added.
-A label is an index into the instruction list, which is what makes it survive being spliced
-somewhere else. That single return value is the whole addressing story: jump targets, frame
-anchors and exception ranges are all labels.
+**Every emitting helper hands back a `Label`** — the position of the instruction it added,
+as an index into the instructions of the builder that handed it out. A label belongs to
+that builder and nowhere else: one handed to a different builder is refused rather than
+silently naming whatever sits at that index there. That single return value is the whole
+addressing story, since jump targets, frame anchors and exception ranges are all labels.
+
+Indices are also what makes a fragment portable. A jump, a frame or a guarded range inside
+one refers to positions in its own instruction list, so splicing it somewhere else shifts
+every reference by the number of instructions ahead of it and nothing else has to change —
+where a byte offset would have had to be recomputed, and a jump patched.
 
 **Int and float are both covered** — constants, locals, arithmetic, negation and returns —
 alongside `checkcast`, `instanceof`, `newarray`, `getstatic` and the invoke family. A float
@@ -143,6 +149,14 @@ val done = goto()
 
 val caught = astore(2)
 `catch`(guarded, to = done, handler = caught, type = clazz("java/lang/ArrayIndexOutOfBoundsException"))
+```
+
+`end_pc` is exclusive, so a range running to the end of the code names one past the last
+instruction. No instruction is there, so `end()` names it — the one label that resolves to
+`code_length` rather than to an offset, and the one thing it is good for:
+
+```kotlin
+`catch`(guarded, to = end(), handler = caught, type = null)
 ```
 
 A `null` type is `catch_type` 0, which is how JVMS spells "any throwable" and what a

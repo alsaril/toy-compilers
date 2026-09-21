@@ -22,13 +22,7 @@ fun CodeBuilder.fconst(value: Int) =
         throw IllegalArgumentException("The value is out of range for fconst, ldc should be used")
     }
 
-fun CodeBuilder.ldc(pointer: DataPointer) = pointer.index.let { index ->
-    if (index < 0x100) {
-        add(Ldc(index))
-    } else {
-        add(LdcW(index))
-    }
-}
+fun CodeBuilder.ldc(pointer: DataPointer) = add(Ldc(pointer.index))
 
 // load
 fun CodeBuilder.iload(index: Int) = add(ILoad(index))
@@ -67,13 +61,7 @@ fun CodeBuilder.fdiv() = add(FDiv)
 
 fun CodeBuilder.fneg() = add(FNeg)
 
-fun CodeBuilder.iinc(index: Int, const: Int) =
-    if (index < 0x100 && const in Byte.MIN_VALUE..Byte.MAX_VALUE) {
-        add(IInc(index, const))
-    } else { // wide
-        add(IIncW(index, const))
-    }
-
+fun CodeBuilder.iinc(index: Int, const: Int) = add(IInc(index, const))
 
 // stack
 fun CodeBuilder.dup() = add(Dup)
