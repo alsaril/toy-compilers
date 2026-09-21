@@ -243,8 +243,6 @@ object RunGenerator {
         raise("Cycles overflow")
 
         val start = fragment(body)
-        link(safe, start)
-        frameSame(start)
 
         val test = aload(arrayIndex)
         link(exit, test)
@@ -255,6 +253,10 @@ object RunGenerator {
         guard()
         baload()
         ifne(head)
+
+        val entry = start ?: test
+        link(safe, entry)
+        frameSame(entry)
     }
 
     private fun ClassFileBuilder.emitCall(target: Pair<String, String>) = emitFragment {
@@ -271,8 +273,8 @@ object RunGenerator {
         iconst(0)
         istore(readIndex)
         val start = fragment(body)
-        frameAppend(start, IntInfo)
-        `return`()
+        val exit = `return`()
+        frameAppend(start ?: exit, IntInfo)
     }
 
     private val EMPTY = Fragment(emptyList(), emptyMap(), emptyList(), emptyList(), size = 0)

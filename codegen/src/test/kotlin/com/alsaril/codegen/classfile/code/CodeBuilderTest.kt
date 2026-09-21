@@ -82,7 +82,7 @@ class CodeBuilderTest {
 
             val code = bytecode {
                 val jump = goto()
-                link(jump, fragment(piece))
+                link(jump, fragment(piece)!!)
             }
 
             assertThat(code).containsExactly(*bytesOf(0xA7, 0x00, 0x03, 0x01))
@@ -258,12 +258,22 @@ class CodeBuilderTest {
             // given a jump that has to reach code arriving from somewhere else
             val code = bytecode {
                 val jump = goto()
-                val landed = fragment(piece { aconst_null(); iconst(-1) })
+                val landed = fragment(piece { aconst_null(); iconst(-1) })!!
                 link(jump, landed)
             }
 
             // then the label names the fragment's first instruction, past the jump
             assertThat(code).containsExactly(*bytesOf(0xA7, 0x00, 0x03, 0x01, 0x02))
+        }
+
+        @Test
+        fun `hands back nothing for a fragment with no instructions`() {
+            // there is no position for an empty splice to have landed at, and saying so
+            // beats naming whatever is emitted next
+            val builder = builder()
+
+            assertThat(builder.fragment(piece { })).isNull()
+            assertThat(builder.fragment(piece { nop() })).isNotNull()
         }
 
         @Test

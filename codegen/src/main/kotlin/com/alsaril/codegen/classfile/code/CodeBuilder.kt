@@ -66,7 +66,7 @@ class CodeBuilder(
         )
     }
 
-    fun fragment(fragment: Fragment): Label {
+    fun fragment(fragment: Fragment): Label? {
         val count = instructions.size
         instructions.addAll(fragment.instructions)
         fragment.jumps.asSequence().map { (from, to) -> from + count to to + count }.forEach {
@@ -81,7 +81,7 @@ class CodeBuilder(
             .map { it.shift(count) }
             .forEach(exceptionHandlers::add)
         size += fragment.size
-        return LabelImpl(this, count)
+        return if (fragment.instructions.isEmpty()) null else LabelImpl(this, count)
     }
 
     fun transform(transform: (Int, Instruction) -> Instruction?): CodeBuilder {
