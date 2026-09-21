@@ -5,7 +5,7 @@ import com.alsaril.codegen.Writable
 
 abstract class CpInfo(private val tag: Int) : Writable {
     final override fun ClassWriter.write() {
-        byte(tag)
+        u1(tag)
         writeInfo()
     }
 
@@ -45,13 +45,13 @@ data class ConstantDoubleInfo(
 data class ConstantClassInfo(
     val nameIndex: Int
 ) : CpInfo(tag = 7) {
-    override fun ClassWriter.writeInfo() = short(nameIndex)
+    override fun ClassWriter.writeInfo() = u2(nameIndex)
 }
 
 data class ConstantStringInfo(
     val valueIndex: Int
 ) : CpInfo(tag = 8) {
-    override fun ClassWriter.writeInfo() = short(valueIndex)
+    override fun ClassWriter.writeInfo() = u2(valueIndex)
 }
 
 data class ConstantFieldRefInfo(
@@ -59,8 +59,8 @@ data class ConstantFieldRefInfo(
     val nameAndTypeIndex: Int
 ) : CpInfo(tag = 9) {
     override fun ClassWriter.writeInfo() {
-        short(classNameIndex)
-        short(nameAndTypeIndex)
+        u2(classNameIndex)
+        u2(nameAndTypeIndex)
     }
 }
 
@@ -69,8 +69,8 @@ data class ConstantMethodRefInfo(
     val nameAndTypeIndex: Int
 ) : CpInfo(tag = 10) {
     override fun ClassWriter.writeInfo() {
-        short(classNameIndex)
-        short(nameAndTypeIndex)
+        u2(classNameIndex)
+        u2(nameAndTypeIndex)
     }
 }
 
@@ -79,8 +79,8 @@ data class ConstantInterfaceMethodRefInfo(
     val nameAndTypeIndex: Int
 ) : CpInfo(tag = 11) {
     override fun ClassWriter.writeInfo() {
-        short(classNameIndex)
-        short(nameAndTypeIndex)
+        u2(classNameIndex)
+        u2(nameAndTypeIndex)
     }
 }
 
@@ -89,7 +89,7 @@ data class ConstantNameAndTypeInfo(
     val descriptorIndex: Int
 ) : CpInfo(tag = 12) {
     override fun ClassWriter.writeInfo() {
-        short(nameIndex)
-        short(descriptorIndex)
+        u2(nameIndex)
+        u2(descriptorIndex)
     }
 }

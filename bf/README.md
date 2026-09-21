@@ -51,8 +51,8 @@ methods, none over the budget, at a cost of seventeen dispatch methods.
 What splitting no longer bounds is the **constant pool**, which every outlined method
 adds about three entries to. Measured: ten million instructions compile to a 151 MB class
 with 56 403 pool entries and load fine; twelve million exhaust the 65 535 entry pool and
-fail during generation with `65536 does not fit a bytecode operand short`, pointing at the
-`invokestatic` that ran out of room. That is the practical ceiling, and it is a `codegen`
+fail during generation with `65536 does not fit a u2`, raised as the `invokestatic` that
+ran out of room is constructed. That is the practical ceiling, and it is a `codegen`
 limit rather than a `bf` one — see its
 [width checks](../codegen/README.md#width-checks).
 
@@ -61,8 +61,12 @@ change to the code they account for, and are computed once per compilation into
 `Generation`:
 
 ```kotlin
-bodyLengthLimit = methodLengthLimit - emitMethodPrefix().size - emitMethodPostfix().size
+bodyLengthLimit = methodLengthLimit - wrapMethodBody(EMPTY).size
+loopOverhead    = emitLoop(EMPTY).size
 ```
+
+Each is the wrapper emitted around an empty body, so it is the real cost of the scaffolding
+rather than a figure kept in step by hand.
 
 A fragment that outgrows a chunk on its own is given a method of its own instead of
 stalling the packer, so splitting always makes progress.

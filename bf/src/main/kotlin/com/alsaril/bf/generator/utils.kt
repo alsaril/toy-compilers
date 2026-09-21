@@ -10,12 +10,6 @@ class Generation(
     fun nextIndex() = counter++
 }
 
-data class LoopBoundary(
-    val fragment: Fragment,
-    val exit: (Int) -> Unit,
-    val entry: Int
-)
-
 class Chunk(val fragments: List<Fragment>, val next: Int?)
 
 fun collect(

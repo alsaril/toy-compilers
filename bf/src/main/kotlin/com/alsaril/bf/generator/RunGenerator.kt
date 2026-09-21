@@ -28,9 +28,7 @@ object RunGenerator {
         val generation = Generation(bodyLengthLimit(), loopOverhead())
         val body = materializeNonrecursive(instructions, generation)
         val (name, descriptor) = defineMethod(body, generation)
-        method("run", "(Ljava/io/InputStream;Ljava/io/OutputStream;II)V", maxStack = 0, PUBLIC, FINAL) {
-            maxStack(5)
-
+        method("run", "(Ljava/io/InputStream;Ljava/io/OutputStream;II)V", PUBLIC, FINAL) {
             // input: in, out, size, cycles
             iconst(2)
             newarray(INT)
@@ -44,7 +42,14 @@ object RunGenerator {
             newarray(BYTE)
             astore(4)
 
+            val ready = aload(1)
+            aload(2)
+            iload(3)
+            aload(4)
+            aload(5)
+
             frameFull(
+                ready,
                 listOf(
                     objInfo(self()),
                     objInfo("java/io/InputStream"),
@@ -55,39 +60,28 @@ object RunGenerator {
                 ), emptyList()
             )
 
-            aload(1)
-            aload(2)
-            iload(3)
-            aload(4)
-            aload(5)
-
-            val from = `try`()
-            invokestatic(method(self(), name, descriptor))
+            val guarded = invokestatic(smethod(self(), name, descriptor))
             aconst_null()
-            val handler = `catch`(from, type = null)
 
-            handler(loc())
-            frameStack(objInfo("java/lang/Throwable"))
-            aload(2)
+            val caught = aload(2)
+            `catch`(guarded, to = caught, handler = caught, type = null)
+            frameStack(caught, objInfo("java/lang/Throwable"))
             invokevirtual(method(clazz("java/io/OutputStream"), "flush", "()V"))
 
             dup()
             val exit = ifnull()
             athrow()
 
-            exit(loc())
-            frameStack(objInfo("java/lang/Throwable"))
-            `return`()
+            val done = `return`()
+            link(exit, done)
+            frameStack(done, objInfo("java/lang/Throwable"))
         }
     }
 
-    private fun ClassFileBuilder.defineMethod(fragment: Fragment, generation: Generation): Pair<String, String> {
+    private fun ClassFileBuilder.defineMethod(body: Fragment, generation: Generation): Pair<String, String> {
         val name = "f${generation.nextIndex()}"
         val descriptor = "(Ljava/io/InputStream;Ljava/io/OutputStream;I[B[I)V"
-        val prefix = emitMethodPrefix()
-        val postfix = emitMethodPostfix()
-        val body = listOf(prefix, fragment, postfix).join()
-        method(name, descriptor, body, maxStack = 0, PRIVATE, STATIC, FINAL)
+        method(name, descriptor, wrapMethodBody(body), PRIVATE, STATIC, FINAL)
         return name to descriptor
     }
 
@@ -158,24 +152,16 @@ object RunGenerator {
         val budget = generation.bodyLengthLimit - if (loop) generation.loopOverhead else 0
         val body = pack(fragments, generation, budget)
 
-        if (!loop) return body
-
-        val (prefix, toTail, start) = emitPrefix()
-        val (postfix, toHead, end) = emitPostfix()
-        toTail(prefix.size + body.size + end)
-        toHead(start - prefix.size - body.size)
-        val fragments = listOf(prefix, body, postfix)
-        return fragments.join()
+        return if (loop) emitLoop(body) else body
     }
 
     private fun CodeBuilder.guard() {
         dup()
         iload(memsizeIndex)
-        invokestatic(method(self(), "guard", "(II)V"))
+        invokestatic(smethod(self(), "guard", "(II)V"))
     }
 
     private fun ClassFileBuilder.emitMove(times: Int, dir: Boolean) = emitFragment {
-        maxStack(4)
         aload(stateIndex)
         iconst(0)
         dup2()
@@ -193,7 +179,6 @@ object RunGenerator {
     }
 
     private fun ClassFileBuilder.emitAdd(times: Int, inc: Boolean) = emitFragment {
-        maxStack(4)
         aload(arrayIndex)
         aload(stateIndex)
         iconst(0)
@@ -208,7 +193,6 @@ object RunGenerator {
     }
 
     private fun ClassFileBuilder.emitRead() = emitFragment {
-        maxStack(4)
         aload(inIndex)
         invokevirtual(method(clazz("java/io/InputStream"), "read", "()I"))
         istore(readIndex)
@@ -219,10 +203,10 @@ object RunGenerator {
         iconst(0)
         istore(readIndex)
 
-        ok(loc())
-        frameSame()
+        val ok_ = aload(arrayIndex)
+        link(ok, ok_)
+        frameSame(ok_)
 
-        aload(arrayIndex)
         aload(stateIndex)
         iconst(0)
         iaload()
@@ -232,7 +216,6 @@ object RunGenerator {
     }
 
     private fun ClassFileBuilder.emitWrite() = emitFragment {
-        maxStack(5)
         aload(outIndex)
         aload(arrayIndex)
         aload(stateIndex)
@@ -243,75 +226,60 @@ object RunGenerator {
         invokevirtual(method(clazz("java/io/OutputStream"), "write", "(I)V"))
     }
 
-    private fun ClassFileBuilder.emitPrefix(): LoopBoundary {
-        val exit: (Int) -> Unit
-        val entry: Int
-        val fragment = emitFragment {
-            maxStack(4)
-            exit = goto() // jump over the loop body
-            entry = loc()
-            frameSame()
+    private fun ClassFileBuilder.emitLoop(body: Fragment) = emitFragment {
+        val exit = goto() // jump over the loop body, to the test below
 
-            // cycles check
-            aload(stateIndex)
-            iconst(1)
-            dup2()
-            iaload()
-            iconst(1)
-            isub()
-            dup_x2()
-            iastore()
-            val safe = ifge()
-            raise("Cycles overflow")
+        // cycles check
+        val head = aload(stateIndex)
+        frameSame(head)
+        iconst(1)
+        dup2()
+        iaload()
+        iconst(1)
+        isub()
+        dup_x2()
+        iastore()
+        val safe = ifge()
+        raise("Cycles overflow")
 
-            safe(loc())
-            frameSame()
-        }
+        val start = fragment(body)
 
-        return LoopBoundary(fragment, exit, entry)
-    }
+        val test = aload(arrayIndex)
+        link(exit, test)
+        frameSame(test)
+        aload(stateIndex)
+        iconst(0)
+        iaload()
+        guard()
+        baload()
+        ifne(head)
 
-    private fun ClassFileBuilder.emitPostfix(): LoopBoundary {
-        val exit: (Int) -> Unit
-        val entry: Int
-        val fragment = emitFragment {
-            maxStack(4)
-            entry = loc()
-            frameSame()
-            aload(arrayIndex)
-            aload(stateIndex)
-            iconst(0)
-            iaload()
-            guard()
-            baload()
-            exit = ifne()
-        }
-        return LoopBoundary(fragment, exit, entry)
+        val entry = start ?: test
+        link(safe, entry)
+        frameSame(entry)
     }
 
     private fun ClassFileBuilder.emitCall(target: Pair<String, String>) = emitFragment {
-        maxStack(5)
         val (name, descriptor) = target
         aload(inIndex)
         aload(outIndex)
         iload(memsizeIndex)
         aload(arrayIndex)
         aload(stateIndex)
-        invokestatic(method(self(), name, descriptor))
+        invokestatic(smethod(self(), name, descriptor))
     }
 
-    private fun ClassFileBuilder.emitMethodPrefix() = emitFragment {
-        maxStack(1)
+    private fun ClassFileBuilder.wrapMethodBody(body: Fragment) = emitFragment {
         iconst(0)
         istore(readIndex)
-        frameAppend(IntInfo)
+        val start = fragment(body)
+        val exit = `return`()
+        frameAppend(start ?: exit, IntInfo)
     }
 
-    private fun ClassFileBuilder.emitMethodPostfix() = emitFragment { `return`() }
+    private val EMPTY = Fragment(emptyList(), emptyMap(), emptyList(), emptyList(), size = 0)
 
-    private fun ClassFileBuilder.bodyLengthLimit() =
-        methodLengthLimit - emitMethodPrefix().size - emitMethodPostfix().size
+    private fun ClassFileBuilder.bodyLengthLimit() = methodLengthLimit - wrapMethodBody(EMPTY).size
 
-    private fun ClassFileBuilder.loopOverhead() =
-        emitPrefix().fragment.size + emitPostfix().fragment.size
+    private fun ClassFileBuilder.loopOverhead() = emitLoop(EMPTY).size
 }

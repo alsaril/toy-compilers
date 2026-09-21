@@ -1,8 +1,7 @@
 package com.alsaril.codegen.classfile
 
 import com.alsaril.codegen.classfile.MethodAccessFlag.STATIC
-import com.alsaril.codegen.classfile.attributes.CodeAttribute
-import com.alsaril.codegen.classfile.attributes.StackMapTableAttribute
+import com.alsaril.codegen.classfile.code.BytecodeSerializer.serialize
 import com.alsaril.codegen.classfile.code.CodeBuilder
 import com.alsaril.codegen.constantpool.UpdatableConstantPool
 import com.alsaril.codegen.toBytes
@@ -10,7 +9,6 @@ import com.alsaril.codegen.write
 import kotlin.contracts.ExperimentalContracts
 import kotlin.contracts.InvocationKind
 import kotlin.contracts.contract
-import kotlin.math.max
 
 class ClassFileBuilder {
     private val thisName: String
@@ -33,32 +31,22 @@ class ClassFileBuilder {
     fun method(
         name: String,
         descriptor: String,
-        maxStack: Int,
         vararg accessFlags: MethodAccessFlag,
         codeBuilder: CodeBuilder.() -> Unit,
     ): ClassFileBuilder {
-        val fragment = CodeBuilder(cp, thisName, parentName).apply { codeBuilder() }.build()
-        return method(name, descriptor, fragment, max(maxStack, fragment.maxStack), *accessFlags)
+        val fragment = emitFragment { codeBuilder() }
+        return method(name, descriptor, fragment, *accessFlags)
     }
 
     fun method(
         name: String,
         descriptor: String,
         fragment: Fragment,
-        maxStack: Int,
         vararg accessFlags: MethodAccessFlag,
     ): ClassFileBuilder {
         val d = parseFunctionDescriptor(descriptor)
-        val static = accessFlags.contains(STATIC)
-
-        val code = CodeAttribute(
-            cp.putUtf8("Code"),
-            max(maxStack, fragment.maxStack),
-            max(d.args.sumOf { it.slots } + (if (static) 0 else 1), fragment.maxLocals),
-            fragment.bytecode(),
-            fragment.exceptionHandlers,
-            listOf(StackMapTableAttribute(cp.putUtf8("StackMapTable"), fragment.frames)),
-        )
+        val headerSlots = d.argSlots(accessFlags.contains(STATIC))
+        val code = serialize(fragment, headerSlots, cp::putUtf8)
         val methodInfo = MethodInfo(
             accessFlags.fold(0) { acc, flag -> acc or flag.value },
             cp.putUtf8(name),

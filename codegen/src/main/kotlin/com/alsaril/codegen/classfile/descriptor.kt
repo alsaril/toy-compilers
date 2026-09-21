@@ -18,7 +18,10 @@ data class ReferenceType(val clazz: String) : Type {
     override val slots = 1
 }
 
-data class FunctionDescriptor(val args: List<Type>, val returnType: Type)
+data class FunctionDescriptor(val args: List<Type>, val returnType: Type) {
+    fun argSlots(static: Boolean) = args.sumOf { it.slots } + (if (static) 0 else 1)
+    fun returnSlots() = returnType.slots
+}
 
 fun parseType(descriptor: String): Type {
     val (type, next) = parseNextType(descriptor, 0)

@@ -17,13 +17,13 @@ class CodeAttribute(
     }
 
     override fun ClassWriter.writeContent() {
-        short(maxStack)
-        short(maxLocals)
+        u2(maxStack)
+        u2(maxLocals)
         int(code.size)
         bytes(code)
-        short(exceptionHandlers.size)
+        u2(exceptionHandlers.size)
         exceptionHandlers.forEach(::write)
-        short(attributes.size)
+        u2(attributes.size)
         attributes.forEach(::write)
     }
 }

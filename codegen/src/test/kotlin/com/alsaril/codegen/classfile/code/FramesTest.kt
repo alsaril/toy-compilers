@@ -13,6 +13,7 @@ import com.alsaril.codegen.constantpool.ConstantClassInfo
 import com.alsaril.codegen.constantpool.ConstantUtf8Info
 import com.alsaril.codegen.constantpool.UpdatableConstantPool
 import org.assertj.core.api.Assertions.assertThat
+import org.assertj.core.api.Assertions.assertThatIllegalArgumentException
 import org.junit.jupiter.api.Test
 
 class FramesTest {
@@ -24,19 +25,17 @@ class FramesTest {
 
     @Test
     fun `measures the first frame from the start of the method`() {
-        assertThat(frames { frameSame() }).containsExactly(SameFrame(0))
-        assertThat(frames { nop(); nop(); frameSame() }).containsExactly(SameFrame(2))
+        assertThat(frames { frameSame(nop()) }).containsExactly(SameFrame(0))
+        assertThat(frames { nop(); nop(); frameSame(nop()) }).containsExactly(SameFrame(2))
     }
 
     @Test
     fun `measures later frames from just past the previous one`() {
-        // given three frames separated by one nop each
+        // given three frames separated by one instruction each
         val recorded = frames {
-            frameSame()
-            nop()
-            frameSame()
-            nop()
-            frameSame()
+            frameSame(nop())
+            frameSame(nop())
+            frameSame(nop())
         }
 
         // then the first is at 0, and each later delta skips the implicit +1
@@ -47,9 +46,9 @@ class FramesTest {
     fun `counts every byte between two frames`() {
         // given
         val recorded = frames {
-            frameSame()
-            repeat(5) { nop() }
-            frameSame()
+            frameSame(nop())
+            repeat(4) { nop() }
+            frameSame(nop())
         }
 
         // then the second frame sits at 5, one past the base of 1
@@ -61,7 +60,7 @@ class FramesTest {
         // given
         val recorded = frames {
             repeat(64) { nop() }
-            frameSame()
+            frameSame(nop())
         }
 
         // then
@@ -69,33 +68,52 @@ class FramesTest {
     }
 
     @Test
-    fun `records one frame when two land on the same offset`() {
-        // two frames cannot share a bytecode offset, so the first one wins
-        assertThat(frames { nop(); frameSame(); frameSame() })
-            .containsExactly(SameFrame(1))
+    fun `records one frame when two equal ones land on the same offset`() {
+        // an offset is named once, so asking for the same frame twice collapses
+        assertThat(frames {
+            nop()
+            val target = nop()
+            frameSame(target)
+            frameSame(target)
+        }).containsExactly(SameFrame(1))
+    }
+
+    @Test
+    fun `refuses two frames that disagree on one offset`() {
+        // there is only one delta to write, so the two cannot both be recorded
+        assertThatIllegalArgumentException()
+            .isThrownBy {
+                frames {
+                    nop()
+                    val target = nop()
+                    frameSame(target)
+                    frameStack(target, IntInfo)
+                }
+            }
+            .withMessageContaining("frames at offset 1 disagree")
     }
 
     @Test
     fun `appends an integer local`() {
-        assertThat(frames { frameAppend(IntInfo) })
+        assertThat(frames { frameAppend(nop(), IntInfo) })
             .containsExactly(AppendFrame(0, listOf(IntegerVariableInfo)))
     }
 
     @Test
     fun `appends a float local`() {
-        assertThat(frames { frameAppend(FloatInfo) })
+        assertThat(frames { frameAppend(nop(), FloatInfo) })
             .containsExactly(AppendFrame(0, listOf(FloatVariableInfo)))
     }
 
     @Test
     fun `describes a float on the stack`() {
-        assertThat(frames { frameStack(FloatInfo) })
+        assertThat(frames { frameStack(nop(), FloatInfo) })
             .containsExactly(SameLocals1StackItemFrameShort(0, FloatVariableInfo))
     }
 
     @Test
     fun `keeps the local types apart in one frame`() {
-        assertThat(frames { frameFull(listOf(IntInfo, FloatInfo, objInfo("[B")), listOf(FloatInfo)) })
+        assertThat(frames { frameFull(nop(), listOf(IntInfo, FloatInfo, objInfo("[B")), listOf(FloatInfo)) })
             .containsExactly(
                 FullFrame(
                     offsetDelta = 0,
@@ -111,7 +129,7 @@ class FramesTest {
         val cp = UpdatableConstantPool()
 
         // when
-        val recorded = builder(cp).apply { frameAppend(objInfo("[B")) }.build().frames
+        val recorded = frames(cp) { frameAppend(nop(), objInfo("[B")) }
 
         // then the descriptor is registered as a class and referenced by index
         assertThat(recorded).containsExactly(AppendFrame(0, listOf(ObjectVariableInfo(2))))
@@ -123,7 +141,7 @@ class FramesTest {
 
     @Test
     fun `appends several locals in order`() {
-        assertThat(frames { frameAppend(objInfo("[B"), IntInfo) })
+        assertThat(frames { frameAppend(nop(), objInfo("[B"), IntInfo) })
             .containsExactly(AppendFrame(0, listOf(ObjectVariableInfo(2), IntegerVariableInfo)))
     }
 
@@ -131,9 +149,9 @@ class FramesTest {
     fun `advances the base past an append frame too`() {
         // given
         val recorded = frames {
-            frameAppend(IntInfo)
-            repeat(3) { nop() }
-            frameSame()
+            frameAppend(nop(), IntInfo)
+            repeat(2) { nop() }
+            frameSame(nop())
         }
 
         // then
@@ -146,7 +164,7 @@ class FramesTest {
     @Test
     fun `describes a single stack item`() {
         // an exception handler starts with the throwable alone on the stack
-        assertThat(frames { frameStack(IntInfo) })
+        assertThat(frames { frameStack(nop(), IntInfo) })
             .containsExactly(SameLocals1StackItemFrameShort(0, IntegerVariableInfo))
     }
 
@@ -154,7 +172,7 @@ class FramesTest {
     fun `switches to the extended form for a distant stack frame`() {
         val recorded = frames {
             repeat(64) { nop() }
-            frameStack(IntInfo)
+            frameStack(nop(), IntInfo)
         }
 
         assertThat(recorded).containsExactly(SameLocals1StackItemFrameExtended(64, IntegerVariableInfo))
@@ -164,9 +182,9 @@ class FramesTest {
     fun `advances the base past a stack frame too`() {
         // given
         val recorded = frames {
-            frameStack(IntInfo)
-            repeat(3) { nop() }
-            frameSame()
+            frameStack(nop(), IntInfo)
+            repeat(2) { nop() }
+            frameSame(nop())
         }
 
         // then
@@ -179,7 +197,7 @@ class FramesTest {
     @Test
     fun `spells out both halves of a full frame`() {
         // given
-        val recorded = frames { frameFull(listOf(IntInfo, objInfo("[B")), listOf(IntInfo)) }
+        val recorded = frames { frameFull(nop(), listOf(IntInfo, objInfo("[B")), listOf(IntInfo)) }
 
         // then
         assertThat(recorded).containsExactly(
@@ -193,7 +211,7 @@ class FramesTest {
 
     @Test
     fun `writes a full frame with nothing in it`() {
-        assertThat(frames { frameFull(emptyList(), emptyList()) })
+        assertThat(frames { frameFull(nop(), emptyList(), emptyList()) })
             .containsExactly(FullFrame(0, emptyList(), emptyList()))
     }
 
@@ -203,8 +221,7 @@ class FramesTest {
         val cp = UpdatableConstantPool()
 
         // when both spellings of the same class are used
-        val recorded = builder(cp).apply { frameFull(listOf(objInfo(self()), objInfo(THIS_CLASS)), emptyList()) }
-            .build().frames
+        val recorded = frames(cp) { frameFull(nop(), listOf(objInfo(self()), objInfo(THIS_CLASS)), emptyList()) }
 
         // then they land on the one pool entry
         assertThat(recorded).containsExactly(

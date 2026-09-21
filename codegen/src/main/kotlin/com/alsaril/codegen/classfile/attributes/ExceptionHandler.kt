@@ -16,9 +16,11 @@ data class ExceptionHandler(
     }
 
     override fun ClassWriter.write() {
-        short(startPc)
-        short(endPc)
-        short(handlerPc)
-        short(catchType)
+        u2(startPc)
+        u2(endPc)
+        u2(handlerPc)
+        u2(catchType)
     }
+
+    fun shift(delta: Int) = copy(startPc = startPc + delta, endPc = endPc + delta, handlerPc = handlerPc + delta)
 }

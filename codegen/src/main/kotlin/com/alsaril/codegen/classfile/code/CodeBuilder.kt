@@ -1,12 +1,14 @@
 package com.alsaril.codegen.classfile.code
 
+import com.alsaril.codegen.DosWriter
 import com.alsaril.codegen.classfile.Fragment
-import com.alsaril.codegen.classfile.OutstandingPatches
 import com.alsaril.codegen.classfile.attributes.ExceptionHandler
 import com.alsaril.codegen.classfile.attributes.StackMapFrame
-import com.alsaril.codegen.classfile.recordAt
+import com.alsaril.codegen.classfile.code.instruction.Instruction
 import com.alsaril.codegen.constantpool.UpdatableConstantPool
-import kotlin.math.max
+import com.alsaril.codegen.write
+import java.io.ByteArrayOutputStream
+import java.io.DataOutputStream
 
 @DslMarker
 annotation class CodeDsl
@@ -17,147 +19,93 @@ class CodeBuilder(
     internal val thisClass: String,
     internal val parentClass: String,
 ) {
-    private val bytecode = mutableListOf<Byte>()
+    private val instructions = mutableListOf<Instruction>()
+    private val jumps = mutableMapOf<Int, Int>()
     private val frames = mutableListOf<StackMapFrame>()
     private val exceptionHandlers = mutableListOf<ExceptionHandler>()
-    private var base = 0
-    private var frozen: ByteArray? = null
-    private val unpatched = OutstandingPatches()
-    private var maxStack = 0
-    private var maxLocals = 0
+    private var size = 0
 
-    fun build(): Fragment {
-        frozen?.let { throw IllegalStateException("this builder has already been built") }
-        with(bytecode.toByteArray()) {
-            frozen = this
-            return Fragment(listOf(this), frames, exceptionHandlers, maxStack, maxLocals, this.size)
-                .also {
-                    it.unpatchedJumps = unpatched::jumps
-                    it.unpatchedHandlers = unpatched::handlers
-                }
-        }
+    private val buffer = ByteArrayOutputStream(3)
+    private val writer = DosWriter(DataOutputStream(buffer))
+
+    private fun width(instruction: Instruction): Int {
+        buffer.reset()
+        writer.write(instruction)
+        return buffer.size()
     }
 
-    fun loc() = bytecode.size
+    internal fun add(instruction: Instruction): Label {
+        val index = instructions.size
+        instructions.add(instruction)
+        size += width(instruction)
+        return LabelImpl(this, index)
+    }
 
-    internal fun deferredJump(patch: (Int) -> Unit): (Int) -> Unit {
-        unpatched.jumps++
-        var pending = true
-        return { target ->
-            if (pending) {
-                pending = false
-                unpatched.jumps--
+    internal fun frame(frame: StackMapFrame) {
+        frames.add(frame)
+    }
+
+    private class LabelImpl(val owner: CodeBuilder, val index: Int) : Label
+
+    internal fun indexOf(label: Label): Int {
+        require(label is LabelImpl && label.owner === this) {
+            "this label was handed out by another builder, so it names nothing here"
+        }
+        return label.index
+    }
+
+    fun end(): Label = LabelImpl(this, instructions.size)
+
+    fun link(from: Label, dest: Label) {
+        jumps[indexOf(from)] = indexOf(dest)
+    }
+
+    fun `catch`(from: Label, to: Label, handler: Label, type: ClassPointer?) {
+        exceptionHandlers.add(
+            ExceptionHandler(indexOf(from), indexOf(to), indexOf(handler), type?.index ?: 0)
+        )
+    }
+
+    fun fragment(fragment: Fragment): Label? {
+        val count = instructions.size
+        instructions.addAll(fragment.instructions)
+        fragment.jumps.asSequence().map { (from, to) -> from + count to to + count }.forEach {
+            jumps[it.first] = it.second
+        }
+        fragment.frames
+            .asSequence()
+            .map { frame -> patchOffset(frame, frame.offsetDelta + count) }
+            .forEach(frames::add)
+        fragment.exceptionHandlers
+            .asSequence()
+            .map { it.shift(count) }
+            .forEach(exceptionHandlers::add)
+        size += fragment.size
+        return if (fragment.instructions.isEmpty()) null else LabelImpl(this, count)
+    }
+
+    fun transform(transform: (Int, Instruction) -> Instruction?): CodeBuilder {
+        var i = 0
+        val iterator = instructions.listIterator()
+        while (iterator.hasNext()) {
+            val instruction = iterator.next()
+            transform(i++, instruction)?.let { replacement ->
+                size += width(replacement) - width(instruction)
+                iterator.set(replacement)
             }
-            patch(target)
         }
+        return this
     }
 
-    private fun deferredHandler(record: (Int) -> Unit): (Int) -> Unit {
-        unpatched.handlers++
-        var pending = true
-        return { handlerPc ->
-            check(pending) { "this catch has already been given a handler" }
-            pending = false
-            unpatched.handlers--
-            record(handlerPc)
-        }
-    }
+    fun size() = size
 
-    internal fun u1(value: Int) {
-        require(value in 0..0xff) { "$value does not fit a u1" }
-        put(value)
-    }
-
-    internal fun s1(value: Int) {
-        require(value in Byte.MIN_VALUE..Byte.MAX_VALUE) { "$value does not fit an s1" }
-        put(value)
-    }
-
-    internal fun u2(value: Int) {
-        require(value in 0..0xffff) { "$value does not fit a u2" }
-        put(value shr 8)
-        put(value)
-    }
-
-    internal fun s2(value: Int) {
-        require(value in Short.MIN_VALUE..Short.MAX_VALUE) { "$value does not fit an s2" }
-        put(value shr 8)
-        put(value)
-    }
-
-    internal fun s2At(value: Int, pos: Int) {
-        require(value in Short.MIN_VALUE..Short.MAX_VALUE) { "$value does not fit an s2" }
-        putAt(value shr 8, pos)
-        putAt(value, pos + 1)
-    }
-
-    private fun put(value: Int) {
-        frozen?.let { throw IllegalStateException("building freezes the code, so nothing more can be emitted") }
-        bytecode.add(value.toByte())
-    }
-
-    private fun putAt(value: Int, pos: Int) {
-        frozen?.let { it[pos] = value.toByte() } ?: run {
-            bytecode[pos] = value.toByte()
-        }
-    }
-
-    internal fun frame(build: (offsetDelta: Int) -> StackMapFrame) {
-        val l = loc()
-        if (frames.isNotEmpty() && l == base - 1) return
-        frames.add(build(l - base))
-        base = l + 1
-    }
-
-    fun fragment(fragment: Fragment) {
-        require(fragment.unpatchedJumps() == 0) {
-            "splicing copies the bytes of a fragment, so its ${fragment.unpatchedJumps()} " +
-                    "outstanding jump patch(es) would not reach the copy: patch before splicing"
-        }
-        require(fragment.unpatchedHandlers() == 0) {
-            "splicing copies the handler rows of a fragment, so its ${fragment.unpatchedHandlers()} " +
-                    "outstanding handler patch(es) would not reach the copy: patch before splicing"
-        }
-
-        val pos = loc()
-        fragment.content.forEach { chunk -> chunk.forEach(bytecode::add) }
-        base = fragment.recordAt(pos, base, frames, exceptionHandlers)
-        maxStack(fragment.maxStack)
-        maxLocals(fragment.maxLocals)
-    }
-
-    fun `try`() = TryPointer(loc())
-
-    fun `catch`(from: TryPointer, type: ClassPointer?): (Int) -> Unit {
-        val to = loc()
-        return deferredHandler { handlerPc ->
-            exceptionHandlers.add(
-                ExceptionHandler(from.index, to, handlerPc, type?.index ?: 0)
-            )
-        }
-    }
-
-    fun maxStack(depth: Int) {
-        maxStack = max(maxStack, depth)
-    }
-
-
-    fun maxLocals(count: Int) {
-        maxLocals = max(maxLocals, count)
-    }
-
-    internal fun local(slot: Int, slots: Int = 1) {
-        maxLocals(slot + slots)
-    }
-
-    fun splice(start: Int, end: Int): Splice = SpliceImpl(bytecode.subList(start, end).toList())
-
-    private class SpliceImpl(val code: List<Byte>) : Splice
-
-    fun append(splice: Splice) {
-        splice as SpliceImpl
-        bytecode.addAll(splice.code)
-    }
+    fun build() = Fragment(
+        instructions.toList(),
+        jumps.toMap(),
+        frames.toList(),
+        exceptionHandlers.toList(),
+        size
+    )
 }
 
-sealed interface Splice
+sealed interface Label

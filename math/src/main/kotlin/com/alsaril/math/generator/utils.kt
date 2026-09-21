@@ -8,9 +8,6 @@ import com.alsaril.math.Var
 
 internal class Counter(private var value: Int = 0) {
     fun inc() = value++
-    fun get() = value
-
-    operator fun plus(other: Counter) = Counter(value + other.value)
 }
 
 internal fun variables(ast: Node): Pair<Map<String, Int>, List<String>> {

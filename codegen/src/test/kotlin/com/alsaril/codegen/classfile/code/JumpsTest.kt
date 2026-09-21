@@ -9,26 +9,28 @@ class JumpsTest {
 
     @Test
     fun `writes the conditional opcodes`() {
-        assertThat(bytecode { goto(0) }).startsWith(*bytesOf(0xA7))
-        assertThat(bytecode { ifeq(0) }).startsWith(*bytesOf(0x99))
-        assertThat(bytecode { ifne(0) }).startsWith(*bytesOf(0x9A))
-        assertThat(bytecode { ifge(0) }).startsWith(*bytesOf(0x9C))
-        assertThat(bytecode { ifgt(0) }).startsWith(*bytesOf(0x9D))
-        assertThat(bytecode { if_icmplt(0) }).startsWith(*bytesOf(0xA1))
-        assertThat(bytecode { if_icmpge(0) }).startsWith(*bytesOf(0xA2))
-        assertThat(bytecode { ifnull(0) }).startsWith(*bytesOf(0xC6))
-        assertThat(bytecode { ifnotnull(0) }).startsWith(*bytesOf(0xC7))
+        assertThat(bytecode { goto() }).startsWith(*bytesOf(0xA7))
+        assertThat(bytecode { ifeq() }).startsWith(*bytesOf(0x99))
+        assertThat(bytecode { ifne() }).startsWith(*bytesOf(0x9A))
+        assertThat(bytecode { ifge() }).startsWith(*bytesOf(0x9C))
+        assertThat(bytecode { ifgt() }).startsWith(*bytesOf(0x9D))
+        assertThat(bytecode { if_icmplt() }).startsWith(*bytesOf(0xA1))
+        assertThat(bytecode { if_icmpge() }).startsWith(*bytesOf(0xA2))
+        assertThat(bytecode { ifnull() }).startsWith(*bytesOf(0xC6))
+        assertThat(bytecode { ifnotnull() }).startsWith(*bytesOf(0xC7))
     }
 
     @Test
     fun `writes a known destination as an offset from the opcode`() {
-        assertThat(bytecode { goto(0) }).containsExactly(*bytesOf(0xA7, 0x00, 0x00))
+        // a jump to itself is the one destination that is an offset of zero
+        assertThat(bytecode { val jump = goto(); link(jump, jump) })
+            .containsExactly(*bytesOf(0xA7, 0x00, 0x00))
     }
 
     @Test
     fun `writes a backwards jump as a negative offset`() {
         // the opcode sits at 1, so jumping to 0 is an offset of -1
-        assertThat(bytecode { nop(); goto(0) })
+        assertThat(bytecode { val target = nop(); goto(target) })
             .containsExactly(*bytesOf(0x00, 0xA7, 0xFF, 0xFF))
     }
 
@@ -51,11 +53,11 @@ class JumpsTest {
         val code = bytecode {
             val jump = goto()
             nop()
-            jump(loc())
+            link(jump, nop())
         }
 
         // then the offset spans the jump instruction and the nop
-        assertThat(code).containsExactly(*bytesOf(0xA7, 0x00, 0x04, 0x00))
+        assertThat(code).containsExactly(*bytesOf(0xA7, 0x00, 0x04, 0x00, 0x00))
     }
 
     @Test
@@ -65,8 +67,7 @@ class JumpsTest {
             iconst(0)
             val jump = ifeq()
             `return`()
-            jump(loc())
-            `return`()
+            link(jump, `return`())
         }
 
         // then the branch target is measured from the ifeq at offset 1
@@ -79,23 +80,22 @@ class JumpsTest {
         val code = bytecode {
             val first = goto()
             val second = goto()
-            val target = loc()
-            first(target)
-            second(target)
+            val target = nop()
+            link(first, target)
+            link(second, target)
         }
 
         // then each offset is relative to its own opcode
-        assertThat(code).containsExactly(*bytesOf(0xA7, 0x00, 0x06, 0xA7, 0x00, 0x03))
+        assertThat(code).containsExactly(*bytesOf(0xA7, 0x00, 0x06, 0xA7, 0x00, 0x03, 0x00))
     }
 
     @Test
     fun `patches a backwards jump to an earlier location`() {
         // given
         val code = bytecode {
-            val target = loc()
-            nop()
+            val target = nop()
             val jump = goto()
-            jump(target)
+            link(jump, target)
         }
 
         // then the jump at offset 1 reaches back to 0
@@ -104,36 +104,27 @@ class JumpsTest {
 
     @Test
     fun `leaves nothing to patch when the destination is given upfront`() {
-        // given
+        // given the destination handed to the jump itself rather than linked afterwards
         val code = bytecode {
-            val patch = goto(0)
-            patch(999) // the returned function is a no-op
+            val target = nop()
+            goto(target)
         }
 
         // then
-        assertThat(code).containsExactly(*bytesOf(0xA7, 0x00, 0x00))
+        assertThat(code).containsExactly(*bytesOf(0x00, 0xA7, 0xFF, 0xFF))
     }
+
     @Test
     fun `rejects a branch offset past a signed short`() {
         assertThatExceptionOfType(IllegalArgumentException::class.java)
-            .isThrownBy { builder().goto(dest = 40_000) }
+            .isThrownBy { bytecode { val target = nop(); repeat(40_000) { nop() }; goto(target) } }
             .withMessageContaining("does not fit an s2")
-
-        assertThatExceptionOfType(IllegalArgumentException::class.java)
-            .isThrownBy { builder().apply { repeat(3) { nop() } }.ifeq(dest = -40_000) }
     }
 
     @Test
     fun `rejects a patched branch offset past a signed short`() {
-        val builder = builder()
-        val patch = builder.goto()
-
         assertThatExceptionOfType(IllegalArgumentException::class.java)
-            .isThrownBy { patch(40_000) }
+            .isThrownBy { bytecode { val jump = goto(); repeat(40_000) { nop() }; link(jump, nop()) } }
             .withMessageContaining("does not fit an s2")
-
-        assertThatExceptionOfType(IllegalArgumentException::class.java)
-            .isThrownBy { patch(-40_000) }
     }
-
 }

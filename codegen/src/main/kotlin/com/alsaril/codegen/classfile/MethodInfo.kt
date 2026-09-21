@@ -16,10 +16,10 @@ data class MethodInfo(
     val attributes: List<AttributeInfo>,
 ) : Writable {
     override fun ClassWriter.write() {
-        short(accessFlags)
-        short(nameIndex)
-        short(descriptorIndex)
-        short(attributes.size)
+        u2(accessFlags)
+        u2(nameIndex)
+        u2(descriptorIndex)
+        u2(attributes.size)
         attributes.forEach(::write)
     }
 }

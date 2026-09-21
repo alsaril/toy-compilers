@@ -9,7 +9,7 @@ data class StaticConstantPool(
     val entries: List<CpInfo>,
 ) : Writable {
     override fun ClassWriter.write() {
-        short(size)
+        u2(size)
         entries.forEach(::write)
     }
 }

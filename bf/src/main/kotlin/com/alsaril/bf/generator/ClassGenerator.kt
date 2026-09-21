@@ -11,14 +11,12 @@ object ClassGenerator {
 
     fun generate(instructions: List<Instruction>) = classFile("Impl", parent = "java/lang/Object")
         .iface("com/alsaril/bf/Program")
-        .method("<init>", "()V", maxStack = 0, PUBLIC) {
-            maxStack(1)
+        .method("<init>", "()V", PUBLIC) {
             aload(0)
             invokespecial(method(parent(), "<init>", "()V"))
             `return`()
         }
-        .method("guard", "(II)V", maxStack = 0, PRIVATE, FINAL, STATIC) {
-            maxStack(3) // the deepest point is the throw on the failing path
+        .method("guard", "(II)V", PRIVATE, FINAL, STATIC) {
             iload(0)
             iconst(0)
             val j1 = if_icmplt()
@@ -29,11 +27,9 @@ object ClassGenerator {
 
             `return`()
 
-            val handler = loc()
-            j1(handler); j2(handler)
-            frameSame()
-
-            raise("Buffer overflow")
+            val handler = raise("Buffer overflow")
+            link(j1, handler); link(j2, handler)
+            frameSame(handler)
         }
         .generateRun(instructions)
         .build()

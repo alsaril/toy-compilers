@@ -1,37 +1,36 @@
 package com.alsaril.codegen.classfile.code
 
+import com.alsaril.codegen.classfile.Fragment
 import com.alsaril.codegen.classfile.attributes.ExceptionHandler
 import com.alsaril.codegen.constantpool.ConstantClassInfo
 import com.alsaril.codegen.constantpool.ConstantUtf8Info
 import com.alsaril.codegen.constantpool.UpdatableConstantPool
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatIllegalArgumentException
-import org.assertj.core.api.Assertions.assertThatIllegalStateException
 import org.junit.jupiter.api.Test
 
 /**
- * A handler covers the half open range [startPc, endPc), so `try` marks the start and
- * `catch` closes the range at the point it is called. Where the handler itself sits is
- * only known once the code after the range has been emitted, so it is patched in later,
- * the same way a forward jump is.
+ * A handler covers the half open range [from, to) and sends a throw to a third label.
+ * All three name instructions that have already been added, so a handler is recorded in
+ * one go rather than patched later. The positions are instruction indices until the
+ * fragment is laid out.
  */
 class ExceptionsTest {
 
     @Test
-    fun `records no handlers for code without a try`() {
+    fun `records no handlers for code without a catch`() {
         assertThat(handlers { nop() }).isEmpty()
     }
 
     @Test
-    fun `spans the code between the try and the catch`() {
-        // given
+    fun `spans the code between its two bounds`() {
+        // given a range closing where the handler begins, which is the usual shape
         val recorded = handlers {
             nop()
-            val from = `try`()
+            val from = nop()
             nop()
-            nop()
-            val handler = `catch`(from, type = null)
-            handler(loc())
+            val caught = nop()
+            `catch`(from, to = caught, handler = caught, type = null)
         }
 
         // then the range covers the two protected nops and stops before the handler
@@ -43,9 +42,9 @@ class ExceptionsTest {
         // catch_type 0 is the JVMS encoding for "any throwable", which is what a
         // finally block needs
         val recorded = handlers {
-            val from = `try`()
-            nop()
-            `catch`(from, type = null)(loc())
+            val from = nop()
+            val caught = nop()
+            `catch`(from, caught, caught, type = null)
         }
 
         assertThat(recorded).containsExactly(ExceptionHandler(0, 1, 1, catchType = 0))
@@ -53,26 +52,10 @@ class ExceptionsTest {
 
     @Test
     fun `refuses a range that covers no instruction`() {
-        // given a catch closing the range at the offset the try opened it
+        // given a range closed at the instruction it opened on
         assertThatIllegalArgumentException()
-            .isThrownBy { handlers { `catch`(`try`(), type = null)(loc()) } }
+            .isThrownBy { handlers { val at = nop(); `catch`(at, at, at, type = null) } }
             .withMessageContaining("[0, 0) covers no instruction")
-    }
-
-    @Test
-    fun `refuses to give one catch a second handler`() {
-        // given a patcher already used, so the row it appended cannot be retargeted
-        assertThatIllegalStateException()
-            .isThrownBy {
-                handlers {
-                    val from = `try`()
-                    nop()
-                    val handler = `catch`(from, type = null)
-                    handler(loc())
-                    handler(loc())
-                }
-            }
-            .withMessageContaining("already been given a handler")
     }
 
     @Test
@@ -82,9 +65,9 @@ class ExceptionsTest {
 
         // when
         val recorded = builder(cp).apply {
-            val from = `try`()
-            nop()
-            `catch`(from, clazz("java/lang/Throwable"))(loc())
+            val from = nop()
+            val caught = nop()
+            `catch`(from, caught, caught, clazz("java/lang/Throwable"))
         }.build().exceptionHandlers
 
         // then the class is registered once and the handler refers to it by index
@@ -96,60 +79,42 @@ class ExceptionsTest {
     }
 
     @Test
-    fun `points the handler wherever it is patched to`() {
+    fun `points the handler wherever it is told to`() {
         // given code between the end of the range and the handler itself
         val recorded = handlers {
-            val from = `try`()
+            val from = nop()
+            val to = nop()
             nop()
-            val handler = `catch`(from, type = null)
-            nop()
-            nop()
-            handler(loc())
+            val caught = nop()
+            `catch`(from, to, caught, type = null)
         }
 
-        // then the range still ends where catch was called
+        // then the range still ends where it was closed
         assertThat(recorded).containsExactly(ExceptionHandler(0, 1, 3, catchType = 0))
     }
 
     @Test
     fun `lets the handler sit inside the code the range protects`() {
-        // a handler patched backwards is legal, and is how a retry loop is written
+        // a handler pointing backwards is legal, and is how a retry loop is written
         val recorded = handlers {
-            val target = loc()
-            val from = `try`()
-            nop()
-            `catch`(from, type = null)(target)
+            val from = nop()
+            val to = nop()
+            `catch`(from, to, handler = from, type = null)
         }
 
         assertThat(recorded).containsExactly(ExceptionHandler(0, 1, 0, catchType = 0))
     }
 
     @Test
-    fun `records nothing until the handler is patched`() {
-        // given a range that is closed but never given a handler
+    fun `keeps several handlers in the order they were recorded`() {
+        // given two ranges, the inner one recorded first
         val recorded = handlers {
-            val from = `try`()
-            nop()
-            `catch`(from, type = null)
-        }
-
-        // then nothing is written, rather than a handler pointing at zero
-        assertThat(recorded).isEmpty()
-    }
-
-    @Test
-    fun `keeps several handlers in the order they were patched`() {
-        // given two ranges, the second closed first
-        val recorded = handlers {
-            val outer = `try`()
-            nop()
-            val inner = `try`()
-            nop()
-            val innerHandler = `catch`(inner, type = null)
-            val outerHandler = `catch`(outer, type = null)
-            innerHandler(loc())
-            nop()
-            outerHandler(loc())
+            val outer = nop()
+            val inner = nop()
+            val end = nop()
+            val outerCaught = nop()
+            `catch`(inner, end, end, type = null)
+            `catch`(outer, end, outerCaught, type = null)
         }
 
         // then the inner one comes first, which is the order the jvm searches them in
@@ -163,16 +128,12 @@ class ExceptionsTest {
     fun `lets two ranges share one handler`() {
         // given
         val recorded = handlers {
-            val first = `try`()
-            nop()
-            val a = `catch`(first, type = null)
-            nop()
-            val second = `try`()
-            nop()
-            val b = `catch`(second, type = null)
-            val target = loc()
-            a(target)
-            b(target)
+            val first = nop()
+            val firstEnd = nop()
+            val second = nop()
+            val target = nop()
+            `catch`(first, firstEnd, target, type = null)
+            `catch`(second, target, target, type = null)
         }
 
         // then
@@ -183,32 +144,65 @@ class ExceptionsTest {
     }
 
     @Test
-    fun `measures the range in bytes rather than instructions`() {
+    fun `measures the range in instructions rather than bytes`() {
         // given a three byte goto inside the protected range
         val recorded = handlers {
-            val from = `try`()
-            goto(0)
-            val handler = `catch`(from, type = null)
-            handler(loc())
+            val from = goto()
+            val caught = nop()
+            `catch`(from, caught, caught, type = null)
         }
 
-        // then
-        assertThat(recorded).containsExactly(ExceptionHandler(0, 3, 3, catchType = 0))
+        // then the range is one instruction wide, whatever that instruction encodes to
+        assertThat(recorded).containsExactly(ExceptionHandler(0, 1, 1, catchType = 0))
     }
 
     @Test
-    fun `reaches the fragment a handler was patched after it was built`() {
-        // given the code is frozen before the handler location is known
-        val builder = builder()
-        val from = builder.`try`()
-        builder.nop()
-        val handler = builder.`catch`(from, type = null)
-        val fragment = builder.build()
+    fun `lets a guarded range cover the last instruction`() {
+        // given a range closed with end(), which names one past the last instruction
+        val recorded = handlers {
+            val from = nop()
+            goto()
+            `catch`(from, to = end(), handler = from, type = null)
+        }
 
-        // when
-        handler(builder.loc())
+        assertThat(recorded).containsExactly(ExceptionHandler(0, 2, 0, catchType = 0))
+    }
 
-        // then the fragment sees the handler the same way it sees a late jump patch
-        assertThat(fragment.exceptionHandlers).containsExactly(ExceptionHandler(0, 1, 1, 0))
+    @Test
+    fun `lays a range that runs to the end out as the length of the code`() {
+        // given the same range, where the two instructions span four bytes
+        val fragment: Fragment = builder().apply {
+            val from = nop()
+            goto()
+            `catch`(from, to = end(), handler = from, type = null)
+        }.build()
+
+        // then the end lands on code_length rather than on an instruction
+        assertThat(handlersOf(fragment)).containsExactly(ExceptionHandler(0, 4, 0, catchType = 0))
+    }
+
+    @Test
+    fun `refuses the end label anywhere an instruction is meant`() {
+        // it names no instruction, so only a range end can take it
+        assertThatIllegalArgumentException()
+            .isThrownBy { bytecode { val jump = goto(); link(jump, end()) } }
+            .withMessageContaining("a jump target names instruction 1")
+
+        assertThatIllegalArgumentException()
+            .isThrownBy { bytecode { nop(); frameSame(end()) } }
+            .withMessageContaining("a frame names instruction 1")
+    }
+
+    @Test
+    fun `lays the range out in bytes once the code is emitted`() {
+        // given the same three byte goto inside the range
+        val fragment = builder().apply {
+            val from = goto()
+            val caught = nop()
+            `catch`(from, caught, caught, type = null)
+        }.build()
+
+        // then the indices become the offsets the class file names
+        assertThat(handlersOf(fragment)).containsExactly(ExceptionHandler(0, 3, 3, catchType = 0))
     }
 }
