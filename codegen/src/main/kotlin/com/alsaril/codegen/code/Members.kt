@@ -1,10 +1,13 @@
-package com.alsaril.codegen.classfile.code
+package com.alsaril.codegen.code
 
-import com.alsaril.codegen.classfile.code.instruction.dup
-import com.alsaril.codegen.classfile.code.instruction.invokespecial
-import com.alsaril.codegen.classfile.code.instruction.new
+import com.alsaril.codegen.instruction.dup
+import com.alsaril.codegen.instruction.invokespecial
+import com.alsaril.codegen.instruction.new
 import com.alsaril.codegen.classfile.parseFunctionDescriptor
 import com.alsaril.codegen.classfile.parseType
+import com.alsaril.codegen.constantpool.ClassPointer
+import com.alsaril.codegen.constantpool.FieldDescriptor
+import com.alsaril.codegen.constantpool.MethodDescriptor
 import com.alsaril.codegen.constantpool.UpdatableConstantPool.RefType.*
 
 fun CodeBuilder.method(classPointer: ClassPointer, name: String, descriptor: String): MethodDescriptor {

@@ -1,4 +1,4 @@
-package com.alsaril.codegen.classfile.code.instruction
+package com.alsaril.codegen.instruction
 
 internal interface PushesOne : Instruction {
     override fun stackEffects() = 0 to 1

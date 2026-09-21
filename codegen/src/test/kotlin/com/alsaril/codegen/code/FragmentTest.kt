@@ -1,4 +1,4 @@
-package com.alsaril.codegen.classfile
+package com.alsaril.codegen.code
 
 import com.alsaril.codegen.bytesOf
 import com.alsaril.codegen.classfile.attributes.AppendFrame
@@ -11,14 +11,10 @@ import com.alsaril.codegen.classfile.attributes.SameLocals1StackItemFrameExtende
 import com.alsaril.codegen.classfile.attributes.SameLocals1StackItemFrameShort
 import com.alsaril.codegen.classfile.attributes.SimpleVerificationTypeInfo.IntegerVariableInfo
 import com.alsaril.codegen.classfile.attributes.StackMapFrame
-import com.alsaril.codegen.classfile.code.builder
-import com.alsaril.codegen.classfile.code.framesOf
-import com.alsaril.codegen.classfile.code.patchOffset
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
-import com.alsaril.codegen.classfile.code.instruction.*
-import com.alsaril.codegen.classfile.code.bytecode
+import com.alsaril.codegen.instruction.*
 
 
 class FragmentTest {

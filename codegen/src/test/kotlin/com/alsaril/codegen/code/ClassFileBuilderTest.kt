@@ -1,20 +1,17 @@
-package com.alsaril.codegen.classfile
+package com.alsaril.codegen.code
 
 import com.alsaril.codegen.bytesOf
-import com.alsaril.codegen.classfile.code.*
 import com.alsaril.codegen.methodLimits
-import com.alsaril.codegen.classfile.ClassFileBuilder.Companion.classFile
+import com.alsaril.codegen.code.ClassFileBuilder.Companion.classFile
 import com.alsaril.codegen.classfile.MethodAccessFlag.PUBLIC
 import com.alsaril.codegen.classfile.MethodAccessFlag.STATIC
-import com.alsaril.codegen.classfile.code.clazz
-import com.alsaril.codegen.classfile.code.parent
-import com.alsaril.codegen.classfile.code.self
-import com.alsaril.codegen.classfile.code.instruction.*
+import com.alsaril.codegen.instruction.*
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatNoException
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
-import com.alsaril.codegen.classfile.code.bytecode
+import com.alsaril.codegen.classfile.MethodAccessFlag
+import com.alsaril.codegen.classfile.PrimitiveType
 
 class ClassFileBuilderTest {
 

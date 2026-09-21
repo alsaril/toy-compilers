@@ -1,8 +1,7 @@
-package com.alsaril.codegen.classfile.code
+package com.alsaril.codegen.code
 
 import com.alsaril.codegen.classfile.attributes.ExceptionHandler
 import com.alsaril.codegen.classfile.attributes.StackMapFrame
-import com.alsaril.codegen.classfile.Fragment
 import com.alsaril.codegen.constantpool.UpdatableConstantPool
 
 const val THIS_CLASS = "This"

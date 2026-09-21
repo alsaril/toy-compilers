@@ -1,13 +1,13 @@
-package com.alsaril.codegen.classfile.code
+package com.alsaril.codegen.code
 
-import com.alsaril.codegen.classfile.ClassFileBuilder.Companion.classFile
+import com.alsaril.codegen.code.ClassFileBuilder.Companion.classFile
 import com.alsaril.codegen.classfile.MethodAccessFlag.STATIC
 import com.alsaril.codegen.classfile.attributes.ExceptionHandler
 import org.assertj.core.api.Assertions.assertThatExceptionOfType
 import org.assertj.core.api.Assertions.assertThatIllegalArgumentException
 import org.assertj.core.api.Assertions.assertThatIllegalStateException
 import org.junit.jupiter.api.Test
-import com.alsaril.codegen.classfile.code.instruction.*
+import com.alsaril.codegen.instruction.*
 
 /**
  * Deriving max_stack walks the code from the entry and from every handler, so it is also

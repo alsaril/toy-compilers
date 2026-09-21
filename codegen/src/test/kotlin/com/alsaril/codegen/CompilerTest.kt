@@ -1,12 +1,12 @@
 package com.alsaril.codegen
 
 import com.alsaril.codegen.Compiler.pipeline
-import com.alsaril.codegen.classfile.ClassFileBuilder
-import com.alsaril.codegen.classfile.ClassFileBuilder.Companion.classFile
+import com.alsaril.codegen.code.ClassFileBuilder
+import com.alsaril.codegen.code.ClassFileBuilder.Companion.classFile
 import com.alsaril.codegen.classfile.MethodAccessFlag.FINAL
 import com.alsaril.codegen.classfile.MethodAccessFlag.PUBLIC
-import com.alsaril.codegen.classfile.code.*
-import com.alsaril.codegen.classfile.code.instruction.*
+import com.alsaril.codegen.code.*
+import com.alsaril.codegen.instruction.*
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatExceptionOfType
 import org.assertj.core.api.Assertions.assertThatIllegalArgumentException

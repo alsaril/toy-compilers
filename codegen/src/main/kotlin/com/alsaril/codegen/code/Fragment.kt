@@ -1,9 +1,8 @@
-package com.alsaril.codegen.classfile
+package com.alsaril.codegen.code
 
 import com.alsaril.codegen.classfile.attributes.ExceptionHandler
 import com.alsaril.codegen.classfile.attributes.StackMapFrame
-import com.alsaril.codegen.classfile.code.instruction.Instruction
-import com.alsaril.codegen.classfile.code.patchOffset
+import com.alsaril.codegen.instruction.Instruction
 
 
 data class Fragment(

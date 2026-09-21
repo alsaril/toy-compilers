@@ -1,4 +1,4 @@
-package com.alsaril.codegen.classfile.code
+package com.alsaril.codegen.code
 
 import com.alsaril.codegen.constantpool.*
 import org.assertj.core.api.Assertions.assertThat

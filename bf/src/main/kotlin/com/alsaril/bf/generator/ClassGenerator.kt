@@ -2,10 +2,10 @@ package com.alsaril.bf.generator
 
 import com.alsaril.bf.Instruction
 import com.alsaril.bf.generator.RunGenerator.generateRun
-import com.alsaril.codegen.classfile.ClassFileBuilder.Companion.classFile
+import com.alsaril.codegen.code.ClassFileBuilder.Companion.classFile
 import com.alsaril.codegen.classfile.MethodAccessFlag.*
-import com.alsaril.codegen.classfile.code.*
-import com.alsaril.codegen.classfile.code.instruction.*
+import com.alsaril.codegen.code.*
+import com.alsaril.codegen.instruction.*
 
 
 object ClassGenerator {

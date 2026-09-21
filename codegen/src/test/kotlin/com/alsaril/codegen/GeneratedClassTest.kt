@@ -1,13 +1,13 @@
 package com.alsaril.codegen
 
 import com.alsaril.codegen.ByteClassLoader.loadClass
-import com.alsaril.codegen.classfile.ClassFileBuilder
+import com.alsaril.codegen.code.ClassFileBuilder
 import com.alsaril.codegen.classfile.PrimitiveType
-import com.alsaril.codegen.classfile.ClassFileBuilder.Companion.classFile
+import com.alsaril.codegen.code.ClassFileBuilder.Companion.classFile
 import com.alsaril.codegen.classfile.MethodAccessFlag.PUBLIC
 import com.alsaril.codegen.classfile.MethodAccessFlag.STATIC
-import com.alsaril.codegen.classfile.code.*
-import com.alsaril.codegen.classfile.code.instruction.*
+import com.alsaril.codegen.code.*
+import com.alsaril.codegen.instruction.*
 import org.assertj.core.api.Assertions.*
 import org.junit.jupiter.api.Test
 import java.lang.reflect.InvocationTargetException

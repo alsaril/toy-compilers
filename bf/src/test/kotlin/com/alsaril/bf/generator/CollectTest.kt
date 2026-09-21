@@ -1,6 +1,6 @@
 package com.alsaril.bf.generator
 
-import com.alsaril.codegen.classfile.Fragment
+import com.alsaril.codegen.code.Fragment
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test

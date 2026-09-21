@@ -1,12 +1,11 @@
-package com.alsaril.codegen.classfile.code
+package com.alsaril.codegen.code
 
 import com.alsaril.codegen.DosWriter
-import com.alsaril.codegen.classfile.Fragment
 import com.alsaril.codegen.classfile.attributes.CodeAttribute
 import com.alsaril.codegen.classfile.attributes.ExceptionHandler
 import com.alsaril.codegen.classfile.attributes.StackMapFrame
 import com.alsaril.codegen.classfile.attributes.StackMapTableAttribute
-import com.alsaril.codegen.classfile.code.instruction.*
+import com.alsaril.codegen.instruction.*
 import com.alsaril.codegen.write
 import java.io.ByteArrayOutputStream
 import java.io.DataOutputStream

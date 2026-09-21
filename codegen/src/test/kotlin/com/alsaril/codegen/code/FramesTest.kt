@@ -1,4 +1,4 @@
-package com.alsaril.codegen.classfile.code
+package com.alsaril.codegen.code
 
 import com.alsaril.codegen.classfile.attributes.AppendFrame
 import com.alsaril.codegen.classfile.attributes.FullFrame
@@ -15,7 +15,7 @@ import com.alsaril.codegen.constantpool.UpdatableConstantPool
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatIllegalArgumentException
 import org.junit.jupiter.api.Test
-import com.alsaril.codegen.classfile.code.instruction.*
+import com.alsaril.codegen.instruction.*
 
 class FramesTest {
 

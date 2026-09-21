@@ -1,4 +1,4 @@
-package com.alsaril.codegen.classfile.code.instruction
+package com.alsaril.codegen.instruction
 
 import com.alsaril.codegen.ClassWriter
 

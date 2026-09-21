@@ -1,8 +1,9 @@
-package com.alsaril.codegen.classfile.code
+package com.alsaril.codegen.code
 
 import com.alsaril.codegen.classfile.attributes.*
 import com.alsaril.codegen.classfile.attributes.SimpleVerificationTypeInfo.FloatVariableInfo
 import com.alsaril.codegen.classfile.attributes.SimpleVerificationTypeInfo.IntegerVariableInfo
+import com.alsaril.codegen.constantpool.ClassPointer
 
 sealed interface VarInfo
 

@@ -1,8 +1,8 @@
-package com.alsaril.codegen.classfile
+package com.alsaril.codegen.code
 
+import com.alsaril.codegen.classfile.*
 import com.alsaril.codegen.classfile.MethodAccessFlag.STATIC
-import com.alsaril.codegen.classfile.code.BytecodeSerializer.serialize
-import com.alsaril.codegen.classfile.code.CodeBuilder
+import com.alsaril.codegen.code.BytecodeSerializer.serialize
 import com.alsaril.codegen.constantpool.UpdatableConstantPool
 import com.alsaril.codegen.toBytes
 import com.alsaril.codegen.write

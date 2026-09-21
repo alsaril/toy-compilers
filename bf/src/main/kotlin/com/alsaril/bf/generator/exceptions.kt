@@ -1,7 +1,7 @@
 package com.alsaril.bf.generator
 
-import com.alsaril.codegen.classfile.code.*
-import com.alsaril.codegen.classfile.code.instruction.*
+import com.alsaril.codegen.code.*
+import com.alsaril.codegen.instruction.*
 
 fun CodeBuilder.raise(message: String): Label {
     val exceptionClass = clazz("java/lang/IllegalStateException")

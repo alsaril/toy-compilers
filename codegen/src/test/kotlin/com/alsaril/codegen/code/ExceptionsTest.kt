@@ -1,6 +1,5 @@
-package com.alsaril.codegen.classfile.code
+package com.alsaril.codegen.code
 
-import com.alsaril.codegen.classfile.Fragment
 import com.alsaril.codegen.classfile.attributes.ExceptionHandler
 import com.alsaril.codegen.constantpool.ConstantClassInfo
 import com.alsaril.codegen.constantpool.ConstantUtf8Info
@@ -8,7 +7,7 @@ import com.alsaril.codegen.constantpool.UpdatableConstantPool
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatIllegalArgumentException
 import org.junit.jupiter.api.Test
-import com.alsaril.codegen.classfile.code.instruction.*
+import com.alsaril.codegen.instruction.*
 
 /**
  * A handler covers the half open range [from, to) and sends a throw to a third label.

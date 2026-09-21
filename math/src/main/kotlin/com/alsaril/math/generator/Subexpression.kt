@@ -1,8 +1,8 @@
 package com.alsaril.math.generator
 
-import com.alsaril.codegen.classfile.ClassFileBuilder
-import com.alsaril.codegen.classfile.code.CodeBuilder
-import com.alsaril.codegen.classfile.code.instruction.fload
+import com.alsaril.codegen.code.ClassFileBuilder
+import com.alsaril.codegen.code.CodeBuilder
+import com.alsaril.codegen.instruction.fload
 
 internal class Subexpression(private val bytecodeBuilder: CodeBuilder) {
     private val statistics = mutableMapOf<Int, Int>()

@@ -4,14 +4,14 @@ import com.alsaril.bf.Command.*
 import com.alsaril.bf.CommandInstruction
 import com.alsaril.bf.Instruction
 import com.alsaril.bf.Loop
-import com.alsaril.codegen.classfile.ClassFileBuilder
-import com.alsaril.codegen.classfile.Fragment
+import com.alsaril.codegen.code.ClassFileBuilder
+import com.alsaril.codegen.code.Fragment
 import com.alsaril.codegen.classfile.MethodAccessFlag.*
-import com.alsaril.codegen.classfile.code.*
-import com.alsaril.codegen.classfile.code.instruction.*
+import com.alsaril.codegen.code.*
+import com.alsaril.codegen.instruction.*
 import com.alsaril.codegen.classfile.PrimitiveType.BYTE
 import com.alsaril.codegen.classfile.PrimitiveType.INT
-import com.alsaril.codegen.classfile.join
+import com.alsaril.codegen.code.join
 import kotlin.math.min
 
 object RunGenerator {

@@ -1,12 +1,7 @@
-package com.alsaril.codegen.classfile.code
+package com.alsaril.codegen.code
 
-data class ClassPointer(val index: Int)
-
-data class MethodDescriptor(val index: Int, val argSlots: Int, val returnSlots: Int)
-
-data class FieldDescriptor(val index: Int, val slots: Int)
-
-data class DataPointer(val index: Int)
+import com.alsaril.codegen.constantpool.ClassPointer
+import com.alsaril.codegen.constantpool.DataPointer
 
 fun CodeBuilder.self() = ClassPointer(cp.putClass(thisClass))
 

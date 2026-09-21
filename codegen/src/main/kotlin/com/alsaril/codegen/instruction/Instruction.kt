@@ -1,13 +1,13 @@
-package com.alsaril.codegen.classfile.code.instruction
+package com.alsaril.codegen.instruction
 
 import com.alsaril.codegen.ClassWriter
 import com.alsaril.codegen.Writable
 import com.alsaril.codegen.classfile.PrimitiveType
 import com.alsaril.codegen.classfile.PrimitiveType.*
-import com.alsaril.codegen.classfile.code.ClassPointer
-import com.alsaril.codegen.classfile.code.DataPointer
-import com.alsaril.codegen.classfile.code.FieldDescriptor
-import com.alsaril.codegen.classfile.code.MethodDescriptor
+import com.alsaril.codegen.constantpool.ClassPointer
+import com.alsaril.codegen.constantpool.DataPointer
+import com.alsaril.codegen.constantpool.FieldDescriptor
+import com.alsaril.codegen.constantpool.MethodDescriptor
 
 sealed interface Instruction : Writable {
     fun stackEffects(): Pair<Int, Int> = 0 to 0

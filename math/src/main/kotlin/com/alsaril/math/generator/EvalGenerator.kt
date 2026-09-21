@@ -1,9 +1,9 @@
 package com.alsaril.math.generator
 
-import com.alsaril.codegen.classfile.ClassFileBuilder
+import com.alsaril.codegen.code.ClassFileBuilder
 import com.alsaril.codegen.classfile.MethodAccessFlag.*
-import com.alsaril.codegen.classfile.code.*
-import com.alsaril.codegen.classfile.code.instruction.*
+import com.alsaril.codegen.code.*
+import com.alsaril.codegen.instruction.*
 import com.alsaril.math.*
 import com.alsaril.math.BinaryKind.*
 import kotlin.math.max

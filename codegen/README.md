@@ -10,6 +10,17 @@ nothing about sources.
 ClassFileBuilder ─> CodeBuilder ─> Fragment ─> BytecodeSerializer ─> ClassFile ─> ClassWriter ─> ByteArray
 ```
 
+Five packages, and the dependencies run one way — `code` on top, `constantpool` at the
+bottom, no cycles:
+
+| package | holds |
+|---|---|
+| `code` | `ClassFileBuilder`, `CodeBuilder`, `Fragment`, `BytecodeSerializer`, `Members`, `Pointers`, `Frames` — everything that builds |
+| `instruction` | the opcodes, their encodings and their stack effects |
+| `classfile` | the static JVMS records: `ClassFile`, `MethodInfo`, descriptors, and `attributes/` |
+| `constantpool` | the pool, and the typed indices into it (`ClassPointer`, `MethodDescriptor`, `FieldDescriptor`, `DataPointer`) |
+| *(root)* | `ClassWriter`, `Writable`, `ByteClassLoader`, `Compiler` |
+
 A body is built as a **list of instructions**, not as bytes. Nothing has an address until
 `BytecodeSerializer` lays the fragment out, and that is also when `max_stack`, `max_locals`,
 the frame deltas and the exception table offsets are derived. A caller never names an
@@ -33,7 +44,7 @@ descriptor costs one entry. Long and double correctly occupy two slots.
 
 ## Instructions
 
-`classfile/code/instruction/` holds the IR, and each opcode is one line stating the two
+`instruction/` holds the IR, and each opcode is one line stating the two
 things about it that matter:
 
 ```kotlin
