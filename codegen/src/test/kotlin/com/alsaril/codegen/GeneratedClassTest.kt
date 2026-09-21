@@ -7,6 +7,7 @@ import com.alsaril.codegen.classfile.ClassFileBuilder.Companion.classFile
 import com.alsaril.codegen.classfile.MethodAccessFlag.PUBLIC
 import com.alsaril.codegen.classfile.MethodAccessFlag.STATIC
 import com.alsaril.codegen.classfile.code.*
+import com.alsaril.codegen.classfile.code.instruction.*
 import org.assertj.core.api.Assertions.*
 import org.junit.jupiter.api.Test
 import java.lang.reflect.InvocationTargetException
@@ -19,9 +20,9 @@ class GeneratedClassTest {
         "()V",
         PUBLIC,
     ) {
-        aload(0)
-        invokespecial(method(parent(), "<init>", "()V"))
-        `return`()
+        +aload(0)
+        +invokespecial(method(parent(), "<init>", "()V"))
+        +`return`
     }
 
     @Test
@@ -30,7 +31,7 @@ class GeneratedClassTest {
         val (name, bytes) = classFile("GenRunnable", "java/lang/Object")
             .iface("java/lang/Runnable")
             .withConstructor()
-            .method("run", "()V", PUBLIC) { `return`() }
+            .method("run", "()V", PUBLIC) { +`return` }
             .build()
 
         // when
@@ -46,8 +47,8 @@ class GeneratedClassTest {
         // given a body that returns its argument untouched, so the answer is the slot
         val (name, bytes) = classFile("GenStaticSlot", "java/lang/Object")
             .method("f", "(I)I", PUBLIC, STATIC) {
-                iload(0)
-                ireturn()
+                +iload(0)
+                +ireturn
             }
             .build()
 
@@ -66,8 +67,8 @@ class GeneratedClassTest {
             .iface("java/util/function/IntUnaryOperator")
             .withConstructor()
             .method("applyAsInt", "(I)I", PUBLIC) {
-                iload(1)
-                ireturn()
+                +iload(1)
+                +ireturn
             }
             .build()
 
@@ -84,10 +85,10 @@ class GeneratedClassTest {
         // given a slot only the wide form can address, inside a max_locals that covers it
         val (name, bytes) = classFile("GenWideSlot", "java/lang/Object")
             .method("f", "(I)I", PUBLIC, STATIC) {
-                iload(0)
-                istore(258)
-                iload(258)
-                ireturn()
+                +iload(0)
+                +istore(258)
+                +iload(258)
+                +ireturn
             }
             .build()
 
@@ -104,17 +105,17 @@ class GeneratedClassTest {
         // given a fragment whose branches reach its own instructions
         val builder = classFile("GenSpliced", "java/lang/Object")
         val chooses = builder.emitFragment {
-            iload(0)
-            val otherwise = ifeq()
-            iconst(1)
-            val done = goto()
+            +iload(0)
+            val otherwise = +ifeq
+            +iconst(1)
+            val done = +goto
 
-            val elseBranch = nop()
+            val elseBranch = +nop
             link(otherwise, elseBranch)
             frameSame(elseBranch)
-            iconst(2)
+            +iconst(2)
 
-            val exit = ireturn()
+            val exit = +ireturn
             link(done, exit)
             frameStack(exit, IntInfo)
         }
@@ -122,7 +123,7 @@ class GeneratedClassTest {
         // when it is spliced in behind something else, so it does not land at zero
         val (name, bytes) = builder
             .method("f", "(I)I", PUBLIC, STATIC) {
-                nop()
+                +nop
                 fragment(chooses)
             }
             .build()
@@ -139,12 +140,12 @@ class GeneratedClassTest {
         // given a body three deep, with the depth coming from the instructions alone
         val (name, bytes) = classFile("GenDeepStack", "java/lang/Object")
             .method("f", "()I", PUBLIC, STATIC) {
-                iconst(1)
-                iconst(1)
-                iconst(1)
-                iadd()
-                iadd()
-                ireturn()
+                +iconst(1)
+                +iconst(1)
+                +iconst(1)
+                +iadd
+                +iadd
+                +ireturn
             }
             .build()
         val method = loadClass(name, bytes).getDeclaredMethod("f")
@@ -161,7 +162,7 @@ class GeneratedClassTest {
             .withConstructor()
             .method("run", "()V", PUBLIC) {
                 construct(clazz("java/lang/IllegalStateException"), "<init>", "()V")
-                athrow()
+                +athrow
             }
             .build()
         val instance = loadClass(name, bytes).getDeclaredConstructor()
@@ -178,13 +179,13 @@ class GeneratedClassTest {
             .iface("java/lang/Runnable")
             .withConstructor()
             .method("run", "()V", PUBLIC) {
-                iconst(0)
-                val jump = ifeq()
+                +iconst(0)
+                val jump = +ifeq
 
                 construct(clazz("java/lang/IllegalStateException"), "<init>", "()V")
-                athrow()
+                +athrow
 
-                val target = `return`()
+                val target = +`return`
                 link(jump, target)
                 frameSame(target)
             }
@@ -201,18 +202,18 @@ class GeneratedClassTest {
         // given both paths writing slot 1 before they meet
         val (name, bytes) = classFile("GenIntFrame", "java/lang/Object")
             .method("f", "(I)I", PUBLIC, STATIC) {
-                iconst(2)
-                istore(1)
+                +iconst(2)
+                +istore(1)
 
-                iload(0)
-                val jump = ifeq()
-                iconst(1)
-                istore(1)
+                +iload(0)
+                val jump = +ifeq
+                +iconst(1)
+                +istore(1)
 
-                val target = iload(1)
+                val target = +iload(1)
                 link(jump, target)
                 frameAppend(target, IntInfo)
-                ireturn()
+                +ireturn
             }
             .build()
         val method = loadClass(name, bytes)
@@ -228,18 +229,18 @@ class GeneratedClassTest {
         // given both paths writing slot 1 before they meet
         val (name, bytes) = classFile("GenFloatFrame", "java/lang/Object")
             .method("f", "(I)F", PUBLIC, STATIC) {
-                fconst(2)
-                fstore(1)
+                +fconst(2)
+                +fstore(1)
 
-                iload(0)
-                val jump = ifeq()
-                fconst(1)
-                fstore(1)
+                +iload(0)
+                val jump = +ifeq
+                +fconst(1)
+                +fstore(1)
 
-                val target = fload(1)
+                val target = +fload(1)
                 link(jump, target)
                 frameAppend(target, FloatInfo)
-                freturn()
+                +freturn
             }
             .build()
         val method = loadClass(name, bytes)
@@ -265,14 +266,14 @@ class GeneratedClassTest {
                 operands()
                 val branch = jump()
 
-                iconst(0)
-                val done = goto()
+                +iconst(0)
+                val done = +goto
 
-                val taken = iconst(1)
+                val taken = +iconst(1)
                 link(branch, taken)
                 frameSame(taken)
 
-                val exit = ireturn()
+                val exit = +ireturn
                 link(done, exit)
                 frameStack(exit, IntInfo)
             }
@@ -281,52 +282,52 @@ class GeneratedClassTest {
     }
 
     private fun againstZero(name: String, jump: CodeBuilder.() -> Label): (Int) -> Int {
-        val method = conditional(name, "(I)I", { iload(0) }, jump)
+        val method = conditional(name, "(I)I", { +iload(0) }, jump)
             .getDeclaredMethod("f", Int::class.javaPrimitiveType)
         return { a -> method.invoke(null, a) as Int }
     }
 
     private fun betweenInts(name: String, jump: CodeBuilder.() -> Label): (Int, Int) -> Int {
-        val method = conditional(name, "(II)I", { iload(0); iload(1) }, jump)
+        val method = conditional(name, "(II)I", { +iload(0); +iload(1) }, jump)
             .getDeclaredMethod("f", Int::class.javaPrimitiveType, Int::class.javaPrimitiveType)
         return { a, b -> method.invoke(null, a, b) as Int }
     }
 
     private fun againstNull(name: String, jump: CodeBuilder.() -> Label): (Any?) -> Int {
-        val method = conditional(name, "(Ljava/lang/Object;)I", { aload(0) }, jump)
+        val method = conditional(name, "(Ljava/lang/Object;)I", { +aload(0) }, jump)
             .getDeclaredMethod("f", Any::class.java)
         return { r -> method.invoke(null, r) as Int }
     }
 
     @Test
     fun `branches on a comparison with zero`() {
-        val ifeq = againstZero("GenIfeq") { ifeq() }
-        assertThat(ifeq(0)).isOne()
-        assertThat(ifeq(1)).isZero()
+        val eq = againstZero("GenIfeq") { +ifeq }
+        assertThat(eq(0)).isOne()
+        assertThat(eq(1)).isZero()
 
-        val ifne = againstZero("GenIfne") { ifne() }
-        assertThat(ifne(1)).isOne()
-        assertThat(ifne(0)).isZero()
+        val ne = againstZero("GenIfne") { +ifne }
+        assertThat(ne(1)).isOne()
+        assertThat(ne(0)).isZero()
 
-        val ifge = againstZero("GenIfge") { ifge() }
-        assertThat(ifge(1)).isOne()
-        assertThat(ifge(0)).isOne()
-        assertThat(ifge(-1)).isZero()
+        val ge = againstZero("GenIfge") { +ifge }
+        assertThat(ge(1)).isOne()
+        assertThat(ge(0)).isOne()
+        assertThat(ge(-1)).isZero()
 
-        val ifgt = againstZero("GenIfgt") { ifgt() }
-        assertThat(ifgt(1)).isOne()
-        assertThat(ifgt(0)).isZero()
+        val gt = againstZero("GenIfgt") { +ifgt }
+        assertThat(gt(1)).isOne()
+        assertThat(gt(0)).isZero()
     }
 
     @Test
     fun `branches on a comparison between two ints`() {
         // these take two operands off the stack rather than one
-        val lt = betweenInts("GenIfIcmplt") { if_icmplt() }
+        val lt = betweenInts("GenIfIcmplt") { +if_icmplt }
         assertThat(lt(1, 2)).isOne()
         assertThat(lt(1, 1)).isZero()
         assertThat(lt(2, 1)).isZero()
 
-        val ge = betweenInts("GenIfIcmpge") { if_icmpge() }
+        val ge = betweenInts("GenIfIcmpge") { +if_icmpge }
         assertThat(ge(2, 1)).isOne()
         assertThat(ge(1, 1)).isOne()
         assertThat(ge(1, 2)).isZero()
@@ -334,11 +335,11 @@ class GeneratedClassTest {
 
     @Test
     fun `branches on a comparison with null`() {
-        val isNull = againstNull("GenIfnull") { ifnull() }
+        val isNull = againstNull("GenIfnull") { +ifnull }
         assertThat(isNull(null)).isOne()
         assertThat(isNull("x")).isZero()
 
-        val notNull = againstNull("GenIfnotnull") { ifnotnull() }
+        val notNull = againstNull("GenIfnonnull") { +ifnonnull }
         assertThat(notNull("x")).isOne()
         assertThat(notNull(null)).isZero()
     }
@@ -350,19 +351,19 @@ class GeneratedClassTest {
             .iface("java/util/function/IntUnaryOperator")
             .withConstructor()
             .method("applyAsInt", "(I)I", PUBLIC) {
-                iconst(1)
-                newarray(PrimitiveType.BYTE)
-                iload(1)
+                +iconst(1)
+                +newarray(PrimitiveType.BYTE)
+                +iload(1)
 
-                val guarded = baload()
-                val done = goto()
+                val guarded = +baload
+                val done = +goto
 
-                val caught = astore(2) // drop the throwable
+                val caught = +astore(2) // drop the throwable
                 `catch`(guarded, to = done, handler = caught, type = clazz("java/lang/ArrayIndexOutOfBoundsException"))
                 frameStack(caught, objInfo("java/lang/Throwable"))
-                iconst(-1)
+                +iconst(-1)
 
-                val exit = ireturn()
+                val exit = +ireturn
                 link(done, exit)
                 frameStack(exit, IntInfo)
             }
@@ -382,20 +383,20 @@ class GeneratedClassTest {
         // range and its end_pc is the length of the code
         val (name, bytes) = classFile("GenGuardToEnd", "java/lang/Object")
             .method("f", "(I)I", PUBLIC, STATIC) {
-                val skip = goto()
+                val skip = +goto
 
-                val caught = astore(1) // drop the throwable
+                val caught = +astore(1) // drop the throwable
                 frameStack(caught, objInfo("java/lang/Throwable"))
-                iconst(-1)
-                ireturn()
+                +iconst(-1)
+                +ireturn
 
-                val guarded = iconst(1)
+                val guarded = +iconst(1)
                 link(skip, guarded)
                 frameSame(guarded)
-                newarray(PrimitiveType.BYTE)
-                iload(0)
-                baload()
-                ireturn()
+                +newarray(PrimitiveType.BYTE)
+                +iload(0)
+                +baload
+                +ireturn
 
                 `catch`(guarded, to = end(), handler = caught, type = null)
             }
@@ -415,15 +416,15 @@ class GeneratedClassTest {
             .iface("java/lang/Runnable")
             .withConstructor()
             .method("run", "()V", PUBLIC) {
-                val guarded = new(clazz("java/lang/IllegalStateException"))
-                dup()
-                invokespecial(method(clazz("java/lang/IllegalStateException"), "<init>", "()V"))
-                athrow()
+                val guarded = +new(clazz("java/lang/IllegalStateException"))
+                +dup
+                +invokespecial(method(clazz("java/lang/IllegalStateException"), "<init>", "()V"))
+                +athrow
 
-                val caught = astore(1)
+                val caught = +astore(1)
                 `catch`(guarded, to = caught, handler = caught, type = clazz("java/lang/ArrayIndexOutOfBoundsException"))
                 frameStack(caught, objInfo("java/lang/Throwable"))
-                `return`()
+                +`return`
             }
             .build()
         val instance = loadClass(name, bytes).getDeclaredConstructor()
@@ -442,27 +443,27 @@ class GeneratedClassTest {
         // given f(log, n), which throws for n == 0 and writes to log[0] either way
         val (name, bytes) = classFile("GenFinally", "java/lang/Object")
             .method("f", "([II)V", PUBLIC, STATIC) {
-                val guarded = iload(1)
-                val ok = ifne()
+                val guarded = +iload(1)
+                val ok = +ifne
                 construct(clazz("java/lang/IllegalStateException"), "<init>", "()V")
-                athrow()
+                +athrow
 
-                val okTarget = aconst_null() // the normal path arrives with nothing to rethrow
+                val okTarget = +aconst_null // the normal path arrives with nothing to rethrow
                 link(ok, okTarget)
                 frameSame(okTarget)
 
-                val caught = aload(0)
+                val caught = +aload(0)
                 `catch`(guarded, to = caught, handler = caught, type = null)
                 frameStack(caught, objInfo("java/lang/Throwable"))
-                iconst(0)
-                iconst(1)
-                iastore()
+                +iconst(0)
+                +iconst(1)
+                +iastore
 
-                dup()
-                val exit = ifnull()
-                athrow()
+                +dup
+                val exit = +ifnull
+                +athrow
 
-                val done = `return`()
+                val done = +`return`
                 link(exit, done)
                 frameStack(done, objInfo("java/lang/Throwable"))
             }
@@ -489,19 +490,19 @@ class GeneratedClassTest {
         // they meet if the receiver was counted among the call's operands
         val (name, bytes) = classFile("GenBranchInvoke", "java/lang/Object")
             .method("f", "(Ljava/lang/String;I)I", PUBLIC, STATIC) {
-                iconst(0)
-                istore(2)
+                +iconst(0)
+                +istore(2)
 
-                iload(1)
-                val jump = ifeq()
-                aload(0)
-                invokevirtual(method(clazz("java/lang/String"), "length", "()I"))
-                istore(2)
+                +iload(1)
+                val jump = +ifeq
+                +aload(0)
+                +invokevirtual(method(clazz("java/lang/String"), "length", "()I"))
+                +istore(2)
 
-                val target = iload(2)
+                val target = +iload(2)
                 link(jump, target)
                 frameAppend(target, IntInfo)
-                ireturn()
+                +ireturn
             }
             .build()
         val method = loadClass(name, bytes)
@@ -517,10 +518,10 @@ class GeneratedClassTest {
         // given size() reached on an Object that has to be narrowed to a List first
         val (name, bytes) = classFile("GenCast", "java/lang/Object")
             .method("f", "(Ljava/lang/Object;)I", PUBLIC, STATIC) {
-                aload(0)
-                checkcast(clazz("java/util/List"))
-                invokeinterface(imethod(clazz("java/util/List"), "size", "()I"))
-                ireturn()
+                +aload(0)
+                +checkcast(clazz("java/util/List"))
+                +invokeinterface(imethod(clazz("java/util/List"), "size", "()I"))
+                +ireturn
             }
             .build()
         val method = loadClass(name, bytes).getDeclaredMethod("f", Any::class.java)

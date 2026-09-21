@@ -8,6 +8,7 @@ import com.alsaril.codegen.constantpool.UpdatableConstantPool
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatIllegalArgumentException
 import org.junit.jupiter.api.Test
+import com.alsaril.codegen.classfile.code.instruction.*
 
 /**
  * A handler covers the half open range [from, to) and sends a throw to a third label.
@@ -19,17 +20,17 @@ class ExceptionsTest {
 
     @Test
     fun `records no handlers for code without a catch`() {
-        assertThat(handlers { nop() }).isEmpty()
+        assertThat(handlers { +nop }).isEmpty()
     }
 
     @Test
     fun `spans the code between its two bounds`() {
         // given a range closing where the handler begins, which is the usual shape
         val recorded = handlers {
-            nop()
-            val from = nop()
-            nop()
-            val caught = nop()
+            +nop
+            val from = +nop
+            +nop
+            val caught = +nop
             `catch`(from, to = caught, handler = caught, type = null)
         }
 
@@ -42,8 +43,8 @@ class ExceptionsTest {
         // catch_type 0 is the JVMS encoding for "any throwable", which is what a
         // finally block needs
         val recorded = handlers {
-            val from = nop()
-            val caught = nop()
+            val from = +nop
+            val caught = +nop
             `catch`(from, caught, caught, type = null)
         }
 
@@ -54,7 +55,7 @@ class ExceptionsTest {
     fun `refuses a range that covers no instruction`() {
         // given a range closed at the instruction it opened on
         assertThatIllegalArgumentException()
-            .isThrownBy { handlers { val at = nop(); `catch`(at, at, at, type = null) } }
+            .isThrownBy { handlers { val at = +nop; `catch`(at, at, at, type = null) } }
             .withMessageContaining("[0, 0) covers no instruction")
     }
 
@@ -65,8 +66,8 @@ class ExceptionsTest {
 
         // when
         val recorded = builder(cp).apply {
-            val from = nop()
-            val caught = nop()
+            val from = +nop
+            val caught = +nop
             `catch`(from, caught, caught, clazz("java/lang/Throwable"))
         }.build().exceptionHandlers
 
@@ -82,10 +83,10 @@ class ExceptionsTest {
     fun `points the handler wherever it is told to`() {
         // given code between the end of the range and the handler itself
         val recorded = handlers {
-            val from = nop()
-            val to = nop()
-            nop()
-            val caught = nop()
+            val from = +nop
+            val to = +nop
+            +nop
+            val caught = +nop
             `catch`(from, to, caught, type = null)
         }
 
@@ -97,8 +98,8 @@ class ExceptionsTest {
     fun `lets the handler sit inside the code the range protects`() {
         // a handler pointing backwards is legal, and is how a retry loop is written
         val recorded = handlers {
-            val from = nop()
-            val to = nop()
+            val from = +nop
+            val to = +nop
             `catch`(from, to, handler = from, type = null)
         }
 
@@ -109,10 +110,10 @@ class ExceptionsTest {
     fun `keeps several handlers in the order they were recorded`() {
         // given two ranges, the inner one recorded first
         val recorded = handlers {
-            val outer = nop()
-            val inner = nop()
-            val end = nop()
-            val outerCaught = nop()
+            val outer = +nop
+            val inner = +nop
+            val end = +nop
+            val outerCaught = +nop
             `catch`(inner, end, end, type = null)
             `catch`(outer, end, outerCaught, type = null)
         }
@@ -128,10 +129,10 @@ class ExceptionsTest {
     fun `lets two ranges share one handler`() {
         // given
         val recorded = handlers {
-            val first = nop()
-            val firstEnd = nop()
-            val second = nop()
-            val target = nop()
+            val first = +nop
+            val firstEnd = +nop
+            val second = +nop
+            val target = +nop
             `catch`(first, firstEnd, target, type = null)
             `catch`(second, target, target, type = null)
         }
@@ -147,8 +148,8 @@ class ExceptionsTest {
     fun `measures the range in instructions rather than bytes`() {
         // given a three byte goto inside the protected range
         val recorded = handlers {
-            val from = goto()
-            val caught = nop()
+            val from = +goto
+            val caught = +nop
             `catch`(from, caught, caught, type = null)
         }
 
@@ -160,8 +161,8 @@ class ExceptionsTest {
     fun `lets a guarded range cover the last instruction`() {
         // given a range closed with end(), which names one past the last instruction
         val recorded = handlers {
-            val from = nop()
-            goto()
+            val from = +nop
+            +goto
             `catch`(from, to = end(), handler = from, type = null)
         }
 
@@ -172,8 +173,8 @@ class ExceptionsTest {
     fun `lays a range that runs to the end out as the length of the code`() {
         // given the same range, where the two instructions span four bytes
         val fragment: Fragment = builder().apply {
-            val from = nop()
-            goto()
+            val from = +nop
+            +goto
             `catch`(from, to = end(), handler = from, type = null)
         }.build()
 
@@ -185,11 +186,11 @@ class ExceptionsTest {
     fun `refuses the end label anywhere an instruction is meant`() {
         // it names no instruction, so only a range end can take it
         assertThatIllegalArgumentException()
-            .isThrownBy { bytecode { val jump = goto(); link(jump, end()) } }
+            .isThrownBy { bytecode { val jump = +goto; link(jump, end()) } }
             .withMessageContaining("a jump target names instruction 1")
 
         assertThatIllegalArgumentException()
-            .isThrownBy { bytecode { nop(); frameSame(end()) } }
+            .isThrownBy { bytecode { +nop; frameSame(end()) } }
             .withMessageContaining("a frame names instruction 1")
     }
 
@@ -197,8 +198,8 @@ class ExceptionsTest {
     fun `lays the range out in bytes once the code is emitted`() {
         // given the same three byte goto inside the range
         val fragment = builder().apply {
-            val from = goto()
-            val caught = nop()
+            val from = +goto
+            val caught = +nop
             `catch`(from, caught, caught, type = null)
         }.build()
 

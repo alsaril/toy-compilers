@@ -34,6 +34,8 @@ class CodeBuilder(
         return buffer.size()
     }
 
+    operator fun Instruction.unaryPlus(): Label = add(this)
+
     internal fun add(instruction: Instruction): Label {
         val index = instructions.size
         instructions.add(instruction)

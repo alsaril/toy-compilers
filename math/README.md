@@ -114,8 +114,8 @@ emitted. A `Subexpression` emits real instructions as it goes, giving each varia
 index it was discovered with, and counts how often it read each one:
 
 ```kotlin
-subexpression.exact { fadd() }   // code that reads no variable
-subexpression.fload(index)       // a real fload, at the variable's discovery index
+subexpression.exact { +fadd }    // code that reads no variable
+subexpression.variable(index)    // a real fload, at the variable's discovery index
 ```
 
 A body is built before it is known which method it will land in, and a method numbers its
@@ -124,7 +124,7 @@ preamble in that order, and rewrites every load where it stands:
 
 ```kotlin
 bytecodeBuilder.transform { _, instruction ->
-    (instruction as? FLoad)?.let { FLoad(o2n[it.index - callSlots]!! + callSlots) }
+    (instruction as? fload)?.let { fload(o2n[it.index - callSlots]!! + callSlots) }
 }
 ```
 

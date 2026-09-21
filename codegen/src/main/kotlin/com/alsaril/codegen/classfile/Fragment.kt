@@ -2,7 +2,6 @@ package com.alsaril.codegen.classfile
 
 import com.alsaril.codegen.classfile.attributes.ExceptionHandler
 import com.alsaril.codegen.classfile.attributes.StackMapFrame
-import com.alsaril.codegen.classfile.code.BytecodeSerializer
 import com.alsaril.codegen.classfile.code.instruction.Instruction
 import com.alsaril.codegen.classfile.code.patchOffset
 
@@ -14,8 +13,6 @@ data class Fragment(
     val exceptionHandlers: List<ExceptionHandler>,
     val size: Int,
 )
-
-fun Fragment.bytecode(): ByteArray = BytecodeSerializer.emit(this).first
 
 fun List<Fragment>.join(): Fragment {
     if (size == 1) return first()

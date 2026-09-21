@@ -86,9 +86,9 @@ object BytecodeSerializer {
         fun target() = requireNotNull(jumps[pc]) { "$instruction at $pc was never linked to a target" }
 
         return when (instruction) {
-            IfEq, IfNe, IfGe, IfGt, IfICmpLt, IfICmpGe, IfNull, IfNotNull -> listOf(pc + 1, target())
-            Goto -> listOf(target())
-            Return, IReturn, FReturn, AThrow -> emptyList()
+            ifeq, ifne, ifge, ifgt, if_icmplt, if_icmpge, ifnull, ifnonnull -> listOf(pc + 1, target())
+            goto -> listOf(target())
+            `return`, ireturn, freturn, athrow -> emptyList()
             else -> listOf(pc + 1)
         }
     }
@@ -111,7 +111,7 @@ object BytecodeSerializer {
 
         fragment.jumps.forEach { (from, to) ->
             val instruction = fragment.instructions[from]
-            require(instruction is JumpTemplateInstruction) {
+            require(instruction is JumpInstruction) {
                 "instruction $from is linked to $to, but $instruction is not a jump"
             }
             val fromLoc = loc(from, "a jump")

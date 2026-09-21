@@ -11,17 +11,14 @@ import com.alsaril.codegen.classfile.attributes.SameLocals1StackItemFrameExtende
 import com.alsaril.codegen.classfile.attributes.SameLocals1StackItemFrameShort
 import com.alsaril.codegen.classfile.attributes.SimpleVerificationTypeInfo.IntegerVariableInfo
 import com.alsaril.codegen.classfile.attributes.StackMapFrame
-import com.alsaril.codegen.classfile.code.aconst_null
 import com.alsaril.codegen.classfile.code.builder
-import com.alsaril.codegen.classfile.code.instruction.Nop
 import com.alsaril.codegen.classfile.code.framesOf
-import com.alsaril.codegen.classfile.code.goto
-import com.alsaril.codegen.classfile.code.iconst
-import com.alsaril.codegen.classfile.code.nop
 import com.alsaril.codegen.classfile.code.patchOffset
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import com.alsaril.codegen.classfile.code.instruction.*
+import com.alsaril.codegen.classfile.code.bytecode
 
 
 class FragmentTest {
@@ -29,7 +26,7 @@ class FragmentTest {
     private fun fragment(size: Int, vararg frames: Pair<Int, StackMapFrame>) = builder().apply {
         val byIndex = frames.toMap()
         repeat(size) { i ->
-            val label = nop()
+            val label = +nop
             byIndex[i]?.let { frame(patchOffset(it, indexOf(label))) }
         }
     }.build()
@@ -40,7 +37,7 @@ class FragmentTest {
         @Test
         fun `lays the instructions out in order`() {
             // given
-            val fragment = builder().apply { aconst_null(); iconst(-1); iconst(0); iconst(1) }.build()
+            val fragment = builder().apply { +aconst_null; +iconst(-1); +iconst(0); +iconst(1) }.build()
 
             // then
             assertThat(fragment.bytecode()).containsExactly(*bytesOf(0x01, 0x02, 0x03, 0x04))
@@ -81,8 +78,8 @@ class FragmentTest {
         fun `adds up the sizes and keeps the instructions in order`() {
             // given
             val joined = listOf(
-                builder().apply { aconst_null(); iconst(-1) }.build(),
-                builder().apply { iconst(0) }.build(),
+                builder().apply { +aconst_null; +iconst(-1) }.build(),
+                builder().apply { +iconst(0) }.build(),
             ).join()
 
             // then
@@ -94,10 +91,10 @@ class FragmentTest {
         fun `shifts the links of a fragment by instructions rather than bytes`() {
             // given a single instruction three bytes wide ahead of a fragment that
             // reaches its own target
-            val prefix = builder().apply { goto() }.build()
+            val prefix = builder().apply { +goto }.build()
             val body = builder().apply {
-                val jump = goto()
-                link(jump, nop())
+                val jump = +goto
+                link(jump, +nop)
             }.build()
 
             // when
@@ -213,7 +210,7 @@ class FragmentTest {
 
         // `size` nops guarded by rows already written against this fragment's own indices
         private fun guarded(size: Int, vararg handlers: ExceptionHandler) =
-            Fragment(List(size) { Nop }, emptyMap(), emptyList(), handlers.toList(), size)
+            Fragment(List(size) { nop }, emptyMap(), emptyList(), handlers.toList(), size)
 
         @Test
         fun `hands back a lone fragment's handlers untouched`() {
@@ -291,7 +288,7 @@ class FragmentTest {
         fun `moves handlers and frames by the same amount`() {
             // given a fragment carrying both
             val body = Fragment(
-                List(3) { Nop },
+                List(3) { nop },
                 emptyMap(),
                 listOf(SameLocals1StackItemFrameShort(1, IntegerVariableInfo)),
                 listOf(ExceptionHandler(0, 1, 1, catchType = 0)),

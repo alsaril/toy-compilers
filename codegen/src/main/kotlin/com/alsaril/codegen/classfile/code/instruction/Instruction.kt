@@ -2,40 +2,47 @@ package com.alsaril.codegen.classfile.code.instruction
 
 import com.alsaril.codegen.ClassWriter
 import com.alsaril.codegen.Writable
+import com.alsaril.codegen.classfile.PrimitiveType
+import com.alsaril.codegen.classfile.PrimitiveType.*
+import com.alsaril.codegen.classfile.code.ClassPointer
+import com.alsaril.codegen.classfile.code.DataPointer
+import com.alsaril.codegen.classfile.code.FieldDescriptor
+import com.alsaril.codegen.classfile.code.MethodDescriptor
 
 sealed interface Instruction : Writable {
     fun stackEffects(): Pair<Int, Int> = 0 to 0
     fun locals(): Int? = null
 }
 
-data object Nop : NoArgInstruction(0x00)
+data object nop : NoArgInstruction(0x00)
 
-data object AConstNull : NoArgInstruction(0x01), PushesOne
+data object aconst_null : NoArgInstruction(0x01), PushesOne
 
-data class IConst(val value: Int) : OneMixedArgInstruction(0x03, value), PushesOne {
+data class iconst(val value: Int) : Instruction, PushesOne {
     init {
-        require(value in -1..5) { "$value is out of range for iconst" }
+        require(value in Short.MIN_VALUE..Short.MAX_VALUE) {
+            "$value is too big for iconst/bipush/sipush, ldc should be used"
+        }
+    }
+
+    override fun ClassWriter.write() {
+        when (value) {
+            in -1..5 -> u1(0x03 + value)
+            in Byte.MIN_VALUE..Byte.MAX_VALUE -> { u1(0x10); s1(value) }
+            else -> { u1(0x11); s2(value) }
+        }
     }
 }
 
-data class BIPush(val value: Int) : OneSignedByteArgInstruction(0x10, value), PushesOne
-
-data class SIPush(val value: Int) : TwoSignedBytesArgInstruction(0x11, value), PushesOne
-
-data class FConst(val value: Int) : OneMixedArgInstruction(0x0b, value), PushesOne {
+data class fconst(val value: Int) : OneMixedArgInstruction(0x0b, value), PushesOne {
     init {
-        require(value in 0..2) { "$value is out of range for fconst" }
+        require(value in 0..2) { "$value is out of range for fconst, ldc should be used" }
     }
 }
 
-data class ILoad(override val index: Int) : LocalSlotInstruction(0x1a, 0x15), PushesOne
-data class FLoad(override val index: Int) : LocalSlotInstruction(0x22, 0x17), PushesOne
-data class ALoad(override val index: Int) : LocalSlotInstruction(0x2a, 0x19), PushesOne
-data class IStore(override val index: Int) : LocalSlotInstruction(0x3b, 0x36), PopsOne
-data class FStore(override val index: Int) : LocalSlotInstruction(0x43, 0x38), PopsOne
-data class AStore(override val index: Int) : LocalSlotInstruction(0x4b, 0x3a), PopsOne
+data class ldc(val index: Int) : Instruction, PushesOne {
+    constructor(pointer: DataPointer) : this(pointer.index)
 
-data class Ldc(val index: Int) : Instruction, PushesOne {
     init {
         require(index in 0..0xffff) { "$index does not fit a u2" }
     }
@@ -49,29 +56,37 @@ data class Ldc(val index: Int) : Instruction, PushesOne {
     }
 }
 
-data object IALoad : NoArgInstruction(0x2e), PopsTwoPushesOne
+data class iload(override val index: Int) : LocalSlotInstruction(0x1a, 0x15), PushesOne
+data class fload(override val index: Int) : LocalSlotInstruction(0x22, 0x17), PushesOne
+data class aload(override val index: Int) : LocalSlotInstruction(0x2a, 0x19), PushesOne
 
-data object BALoad : NoArgInstruction(0x33), PopsTwoPushesOne
+data object iaload : NoArgInstruction(0x2e), PopsTwoPushesOne
 
-data object IAStore : NoArgInstruction(0x4f), PopsThree
+data object baload : NoArgInstruction(0x33), PopsTwoPushesOne
 
-data object BAStore : NoArgInstruction(0x54), PopsThree
+data class istore(override val index: Int) : LocalSlotInstruction(0x3b, 0x36), PopsOne
+data class fstore(override val index: Int) : LocalSlotInstruction(0x43, 0x38), PopsOne
+data class astore(override val index: Int) : LocalSlotInstruction(0x4b, 0x3a), PopsOne
 
-data object IAdd : NoArgInstruction(0x60), PopsTwoPushesOne
+data object iastore : NoArgInstruction(0x4f), PopsThree
 
-data object ISub : NoArgInstruction(0x64), PopsTwoPushesOne
+data object bastore : NoArgInstruction(0x54), PopsThree
 
-data object FAdd : NoArgInstruction(0x62), PopsTwoPushesOne
+data object iadd : NoArgInstruction(0x60), PopsTwoPushesOne
 
-data object FSub : NoArgInstruction(0x66), PopsTwoPushesOne
+data object isub : NoArgInstruction(0x64), PopsTwoPushesOne
 
-data object FMul : NoArgInstruction(0x6a), PopsTwoPushesOne
+data object fadd : NoArgInstruction(0x62), PopsTwoPushesOne
 
-data object FDiv : NoArgInstruction(0x6e), PopsTwoPushesOne
+data object fsub : NoArgInstruction(0x66), PopsTwoPushesOne
 
-data object FNeg : NoArgInstruction(0x76), PopsOnePushesOne
+data object fmul : NoArgInstruction(0x6a), PopsTwoPushesOne
 
-data class IInc(override val index: Int, val delta: Int) : TouchesLocal {
+data object fdiv : NoArgInstruction(0x6e), PopsTwoPushesOne
+
+data object fneg : NoArgInstruction(0x76), PopsOnePushesOne
+
+data class iinc(override val index: Int, val delta: Int) : TouchesLocal {
     init {
         require(index in 0..0xffff) { "$index does not fit a u2" }
         require(delta in Short.MIN_VALUE..Short.MAX_VALUE) { "$delta does not fit an s2" }
@@ -86,59 +101,69 @@ data class IInc(override val index: Int, val delta: Int) : TouchesLocal {
     }
 }
 
-data object Dup : NoArgInstruction(0x59) {
+data object dup : NoArgInstruction(0x59) {
     override fun stackEffects() = 1 to 2
 }
 
-data object Dup2 : NoArgInstruction(0x5c) {
+data object dup2 : NoArgInstruction(0x5c) {
     override fun stackEffects() = 2 to 4
 }
 
-data object DupX2 : NoArgInstruction(0x5b) {
+data object dup_x2 : NoArgInstruction(0x5b) {
     override fun stackEffects() = 3 to 4
 }
 
-data object IReturn : NoArgInstruction(0xac), PopsOne
+data object ireturn : NoArgInstruction(0xac), PopsOne
 
-data object FReturn : NoArgInstruction(0xae), PopsOne
+data object freturn : NoArgInstruction(0xae), PopsOne
 
-data object Return : NoArgInstruction(0xb1)
+data object `return` : NoArgInstruction(0xb1)
 
-data object AThrow : NoArgInstruction(0xbf), PopsOne
+data object athrow : NoArgInstruction(0xbf), PopsOne
 
-data object IfEq : JumpTemplateInstruction(0x99), PopsOne
+data object ifeq : JumpInstruction(0x99), PopsOne
 
-data object IfNe : JumpTemplateInstruction(0x9a), PopsOne
+data object ifne : JumpInstruction(0x9a), PopsOne
 
-data object IfGe : JumpTemplateInstruction(0x9c), PopsOne
+data object ifge : JumpInstruction(0x9c), PopsOne
 
-data object IfGt : JumpTemplateInstruction(0x9d), PopsOne
+data object ifgt : JumpInstruction(0x9d), PopsOne
 
-data object IfICmpLt : JumpTemplateInstruction(0xa1), PopsTwo
+data object if_icmplt : JumpInstruction(0xa1), PopsTwo
 
-data object IfICmpGe : JumpTemplateInstruction(0xa2), PopsTwo
+data object if_icmpge : JumpInstruction(0xa2), PopsTwo
 
-data object Goto : JumpTemplateInstruction(0xa7)
+data object goto : JumpInstruction(0xa7)
 
-data object IfNull : JumpTemplateInstruction(0xc6), PopsOne
+data object ifnull : JumpInstruction(0xc6), PopsOne
 
-data object IfNotNull : JumpTemplateInstruction(0xc7), PopsOne
+data object ifnonnull : JumpInstruction(0xc7), PopsOne
 
-data class GetStatic(val index: Int, val slots: Int) : TwoBytesArgInstruction(0xb2, index) {
+data class getstatic(val index: Int, val slots: Int) : TwoBytesArgInstruction(0xb2, index) {
+    constructor(field: FieldDescriptor) : this(field.index, field.slots)
+
     override fun stackEffects() = 0 to slots
 }
 
-data class InvokeVirtual(val index: Int, override val argSlots: Int, override val returnSlots: Int) :
-    TwoBytesArgInstruction(0xb6, index), Invocation
+data class invokevirtual(val index: Int, override val argSlots: Int, override val returnSlots: Int) :
+    TwoBytesArgInstruction(0xb6, index), Invocation {
+    constructor(method: MethodDescriptor) : this(method.index, method.argSlots, method.returnSlots)
+}
 
-data class InvokeSpecial(val index: Int, override val argSlots: Int, override val returnSlots: Int) :
-    TwoBytesArgInstruction(0xb7, index), Invocation
+data class invokespecial(val index: Int, override val argSlots: Int, override val returnSlots: Int) :
+    TwoBytesArgInstruction(0xb7, index), Invocation {
+    constructor(method: MethodDescriptor) : this(method.index, method.argSlots, method.returnSlots)
+}
 
-data class InvokeStatic(val index: Int, override val argSlots: Int, override val returnSlots: Int) :
-    TwoBytesArgInstruction(0xb8, index), Invocation
+data class invokestatic(val index: Int, override val argSlots: Int, override val returnSlots: Int) :
+    TwoBytesArgInstruction(0xb8, index), Invocation {
+    constructor(method: MethodDescriptor) : this(method.index, method.argSlots, method.returnSlots)
+}
 
-data class InvokeInterface(val index: Int, override val argSlots: Int, override val returnSlots: Int) :
+data class invokeinterface(val index: Int, override val argSlots: Int, override val returnSlots: Int) :
     Invocation {
+    constructor(method: MethodDescriptor) : this(method.index, method.argSlots, method.returnSlots)
+
     init {
         require(index in 0..0xffff) { "$index does not fit a u2" }
     }
@@ -151,10 +176,30 @@ data class InvokeInterface(val index: Int, override val argSlots: Int, override 
     }
 }
 
-data class New(val index: Int) : TwoBytesArgInstruction(0xbb, index), PushesOne
+data class new(val index: Int) : TwoBytesArgInstruction(0xbb, index), PushesOne {
+    constructor(clazz: ClassPointer) : this(clazz.index)
+}
 
-data class NewArray(val type: Int) : OneByteArgInstruction(0xbc, type), PopsOnePushesOne
+data class newarray(val type: Int) : OneByteArgInstruction(0xbc, type), PopsOnePushesOne {
+    constructor(type: PrimitiveType) : this(
+        when (type) {
+            BOOLEAN -> 4
+            CHAR -> 5
+            FLOAT -> 6
+            DOUBLE -> 7
+            BYTE -> 8
+            SHORT -> 9
+            INT -> 10
+            LONG -> 11
+            VOID -> throw IllegalArgumentException("an array cannot hold void")
+        }
+    )
+}
 
-data class CheckCast(val index: Int) : TwoBytesArgInstruction(0xc0, index), PopsOnePushesOne
+data class checkcast(val index: Int) : TwoBytesArgInstruction(0xc0, index), PopsOnePushesOne {
+    constructor(clazz: ClassPointer) : this(clazz.index)
+}
 
-data class InstanceOf(val index: Int) : TwoBytesArgInstruction(0xc1, index), PopsOnePushesOne
+data class instanceof(val index: Int) : TwoBytesArgInstruction(0xc1, index), PopsOnePushesOne {
+    constructor(clazz: ClassPointer) : this(clazz.index)
+}

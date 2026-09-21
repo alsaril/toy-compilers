@@ -37,15 +37,23 @@ descriptor costs one entry. Long and double correctly occupy two slots.
 things about it that matter:
 
 ```kotlin
-data object AConstNull : NoArgInstruction(0x01), PushesOne
-data class ILoad(override val index: Int) : LocalSlotInstruction(0x1a, 0x15), PushesOne
+data object aconst_null : NoArgInstruction(0x01), PushesOne
+data class iload(override val index: Int) : LocalSlotInstruction(0x1a, 0x15), PushesOne
 ```
 
+**A class is named after its JVMS mnemonic, in lower case**, so a body reads as the
+bytecode it is rather than as a translation of it. `return` is spelled `` `return` ``,
+being a keyword.
+
 - **`Encodings.kt`** — how an instruction and its operands reach the stream, and the width
-  check for the operand each shape writes. `LocalSlotInstruction` goes one further and
-  picks the opcode itself — the compact form for slots 0–3, the operand form to 255, the
-  wide prefix past that — so a slot is a number an instruction carries rather than a choice
-  frozen into its type, and re-slotting one re-encodes it.
+  check for the operand each shape writes. Some instructions go one further and pick the
+  opcode themselves from the operand, so the choice is never frozen into a type and
+  re-slotting or re-valuing one re-encodes it: `LocalSlotInstruction` takes the compact
+  form for slots 0–3, the operand form to 255 and the wide prefix past that; `iconst`
+  spans `iconst_<i>`, `bipush` and `sipush`; `ldc` and `iinc` each pick between a narrow
+  and a wide form. `iconst`, `ldc` and `iinc` carry their range check in `init`;
+  `LocalSlotInstruction` checks its slot as it writes, its `index` being abstract and so
+  out of reach of the base class's `init`.
 - **`Effects.kt`** — what an instruction does to the operand stack and to the local slots.
   Eight mixins (`PushesOne`, `PopsOne`, `PopsTwoPushesOne`, `Invocation`, `TouchesLocal`, …)
   supply the effect for every opcode but four: the three `dup` forms, each one of a kind,
@@ -57,19 +65,27 @@ it can introduce an instruction.
 
 ## Bytecode DSL
 
-The instruction set lives around `CodeBuilder` as extension functions, split by concern —
-`Opcodes`, `Jumps`, `Invocations`, `Frames`, `Pointers` — so it stays usable inside a
-`CodeBuilder.() -> Unit` block:
+An instruction is emitted by naming it after a `+`. That operator, declared on
+`CodeBuilder`, is the **whole** opcode surface:
+
+```kotlin
+operator fun Instruction.unaryPlus(): Label = add(this)
+```
 
 ```kotlin
 method("f", "()I", PUBLIC, STATIC) {
-    iconst(2); iconst(3); iadd(); ireturn()
+    +iconst(2); +iconst(3); +iadd; +ireturn
 }
 ```
 
+Being a member rather than a top-level extension, it is in scope only inside a
+`CodeBuilder.() -> Unit` block. Around it sits the code that does more than name an
+opcode: `Members` (pool refs for methods and fields), `Pointers` (refs for classes and
+constants), `Frames`, and `link` / `` `catch` `` / `end` for addressing.
+
 `@DslMarker` (`@CodeDsl`) keeps a nested block from resolving an outer receiver.
 
-**Every emitting helper hands back a `Label`** — the position of the instruction it added,
+**`+` hands back a `Label`** — the position of the instruction it added,
 as an index into the instructions of the builder that handed it out. A label belongs to
 that builder and nowhere else: one handed to a different builder is refused rather than
 silently naming whatever sits at that index there. That single return value is the whole
@@ -90,15 +106,18 @@ and nothing else; which of the three encodings that slot needs is settled when t
 instruction is written, as above. The ceiling is 65535, which is `max_locals`' own limit,
 and the [width checks](#width-checks) reject anything beyond.
 
-**Jumps name a label.** A branch either takes its destination up front or is linked once
-the target exists; the operand is a placeholder until layout resolves it:
+**Jumps name a label.** A branch is emitted like anything else and linked to its target
+whenever that becomes known, before or after; the operand is a placeholder until layout
+resolves it:
 
 ```kotlin
-val jump = ifeq()
+val jump = +ifeq
 ...
-val target = iload(1)
+val target = +iload(1)
 link(jump, target)
 ```
+
+When the target already exists, the two collapse into one line — `link(+goto, head)`.
 
 ## Calls and fields
 
@@ -110,6 +129,13 @@ what `max_stack` is derived from:
 | `method` | `invokevirtual`, `invokespecial` | arguments **plus the receiver** |
 | `smethod` | `invokestatic` | arguments alone |
 | `imethod` | `invokeinterface` | arguments plus the receiver, and the count byte |
+
+Each hands back a descriptor that the instruction takes whole, so the slot counts reach
+`max_stack` without being restated:
+
+```kotlin
++invokestatic(smethod(self(), "f", "(I)I"))
+```
 
 `field` carries the slots its type occupies, so `getstatic` of a `long` or a `double`
 accounts for the two it pushes.
@@ -123,7 +149,7 @@ separate names rather than a boolean.
 A frame is attached to the instruction it describes, under that instruction's label:
 
 ```kotlin
-val target = iload(1)
+val target = +iload(1)
 link(jump, target)
 frameAppend(target, IntInfo)
 ```
@@ -144,10 +170,10 @@ A handler is a row of the `Code` attribute's exception table: the half-open rang
 where to send a throw, and the type it catches. All three are labels, recorded in one call:
 
 ```kotlin
-val guarded = baload()
-val done = goto()
+val guarded = +baload
+val done = +goto
 
-val caught = astore(2)
+val caught = +astore(2)
 `catch`(guarded, to = done, handler = caught, type = clazz("java/lang/ArrayIndexOutOfBoundsException"))
 ```
 
@@ -220,10 +246,10 @@ and its index:
 
 ```
 a method body must hold at least one instruction
-IfEq at 1 was never linked to a target
-Nop at 0 continues to 1, which is past the last instruction
-IReturn at 3 is reached with a stack 1 deep on one path and 0 deep on another
-IAdd at 0 pops 2 from a stack 0 deep
+ifeq at 1 was never linked to a target
+nop at 0 continues to 1, which is past the last instruction
+ireturn at 3 is reached with a stack 1 deep on one path and 0 deep on another
+iadd at 0 pops 2 from a stack 0 deep
 instruction 1 is unreachable
 ```
 
@@ -260,8 +286,8 @@ where it is written. There are two layers:
 
 - **The encoding shapes** — each `Encodings.kt` base class checks its operand in `init`, so
   a bad value is refused when the instruction is *constructed* rather than when the body is
-  finally written. `IInc` and `InvokeInterface` write their operands directly and check both
-  themselves.
+  finally written. The four that write their operands directly — `iconst`, `ldc`, `iinc`
+  and `invokeinterface` — carry the same check themselves.
 
 `BytecodeSerializer.s2At` is the same check for a branch offset, which only exists once the
 target's position is known.

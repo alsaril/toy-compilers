@@ -6,6 +6,7 @@ import com.alsaril.codegen.classfile.ClassFileBuilder.Companion.classFile
 import com.alsaril.codegen.classfile.MethodAccessFlag.FINAL
 import com.alsaril.codegen.classfile.MethodAccessFlag.PUBLIC
 import com.alsaril.codegen.classfile.code.*
+import com.alsaril.codegen.classfile.code.instruction.*
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatExceptionOfType
 import org.assertj.core.api.Assertions.assertThatIllegalArgumentException
@@ -31,9 +32,9 @@ class CompilerTest {
         "()V",
         PUBLIC,
     ) {
-        aload(0)
-        invokespecial(method(parent(), "<init>", "()V"))
-        `return`()
+        +aload(0)
+        +invokespecial(method(parent(), "<init>", "()V"))
+        +`return`
     }
 
     private fun ClassFileBuilder.withCount(value: Int) = method(
@@ -42,8 +43,8 @@ class CompilerTest {
         PUBLIC,
         FINAL,
     ) {
-        iconst(value)
-        ireturn()
+        +iconst(value)
+        +ireturn
     }
 
     /** the backend a well behaved frontend would bring */
@@ -128,7 +129,7 @@ class CompilerTest {
                     classFile("GenRunnable", "java/lang/Object")
                         .iface("java/lang/Runnable")
                         .withConstructor()
-                        .method("run", "()V", PUBLIC) { `return`() }
+                        .method("run", "()V", PUBLIC) { +`return` }
                         .build()
                 },
                 Runnable::class.java,
@@ -171,7 +172,7 @@ class CompilerTest {
                             classFile("GenOther", "java/lang/Object")
                                 .iface("java/lang/Runnable")
                                 .withConstructor()
-                                .method("run", "()V", PUBLIC) { `return`() }
+                                .method("run", "()V", PUBLIC) { +`return` }
                                 .build()
                         },
                         Counter::class.java,

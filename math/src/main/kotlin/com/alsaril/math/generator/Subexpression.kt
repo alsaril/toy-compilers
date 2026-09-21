@@ -2,8 +2,7 @@ package com.alsaril.math.generator
 
 import com.alsaril.codegen.classfile.ClassFileBuilder
 import com.alsaril.codegen.classfile.code.CodeBuilder
-import com.alsaril.codegen.classfile.code.fload
-import com.alsaril.codegen.classfile.code.instruction.FLoad
+import com.alsaril.codegen.classfile.code.instruction.fload
 
 internal class Subexpression(private val bytecodeBuilder: CodeBuilder) {
     private val statistics = mutableMapOf<Int, Int>()
@@ -13,8 +12,8 @@ internal class Subexpression(private val bytecodeBuilder: CodeBuilder) {
         return this
     }
 
-    fun fload(index: Int): Subexpression {
-        bytecodeBuilder.fload(index + callSlots)
+    fun variable(index: Int): Subexpression {
+        with(bytecodeBuilder) { +fload(index + callSlots) }
         statistics.merge(index, 1, Int::plus)
         return this
     }
@@ -38,7 +37,7 @@ internal class Subexpression(private val bytecodeBuilder: CodeBuilder) {
 
     fun transform(o2n: Map<Int, Int>) {
         bytecodeBuilder.transform { _, instruction ->
-            (instruction as? FLoad)?.let { FLoad(o2n[it.index - callSlots]!! + callSlots) }
+            (instruction as? fload)?.let { fload(o2n[it.index - callSlots]!! + callSlots) }
         }
     }
 }

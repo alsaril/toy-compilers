@@ -2,7 +2,6 @@ package com.alsaril.codegen.classfile.code
 
 import com.alsaril.codegen.bytesOf
 import com.alsaril.codegen.classfile.PrimitiveType.*
-import com.alsaril.codegen.classfile.bytecode
 import com.alsaril.codegen.constantpool.ConstantClassInfo
 import com.alsaril.codegen.constantpool.ConstantFieldRefInfo
 import com.alsaril.codegen.constantpool.ConstantInterfaceMethodRefInfo
@@ -14,8 +13,9 @@ import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatIllegalArgumentException
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import com.alsaril.codegen.classfile.code.instruction.*
 
-class InvocationsTest {
+class MembersTest {
 
     @Nested
     inner class Descriptors {
@@ -175,60 +175,60 @@ class InvocationsTest {
 
         @Test
         fun `writes the invoke family with the ref index`() {
-            assertThat(bytecode { invokevirtual(MethodDescriptor(0x0102, argSlots = 0, returnSlots = 0)) })
+            assertThat(bytecode { +invokevirtual(MethodDescriptor(0x0102, argSlots = 0, returnSlots = 0)) })
                 .containsExactly(*bytesOf(0xB6, 0x01, 0x02))
-            assertThat(bytecode { invokespecial(MethodDescriptor(1, argSlots = 0, returnSlots = 0)) })
+            assertThat(bytecode { +invokespecial(MethodDescriptor(1, argSlots = 0, returnSlots = 0)) })
                 .containsExactly(*bytesOf(0xB7, 0x00, 0x01))
-            assertThat(bytecode { invokestatic(MethodDescriptor(1, argSlots = 0, returnSlots = 0)) })
+            assertThat(bytecode { +invokestatic(MethodDescriptor(1, argSlots = 0, returnSlots = 0)) })
                 .containsExactly(*bytesOf(0xB8, 0x00, 0x01))
         }
 
         @Test
         fun `writes invokeinterface with its argument count and trailing zero`() {
-            assertThat(bytecode { invokeinterface(MethodDescriptor(1, argSlots = 2, returnSlots = 0)) })
+            assertThat(bytecode { +invokeinterface(MethodDescriptor(1, argSlots = 2, returnSlots = 0)) })
                 .containsExactly(*bytesOf(0xB9, 0x00, 0x01, 0x02, 0x00))
         }
 
         @Test
         fun `writes getstatic with the field index`() {
-            assertThat(bytecode { getstatic(FieldDescriptor(3, slots = 1)) })
+            assertThat(bytecode { +getstatic(FieldDescriptor(3, slots = 1)) })
                 .containsExactly(*bytesOf(0xB2, 0x00, 0x03))
         }
 
         @Test
         fun `writes new with the class index`() {
-            assertThat(bytecode { new(ClassPointer(4)) }).containsExactly(*bytesOf(0xBB, 0x00, 0x04))
+            assertThat(bytecode { +new(ClassPointer(4)) }).containsExactly(*bytesOf(0xBB, 0x00, 0x04))
         }
 
         @Test
         fun `writes checkcast with the class index`() {
-            assertThat(bytecode { checkcast(ClassPointer(4)) })
+            assertThat(bytecode { +checkcast(ClassPointer(4)) })
                 .containsExactly(*bytesOf(0xC0, 0x00, 0x04))
         }
 
         @Test
         fun `writes instanceof with the class index`() {
-            assertThat(bytecode { instanceof(ClassPointer(4)) })
+            assertThat(bytecode { +instanceof(ClassPointer(4)) })
                 .containsExactly(*bytesOf(0xC1, 0x00, 0x04))
         }
 
         @Test
         fun `writes newarray with the atype of its element`() {
             // the codes JVMS 6.5 lists for newarray, T_BOOLEAN through T_LONG
-            assertThat(bytecode { newarray(BOOLEAN) }).containsExactly(*bytesOf(0xBC, 0x04))
-            assertThat(bytecode { newarray(CHAR) }).containsExactly(*bytesOf(0xBC, 0x05))
-            assertThat(bytecode { newarray(FLOAT) }).containsExactly(*bytesOf(0xBC, 0x06))
-            assertThat(bytecode { newarray(DOUBLE) }).containsExactly(*bytesOf(0xBC, 0x07))
-            assertThat(bytecode { newarray(BYTE) }).containsExactly(*bytesOf(0xBC, 0x08))
-            assertThat(bytecode { newarray(SHORT) }).containsExactly(*bytesOf(0xBC, 0x09))
-            assertThat(bytecode { newarray(INT) }).containsExactly(*bytesOf(0xBC, 0x0A))
-            assertThat(bytecode { newarray(LONG) }).containsExactly(*bytesOf(0xBC, 0x0B))
+            assertThat(bytecode { +newarray(BOOLEAN) }).containsExactly(*bytesOf(0xBC, 0x04))
+            assertThat(bytecode { +newarray(CHAR) }).containsExactly(*bytesOf(0xBC, 0x05))
+            assertThat(bytecode { +newarray(FLOAT) }).containsExactly(*bytesOf(0xBC, 0x06))
+            assertThat(bytecode { +newarray(DOUBLE) }).containsExactly(*bytesOf(0xBC, 0x07))
+            assertThat(bytecode { +newarray(BYTE) }).containsExactly(*bytesOf(0xBC, 0x08))
+            assertThat(bytecode { +newarray(SHORT) }).containsExactly(*bytesOf(0xBC, 0x09))
+            assertThat(bytecode { +newarray(INT) }).containsExactly(*bytesOf(0xBC, 0x0A))
+            assertThat(bytecode { +newarray(LONG) }).containsExactly(*bytesOf(0xBC, 0x0B))
         }
 
         @Test
         fun `refuses an array of void, which has no element to hold`() {
             assertThatIllegalArgumentException()
-                .isThrownBy { bytecode { newarray(VOID) } }
+                .isThrownBy { bytecode { +newarray(VOID) } }
                 .withMessage("an array cannot hold void")
         }
 

@@ -3,6 +3,7 @@ package com.alsaril.math.generator
 import com.alsaril.codegen.classfile.ClassFileBuilder
 import com.alsaril.codegen.classfile.MethodAccessFlag.*
 import com.alsaril.codegen.classfile.code.*
+import com.alsaril.codegen.classfile.code.instruction.*
 import com.alsaril.math.*
 import com.alsaril.math.BinaryKind.*
 import kotlin.math.max
@@ -30,17 +31,17 @@ internal fun ClassFileBuilder.generateEval(ast: Node) = apply {
     val (name, _) = defineMethod(body, vars, counter)
 
     method("eval", descriptor, PUBLIC, FINAL) {
-        aload(1)
-        invokestatic(smethod(self(), name, descriptor))
-        freturn()
+        +aload(1)
+        +invokestatic(smethod(self(), name, descriptor))
+        +freturn
     }
 }
 
 private fun CodeBuilder.accessorLine(name: String, slot: Int) {
-    aload(0)
-    ldc(string(name))
-    invokestatic(smethod(self(), "getFloat", "(Ljava/util/Map;Ljava/lang/String;)F"))
-    fstore(slot + callSlots)
+    +aload(0)
+    +ldc(string(name))
+    +invokestatic(smethod(self(), "getFloat", "(Ljava/util/Map;Ljava/lang/String;)F"))
+    +fstore(slot + callSlots)
 }
 
 private fun CodeBuilder.emitAccessor(vars: List<String>, variables: List<Int>) {
@@ -78,7 +79,7 @@ private fun ClassFileBuilder.defineMethod(
         emitAccessor(vars, variables)
         body.transform(o2n)
         fragment(body.build())
-        freturn()
+        +freturn
     }
 
     return name to descriptor
@@ -106,8 +107,8 @@ private fun ClassFileBuilder.materialize(
     fun outline(subtree: Subexpression): Subexpression {
         val (name, _) = defineMethod(subtree, vars, counter)
         return subexpression().exact {
-            aload(0)
-            invokestatic(smethod(self(), name, descriptor))
+            +aload(0)
+            +invokestatic(smethod(self(), name, descriptor))
         }
     }
 
@@ -121,13 +122,13 @@ private fun ClassFileBuilder.materialize(
             is Value -> subexpression().exact {
                 val value = node.value
                 if (value.toRawBits() == 0 || value == 1.0f || value == 2.0f) {
-                    fconst(value.toInt())
+                    +fconst(value.toInt())
                 } else {
-                    ldc(float(value))
+                    +ldc(float(value))
                 }
             }.let(::ret)
 
-            is Var -> subexpression().fload(variables[node.name]!!).let(::ret)
+            is Var -> subexpression().variable(variables[node.name]!!).let(::ret)
 
             is Neg -> {
                 if (results.isEmpty()) {
@@ -135,7 +136,7 @@ private fun ClassFileBuilder.materialize(
                     continue
                 }
 
-                ret(outlineIfSpills(results.first()).exact { fneg() })
+                ret(outlineIfSpills(results.first()).exact { +fneg })
             }
 
             is Op -> {
@@ -157,10 +158,10 @@ private fun ClassFileBuilder.materialize(
                 ret(
                     left.extend(right).exact {
                         when (node.kind) {
-                            ADD -> fadd()
-                            SUB -> fsub()
-                            MUL -> fmul()
-                            DIV -> fdiv()
+                            ADD -> +fadd
+                            SUB -> +fsub
+                            MUL -> +fmul
+                            DIV -> +fdiv
                         }
                     }
                 )

@@ -8,6 +8,7 @@ import com.alsaril.codegen.classfile.ClassFileBuilder
 import com.alsaril.codegen.classfile.Fragment
 import com.alsaril.codegen.classfile.MethodAccessFlag.*
 import com.alsaril.codegen.classfile.code.*
+import com.alsaril.codegen.classfile.code.instruction.*
 import com.alsaril.codegen.classfile.PrimitiveType.BYTE
 import com.alsaril.codegen.classfile.PrimitiveType.INT
 import com.alsaril.codegen.classfile.join
@@ -30,23 +31,23 @@ object RunGenerator {
         val (name, descriptor) = defineMethod(body, generation)
         method("run", "(Ljava/io/InputStream;Ljava/io/OutputStream;II)V", PUBLIC, FINAL) {
             // input: in, out, size, cycles
-            iconst(2)
-            newarray(INT)
-            dup()
-            astore(5)
-            iconst(1)
-            iload(4) // cycles arg
-            iastore()
+            +iconst(2)
+            +newarray(INT)
+            +dup
+            +astore(5)
+            +iconst(1)
+            +iload(4) // cycles arg
+            +iastore
 
-            iload(3) // memsize arg
-            newarray(BYTE)
-            astore(4)
+            +iload(3) // memsize arg
+            +newarray(BYTE)
+            +astore(4)
 
-            val ready = aload(1)
-            aload(2)
-            iload(3)
-            aload(4)
-            aload(5)
+            val ready = +aload(1)
+            +aload(2)
+            +iload(3)
+            +aload(4)
+            +aload(5)
 
             frameFull(
                 ready,
@@ -60,19 +61,19 @@ object RunGenerator {
                 ), emptyList()
             )
 
-            val guarded = invokestatic(smethod(self(), name, descriptor))
-            aconst_null()
+            val guarded = +invokestatic(smethod(self(), name, descriptor))
+            +aconst_null
 
-            val caught = aload(2)
+            val caught = +aload(2)
             `catch`(guarded, to = caught, handler = caught, type = null)
             frameStack(caught, objInfo("java/lang/Throwable"))
-            invokevirtual(method(clazz("java/io/OutputStream"), "flush", "()V"))
+            +invokevirtual(method(clazz("java/io/OutputStream"), "flush", "()V"))
 
-            dup()
-            val exit = ifnull()
-            athrow()
+            +dup
+            val exit = +ifnull
+            +athrow
 
-            val done = `return`()
+            val done = +`return`
             link(exit, done)
             frameStack(done, objInfo("java/lang/Throwable"))
         }
@@ -156,103 +157,103 @@ object RunGenerator {
     }
 
     private fun CodeBuilder.guard() {
-        dup()
-        iload(memsizeIndex)
-        invokestatic(smethod(self(), "guard", "(II)V"))
+        +dup
+        +iload(memsizeIndex)
+        +invokestatic(smethod(self(), "guard", "(II)V"))
     }
 
     private fun ClassFileBuilder.emitMove(times: Int, dir: Boolean) = emitFragment {
-        aload(stateIndex)
-        iconst(0)
-        dup2()
-        iaload()
+        +aload(stateIndex)
+        +iconst(0)
+        +dup2
+        +iaload
 
         var t = times
         while (t > 0) {
             val d = min(t, Short.MAX_VALUE.toInt())
-            iconst(d)
-            if (dir) iadd() else isub()
+            +iconst(d)
+            if (dir) +iadd else +isub
             t -= d
         }
 
-        iastore()
+        +iastore
     }
 
     private fun ClassFileBuilder.emitAdd(times: Int, inc: Boolean) = emitFragment {
-        aload(arrayIndex)
-        aload(stateIndex)
-        iconst(0)
-        iaload()
+        +aload(arrayIndex)
+        +aload(stateIndex)
+        +iconst(0)
+        +iaload
         guard()
-        dup2()
-        baload()
+        +dup2
+        +baload
         // mod 256
-        iconst(times and 0xff)
-        if (inc) iadd() else isub()
-        bastore()
+        +iconst(times and 0xff)
+        if (inc) +iadd else +isub
+        +bastore
     }
 
     private fun ClassFileBuilder.emitRead() = emitFragment {
-        aload(inIndex)
-        invokevirtual(method(clazz("java/io/InputStream"), "read", "()I"))
-        istore(readIndex)
+        +aload(inIndex)
+        +invokevirtual(method(clazz("java/io/InputStream"), "read", "()I"))
+        +istore(readIndex)
 
         // eof fix -1 -> 0
-        iload(readIndex)
-        val ok = ifge()
-        iconst(0)
-        istore(readIndex)
+        +iload(readIndex)
+        val ok = +ifge
+        +iconst(0)
+        +istore(readIndex)
 
-        val ok_ = aload(arrayIndex)
+        val ok_ = +aload(arrayIndex)
         link(ok, ok_)
         frameSame(ok_)
 
-        aload(stateIndex)
-        iconst(0)
-        iaload()
+        +aload(stateIndex)
+        +iconst(0)
+        +iaload
         guard()
-        iload(readIndex)
-        bastore()
+        +iload(readIndex)
+        +bastore
     }
 
     private fun ClassFileBuilder.emitWrite() = emitFragment {
-        aload(outIndex)
-        aload(arrayIndex)
-        aload(stateIndex)
-        iconst(0)
-        iaload()
+        +aload(outIndex)
+        +aload(arrayIndex)
+        +aload(stateIndex)
+        +iconst(0)
+        +iaload
         guard()
-        baload()
-        invokevirtual(method(clazz("java/io/OutputStream"), "write", "(I)V"))
+        +baload
+        +invokevirtual(method(clazz("java/io/OutputStream"), "write", "(I)V"))
     }
 
     private fun ClassFileBuilder.emitLoop(body: Fragment) = emitFragment {
-        val exit = goto() // jump over the loop body, to the test below
+        val exit = +goto // jump over the loop body, to the test below
 
         // cycles check
-        val head = aload(stateIndex)
+        val head = +aload(stateIndex)
         frameSame(head)
-        iconst(1)
-        dup2()
-        iaload()
-        iconst(1)
-        isub()
-        dup_x2()
-        iastore()
-        val safe = ifge()
+        +iconst(1)
+        +dup2
+        +iaload
+        +iconst(1)
+        +isub
+        +dup_x2
+        +iastore
+        val safe = +ifge
         raise("Cycles overflow")
 
         val start = fragment(body)
 
-        val test = aload(arrayIndex)
+        val test = +aload(arrayIndex)
         link(exit, test)
         frameSame(test)
-        aload(stateIndex)
-        iconst(0)
-        iaload()
+        +aload(stateIndex)
+        +iconst(0)
+        +iaload
         guard()
-        baload()
-        ifne(head)
+        +baload
+        link(+ifne, head)
 
         val entry = start ?: test
         link(safe, entry)
@@ -261,19 +262,19 @@ object RunGenerator {
 
     private fun ClassFileBuilder.emitCall(target: Pair<String, String>) = emitFragment {
         val (name, descriptor) = target
-        aload(inIndex)
-        aload(outIndex)
-        iload(memsizeIndex)
-        aload(arrayIndex)
-        aload(stateIndex)
-        invokestatic(smethod(self(), name, descriptor))
+        +aload(inIndex)
+        +aload(outIndex)
+        +iload(memsizeIndex)
+        +aload(arrayIndex)
+        +aload(stateIndex)
+        +invokestatic(smethod(self(), name, descriptor))
     }
 
     private fun ClassFileBuilder.wrapMethodBody(body: Fragment) = emitFragment {
-        iconst(0)
-        istore(readIndex)
+        +iconst(0)
+        +istore(readIndex)
         val start = fragment(body)
-        val exit = `return`()
+        val exit = +`return`
         frameAppend(start ?: exit, IntInfo)
     }
 

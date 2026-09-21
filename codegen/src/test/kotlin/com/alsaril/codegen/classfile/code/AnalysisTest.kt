@@ -3,11 +3,11 @@ package com.alsaril.codegen.classfile.code
 import com.alsaril.codegen.classfile.ClassFileBuilder.Companion.classFile
 import com.alsaril.codegen.classfile.MethodAccessFlag.STATIC
 import com.alsaril.codegen.classfile.attributes.ExceptionHandler
-import com.alsaril.codegen.classfile.bytecode
 import org.assertj.core.api.Assertions.assertThatExceptionOfType
 import org.assertj.core.api.Assertions.assertThatIllegalArgumentException
 import org.assertj.core.api.Assertions.assertThatIllegalStateException
 import org.junit.jupiter.api.Test
+import com.alsaril.codegen.classfile.code.instruction.*
 
 /**
  * Deriving max_stack walks the code from the entry and from every handler, so it is also
@@ -30,21 +30,21 @@ class AnalysisTest {
     @Test
     fun `refuses a conditional jump that was never linked`() {
         assertThatIllegalArgumentException()
-            .isThrownBy { method { iconst(0); ifeq(); `return`() } }
+            .isThrownBy { method { +iconst(0); +ifeq; +`return` } }
             .withMessageContaining("was never linked to a target")
     }
 
     @Test
     fun `refuses a goto that was never linked`() {
         assertThatIllegalArgumentException()
-            .isThrownBy { method { goto() } }
+            .isThrownBy { method { +goto } }
             .withMessageContaining("was never linked to a target")
     }
 
     @Test
     fun `refuses code that runs past its last instruction`() {
         assertThatIllegalStateException()
-            .isThrownBy { method { nop() } }
+            .isThrownBy { method { +nop } }
             .withMessageContaining("past the last instruction")
     }
 
@@ -54,10 +54,10 @@ class AnalysisTest {
         assertThatIllegalStateException()
             .isThrownBy {
                 method("(I)V") {
-                    iload(0)
-                    val jump = ifeq()
-                    iconst(7)
-                    val target = `return`()
+                    +iload(0)
+                    val jump = +ifeq
+                    +iconst(7)
+                    val target = +`return`
                     link(jump, target)
                 }
             }
@@ -67,21 +67,21 @@ class AnalysisTest {
     @Test
     fun `refuses an instruction that pops more than the stack holds`() {
         assertThatIllegalArgumentException()
-            .isThrownBy { method { iadd(); `return`() } }
-            .withMessageContaining("IAdd at 0 pops 2 from a stack 0 deep")
+            .isThrownBy { method { +iadd; +`return` } }
+            .withMessageContaining("iadd at 0 pops 2 from a stack 0 deep")
     }
 
     @Test
     fun `refuses an instruction nothing reaches`() {
         assertThatIllegalArgumentException()
-            .isThrownBy { method { `return`(); nop() } }
+            .isThrownBy { method { +`return`; +nop } }
             .withMessageContaining("instruction 1 is unreachable")
     }
 
     @Test
     fun `refuses a handler that starts past the last instruction`() {
         // a handler entry is a root of its own, so it is read before the walk can reach it
-        val body = builder().apply { `return`() }.build()
+        val body = builder().apply { +`return` }.build()
             .copy(exceptionHandlers = listOf(ExceptionHandler(0, 1, 9, catchType = 0)))
 
         assertThatIllegalArgumentException()
@@ -94,8 +94,8 @@ class AnalysisTest {
         assertThatIllegalArgumentException()
             .isThrownBy {
                 builder().apply {
-                    val from = nop()
-                    link(from, nop())
+                    val from = +nop
+                    link(from, +nop)
                 }.build().bytecode()
             }
             .withMessageContaining("is not a jump")
@@ -105,7 +105,7 @@ class AnalysisTest {
     fun `names the instruction a complaint is about`() {
         // the message has to identify which instruction, not just that one was wrong
         assertThatExceptionOfType(IllegalStateException::class.java)
-            .isThrownBy { method { nop() } }
-            .withMessageContaining("Nop at 0")
+            .isThrownBy { method { +nop } }
+            .withMessageContaining("nop at 0")
     }
 }
