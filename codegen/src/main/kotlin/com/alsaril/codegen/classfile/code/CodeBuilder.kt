@@ -54,6 +54,8 @@ class CodeBuilder(
         return label.index
     }
 
+    fun end(): Label = LabelImpl(this, instructions.size)
+
     fun link(from: Label, dest: Label) {
         jumps[indexOf(from)] = indexOf(dest)
     }

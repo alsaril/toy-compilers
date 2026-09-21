@@ -1,5 +1,6 @@
 package com.alsaril.codegen.classfile.code
 
+import com.alsaril.codegen.classfile.Fragment
 import com.alsaril.codegen.classfile.attributes.ExceptionHandler
 import com.alsaril.codegen.constantpool.ConstantClassInfo
 import com.alsaril.codegen.constantpool.ConstantUtf8Info
@@ -153,6 +154,43 @@ class ExceptionsTest {
 
         // then the range is one instruction wide, whatever that instruction encodes to
         assertThat(recorded).containsExactly(ExceptionHandler(0, 1, 1, catchType = 0))
+    }
+
+    @Test
+    fun `lets a guarded range cover the last instruction`() {
+        // given a range closed with end(), which names one past the last instruction
+        val recorded = handlers {
+            val from = nop()
+            goto()
+            `catch`(from, to = end(), handler = from, type = null)
+        }
+
+        assertThat(recorded).containsExactly(ExceptionHandler(0, 2, 0, catchType = 0))
+    }
+
+    @Test
+    fun `lays a range that runs to the end out as the length of the code`() {
+        // given the same range, where the two instructions span four bytes
+        val fragment: Fragment = builder().apply {
+            val from = nop()
+            goto()
+            `catch`(from, to = end(), handler = from, type = null)
+        }.build()
+
+        // then the end lands on code_length rather than on an instruction
+        assertThat(handlersOf(fragment)).containsExactly(ExceptionHandler(0, 4, 0, catchType = 0))
+    }
+
+    @Test
+    fun `refuses the end label anywhere an instruction is meant`() {
+        // it names no instruction, so only a range end can take it
+        assertThatIllegalArgumentException()
+            .isThrownBy { bytecode { val jump = goto(); link(jump, end()) } }
+            .withMessageContaining("a jump target names instruction 1")
+
+        assertThatIllegalArgumentException()
+            .isThrownBy { bytecode { nop(); frameSame(end()) } }
+            .withMessageContaining("a frame names instruction 1")
     }
 
     @Test

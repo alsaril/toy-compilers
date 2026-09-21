@@ -377,6 +377,38 @@ class GeneratedClassTest {
     }
 
     @Test
+    fun `guards a range that runs to the end of the code`() {
+        // given the handler emitted ahead of the range it covers, so nothing follows the
+        // range and its end_pc is the length of the code
+        val (name, bytes) = classFile("GenGuardToEnd", "java/lang/Object")
+            .method("f", "(I)I", PUBLIC, STATIC) {
+                val skip = goto()
+
+                val caught = astore(1) // drop the throwable
+                frameStack(caught, objInfo("java/lang/Throwable"))
+                iconst(-1)
+                ireturn()
+
+                val guarded = iconst(1)
+                link(skip, guarded)
+                frameSame(guarded)
+                newarray(PrimitiveType.BYTE)
+                iload(0)
+                baload()
+                ireturn()
+
+                `catch`(guarded, to = end(), handler = caught, type = null)
+            }
+            .build()
+        val method = loadClass(name, bytes)
+            .getDeclaredMethod("f", Int::class.javaPrimitiveType)
+
+        // then the verifier took end_pc == code_length, and the throw still found the handler
+        assertThat(method.invoke(null, 0)).isEqualTo(0)
+        assertThat(method.invoke(null, 1)).isEqualTo(-1)
+    }
+
+    @Test
     fun `scopes a handler to the type it names`() {
         // given a range guarded against a different exception than the one raised
         val (name, bytes) = classFile("GenCatchType", "java/lang/Object")

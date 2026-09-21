@@ -133,7 +133,8 @@ object BytecodeSerializer {
         val exceptionHandlers = fragment.exceptionHandlers.map {
             it.copy(
                 startPc = loc(it.startPc, "a guarded range"),
-                endPc = loc(it.endPc, "a guarded range"),
+                endPc = if (it.endPc == fragment.instructions.size) code.size
+                else loc(it.endPc, "a guarded range"),
                 handlerPc = loc(it.handlerPc, "a handler"),
             )
         }
