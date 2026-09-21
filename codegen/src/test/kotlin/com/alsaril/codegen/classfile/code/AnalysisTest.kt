@@ -2,6 +2,7 @@ package com.alsaril.codegen.classfile.code
 
 import com.alsaril.codegen.classfile.ClassFileBuilder.Companion.classFile
 import com.alsaril.codegen.classfile.MethodAccessFlag.STATIC
+import com.alsaril.codegen.classfile.attributes.ExceptionHandler
 import com.alsaril.codegen.classfile.bytecode
 import org.assertj.core.api.Assertions.assertThatExceptionOfType
 import org.assertj.core.api.Assertions.assertThatIllegalArgumentException
@@ -75,6 +76,17 @@ class AnalysisTest {
         assertThatIllegalArgumentException()
             .isThrownBy { method { `return`(); nop() } }
             .withMessageContaining("instruction 1 is unreachable")
+    }
+
+    @Test
+    fun `refuses a handler that starts past the last instruction`() {
+        // a handler entry is a root of its own, so it is read before the walk can reach it
+        val body = builder().apply { `return`() }.build()
+            .copy(exceptionHandlers = listOf(ExceptionHandler(0, 1, 9, catchType = 0)))
+
+        assertThatIllegalArgumentException()
+            .isThrownBy { classFile("Analysed", "java/lang/Object").method("f", "()V", body, STATIC) }
+            .withMessageContaining("a handler starts at 9, which is past the last instruction")
     }
 
     @Test

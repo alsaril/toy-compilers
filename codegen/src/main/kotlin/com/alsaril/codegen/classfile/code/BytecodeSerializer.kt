@@ -37,7 +37,12 @@ object BytecodeSerializer {
         val deque = ArrayDeque<Pair<Int, Int>>()
 
         deque.addLast(0 to 0) // entry
-        fragment.exceptionHandlers.forEach { deque.addLast(it.handlerPc to 1) } // handlers
+        fragment.exceptionHandlers.forEach { // handlers, entered with the throwable alone
+            require(it.handlerPc in stackSize.indices) {
+                "a handler starts at ${it.handlerPc}, which is past the last instruction"
+            }
+            deque.addLast(it.handlerPc to 1)
+        }
 
         while (deque.isNotEmpty()) {
             val (pc, enterStack) = deque.removeFirst()
