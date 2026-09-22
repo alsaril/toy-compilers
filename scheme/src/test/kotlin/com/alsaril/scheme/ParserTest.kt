@@ -52,7 +52,7 @@ class ParserTest {
         "(1 . 2 3)",
         "(. 3)",
         "- 5",
-        "(1 . 2 . 3)", // known bug: parses to Cell(1, Cell(2, 3)) instead of throwing
+        "(1 . 2 . 3)",
     )
     fun `throws on invalid lists`(input: String) {
         // when / then
@@ -148,6 +148,7 @@ class ParserTest {
             arguments(")", "unexpected ')' at index 0"),
             arguments("(1 . 2 3)", "expected ')' after dotted pair tail at index 4"),
             arguments("- 5", "unexpected trailing token ConstantToken(value=5) at index 1"),
+            arguments("(1 . 2 . 3)", "expected ')' after dotted pair tail at index 4"),
         )
     }
 }
