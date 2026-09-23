@@ -105,17 +105,23 @@ data object dup : NoArgInstruction(0x59) {
     override fun stackEffects() = 1 to 2
 }
 
-data object dup2 : NoArgInstruction(0x5c) {
-    override fun stackEffects() = 2 to 4
+data object dup_x1 : NoArgInstruction(0x5a) {
+    override fun stackEffects() = 2 to 3
 }
 
 data object dup_x2 : NoArgInstruction(0x5b) {
     override fun stackEffects() = 3 to 4
 }
 
+data object dup2 : NoArgInstruction(0x5c) {
+    override fun stackEffects() = 2 to 4
+}
+
 data object ireturn : NoArgInstruction(0xac), PopsOne
 
 data object freturn : NoArgInstruction(0xae), PopsOne
+
+data object areturn : NoArgInstruction(0xb0), PopsOne
 
 data object `return` : NoArgInstruction(0xb1)
 
@@ -143,6 +149,18 @@ data class getstatic(val index: Int, val slots: Int) : TwoBytesArgInstruction(0x
     constructor(field: FieldDescriptor) : this(field.index, field.slots)
 
     override fun stackEffects() = 0 to slots
+}
+
+data class getfield(val index: Int, val slots: Int) : TwoBytesArgInstruction(0xb4, index) {
+    constructor(field: FieldDescriptor) : this(field.index, field.slots)
+
+    override fun stackEffects() = 1 to slots
+}
+
+data class putfield(val index: Int, val slots: Int) : TwoBytesArgInstruction(0xb5, index) {
+    constructor(field: FieldDescriptor) : this(field.index, field.slots)
+
+    override fun stackEffects() = 1 + slots to 0
 }
 
 data class invokevirtual(val index: Int, override val argSlots: Int, override val returnSlots: Int) :

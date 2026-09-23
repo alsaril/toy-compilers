@@ -87,7 +87,7 @@ object BytecodeSerializer {
         return when (instruction) {
             ifeq, ifne, ifge, ifgt, if_icmplt, if_icmpge, ifnull, ifnonnull -> listOf(pc + 1, target())
             goto -> listOf(target())
-            `return`, ireturn, freturn, athrow -> emptyList()
+            `return`, areturn, ireturn, freturn, athrow -> emptyList()
             else -> listOf(pc + 1)
         }
     }

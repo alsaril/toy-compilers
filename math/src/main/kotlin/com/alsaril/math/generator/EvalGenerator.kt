@@ -1,7 +1,7 @@
 package com.alsaril.math.generator
 
 import com.alsaril.codegen.code.ClassFileBuilder
-import com.alsaril.codegen.classfile.MethodAccessFlag.*
+import com.alsaril.codegen.classfile.AccessFlag.*
 import com.alsaril.codegen.code.*
 import com.alsaril.codegen.instruction.*
 import com.alsaril.math.*

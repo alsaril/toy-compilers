@@ -6,7 +6,7 @@ import com.alsaril.bf.Instruction
 import com.alsaril.bf.Loop
 import com.alsaril.codegen.code.ClassFileBuilder
 import com.alsaril.codegen.code.Fragment
-import com.alsaril.codegen.classfile.MethodAccessFlag.*
+import com.alsaril.codegen.classfile.AccessFlag.*
 import com.alsaril.codegen.code.*
 import com.alsaril.codegen.instruction.*
 import com.alsaril.codegen.classfile.PrimitiveType.BYTE

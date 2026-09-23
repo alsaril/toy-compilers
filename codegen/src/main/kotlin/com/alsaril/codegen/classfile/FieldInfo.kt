@@ -5,7 +5,7 @@ import com.alsaril.codegen.Writable
 import com.alsaril.codegen.classfile.attributes.AttributeInfo
 import com.alsaril.codegen.write
 
-data class MethodInfo(
+data class FieldInfo(
     val accessFlags: Int,
     val nameIndex: Int,
     val descriptorIndex: Int,

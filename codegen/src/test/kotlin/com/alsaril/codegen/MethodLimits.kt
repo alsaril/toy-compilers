@@ -30,7 +30,13 @@ fun methodLimits(classBytes: ByteArray): List<MethodLimits> {
 
     input.skipNBytes(6) // access flags, this class, super class
     input.skipNBytes(2L * input.readUnsignedShort()) // interfaces
-    require(input.readUnsignedShort() == 0) { "no fields are expected" }
+    repeat(input.readUnsignedShort()) { // fields
+        input.skipNBytes(6) // access flags, name, descriptor
+        repeat(input.readUnsignedShort()) {
+            input.skipNBytes(2) // attribute name
+            input.skipNBytes(input.readInt().toLong())
+        }
+    }
 
     return List(input.readUnsignedShort()) {
         input.skipNBytes(2) // access flags

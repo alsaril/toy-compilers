@@ -1,7 +1,7 @@
 package com.alsaril.codegen.code
 
 import com.alsaril.codegen.classfile.*
-import com.alsaril.codegen.classfile.MethodAccessFlag.STATIC
+import com.alsaril.codegen.classfile.AccessFlag.STATIC
 import com.alsaril.codegen.code.BytecodeSerializer.serialize
 import com.alsaril.codegen.constantpool.UpdatableConstantPool
 import com.alsaril.codegen.toBytes
@@ -14,6 +14,7 @@ class ClassFileBuilder {
     private val thisName: String
     private val parentName: String
     private val ifaces = mutableListOf<String>()
+    private val fields = mutableListOf<FieldInfo>()
     private val methods = mutableListOf<MethodInfo>()
 
     private val cp = UpdatableConstantPool()
@@ -28,10 +29,21 @@ class ClassFileBuilder {
         return this
     }
 
+    fun field(name: String, descriptor: String, vararg accessFlags: AccessFlag): ClassFileBuilder {
+        val fieldInfo = FieldInfo(
+            accessFlags.fold(0) { acc, flag -> acc or flag.value },
+            cp.putUtf8(name),
+            cp.putUtf8(descriptor),
+            emptyList(),
+        )
+        fields.add(fieldInfo)
+        return this
+    }
+
     fun method(
         name: String,
         descriptor: String,
-        vararg accessFlags: MethodAccessFlag,
+        vararg accessFlags: AccessFlag,
         codeBuilder: CodeBuilder.() -> Unit,
     ): ClassFileBuilder {
         val fragment = emitFragment { codeBuilder() }
@@ -42,7 +54,7 @@ class ClassFileBuilder {
         name: String,
         descriptor: String,
         fragment: Fragment,
-        vararg accessFlags: MethodAccessFlag,
+        vararg accessFlags: AccessFlag,
     ): ClassFileBuilder {
         val d = parseFunctionDescriptor(descriptor)
         val headerSlots = d.argSlots(accessFlags.contains(STATIC))
@@ -70,6 +82,7 @@ class ClassFileBuilder {
             cp.putClass(thisName),
             cp.putClass(parentName),
             ifaces.map { cp.putClass(it) },
+            fields,
             methods,
             cp.build(),
         )

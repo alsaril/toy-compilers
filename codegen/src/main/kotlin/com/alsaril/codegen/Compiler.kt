@@ -9,7 +9,8 @@ object Compiler {
         expr: String,
         parse: (String) -> I,
         generate: (I) -> Pair<String, ByteArray>,
-        programInterface: Class<T>
+        programInterface: Class<T>,
+        vararg args: Any,
     ): T {
         val instructions = parse(expr) // frontend
         val (name, code) = generate(instructions) // backend
@@ -17,6 +18,6 @@ object Compiler {
         require(programInterface.isAssignableFrom(clazz)) { // sanity check
             "generated class $name does not implement ${programInterface.name}"
         }
-        return clazz.getDeclaredConstructor().newInstance() as T
+        return clazz.getDeclaredConstructor(*args.map { it.javaClass.interfaces.single() }.toTypedArray()).newInstance(*args) as T
     }
 }

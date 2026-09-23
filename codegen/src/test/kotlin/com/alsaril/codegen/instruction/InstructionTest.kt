@@ -17,6 +17,7 @@ class InstructionTest {
         assertThat(bytecode { +baload }).containsExactly(*bytesOf(0x33))
         assertThat(bytecode { +bastore }).containsExactly(*bytesOf(0x54))
         assertThat(bytecode { +dup }).containsExactly(*bytesOf(0x59))
+        assertThat(bytecode { +dup_x1 }).containsExactly(*bytesOf(0x5A))
         assertThat(bytecode { +dup2 }).containsExactly(*bytesOf(0x5C))
         assertThat(bytecode { +dup_x2 }).containsExactly(*bytesOf(0x5B))
         assertThat(bytecode { +iaload }).containsExactly(*bytesOf(0x2E))
@@ -30,6 +31,7 @@ class InstructionTest {
         assertThat(bytecode { +fneg }).containsExactly(*bytesOf(0x76))
         assertThat(bytecode { +ireturn }).containsExactly(*bytesOf(0xAC))
         assertThat(bytecode { +freturn }).containsExactly(*bytesOf(0xAE))
+        assertThat(bytecode { +areturn }).containsExactly(*bytesOf(0xB0))
         assertThat(bytecode { +`return` }).containsExactly(*bytesOf(0xB1))
         assertThat(bytecode { +athrow }).containsExactly(*bytesOf(0xBF))
     }

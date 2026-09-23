@@ -199,6 +199,22 @@ class MembersTest {
         }
 
         @Test
+        fun `writes getfield with the field index`() {
+            assertThat(bytecode { +getfield(FieldDescriptor(3, slots = 1)) })
+                .containsExactly(*bytesOf(0xB4, 0x00, 0x03))
+            assertThat(bytecode { +getfield(FieldDescriptor(0x0102, slots = 2)) })
+                .containsExactly(*bytesOf(0xB4, 0x01, 0x02))
+        }
+
+        @Test
+        fun `writes putfield with the field index`() {
+            assertThat(bytecode { +putfield(FieldDescriptor(3, slots = 1)) })
+                .containsExactly(*bytesOf(0xB5, 0x00, 0x03))
+            assertThat(bytecode { +putfield(FieldDescriptor(0x0102, slots = 2)) })
+                .containsExactly(*bytesOf(0xB5, 0x01, 0x02))
+        }
+
+        @Test
         fun `writes new with the class index`() {
             assertThat(bytecode { +new(ClassPointer(4)) }).containsExactly(*bytesOf(0xBB, 0x00, 0x04))
         }
@@ -236,13 +252,13 @@ class MembersTest {
         }
 
         @Test
-        fun `expands construct into new, dup and the constructor call`() {
+        fun `expands constructDefault into new, dup and the no-argument constructor call`() {
             // given
             val cp = UpdatableConstantPool()
             val builder = builder(cp)
 
             // when
-            builder.construct(builder.clazz("A"), "<init>", "()V")
+            builder.constructDefault(builder.clazz("A"))
 
             // then class A is index 2 and the method ref lands at 6
             assertThat(builder.build().bytecode()).containsExactly(
@@ -251,6 +267,26 @@ class MembersTest {
                     0x59,              // dup
                     0xB7, 0x00, 0x06,  // invokespecial <init>
                 ),
+            )
+        }
+
+        @Test
+        fun `points constructDefault at the no-argument constructor of the class`() {
+            // given
+            val cp = UpdatableConstantPool()
+            val builder = builder(cp)
+
+            // when
+            builder.constructDefault(builder.clazz("A"))
+
+            // then
+            assertThat(cp.build().entries).containsExactly(
+                ConstantUtf8Info("A"),
+                ConstantClassInfo(nameIndex = 1),
+                ConstantUtf8Info("<init>"),
+                ConstantUtf8Info("()V"),
+                ConstantNameAndTypeInfo(nameIndex = 3, descriptorIndex = 4),
+                ConstantMethodRefInfo(classNameIndex = 2, nameAndTypeIndex = 5),
             )
         }
     }
