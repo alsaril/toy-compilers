@@ -4,6 +4,7 @@ import com.alsaril.scheme.tokenizer.BracketToken.CloseBracketToken
 import com.alsaril.scheme.tokenizer.BracketToken.OpenBracketToken
 import com.alsaril.scheme.tokenizer.ConstantToken
 import com.alsaril.scheme.tokenizer.DotToken
+import com.alsaril.scheme.tokenizer.QuoteToken
 import com.alsaril.scheme.tokenizer.SymbolToken
 import com.alsaril.scheme.tokenizer.Token
 
@@ -23,7 +24,11 @@ object Parser {
             is SymbolToken -> Symbol(token.name) to start + 1
             OpenBracketToken -> processList(tokens, start + 1)
             CloseBracketToken -> throw IllegalArgumentException("unexpected ')' at index $start")
-            else -> throw IllegalArgumentException("unexpected token $token at index $start")
+            QuoteToken -> {
+                val (arg, next) = parseNode(tokens, start + 1)
+                Cell(Symbol("quote"), Cell(arg, Null)) to next
+            }
+            DotToken -> throw IllegalArgumentException("unexpected token $token at index $start")
         }
     }
 

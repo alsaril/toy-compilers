@@ -46,7 +46,7 @@ object Tokenizer {
                 continue
             }
 
-            run {// symbols
+            run { // symbols
                 val start = i
                 while (i < str.length && str[i] != ' ' && str[i] != '+' && parseSpecial(str[i]) == null) i++
                 result.add(SymbolToken(str.substring(start, i)))
