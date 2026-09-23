@@ -10,6 +10,7 @@ data class ClassFile(
     val thisClassIndex: Int,
     val parentIndex: Int,
     val ifaceIndexes: List<Int>,
+    val fields: List<FieldInfo>,
     val methods: List<MethodInfo>,
     val constantPool: StaticConstantPool,
 ) : Writable {
@@ -35,14 +36,13 @@ data class ClassFile(
         // super_class: Object
         u2(parentIndex)
 
-        // interfaces_count: 1
+        // interfaces_count, interfaces
         u2(ifaceIndexes.size)
-
-        // interfaces: single interface
         ifaceIndexes.forEach(::u2)
 
-        // fields_count, fields: 0
-        u2(0)
+        // fields_count, fields
+        u2(fields.size)
+        fields.forEach(::write)
 
         // methods_count, methods
         u2(methods.size)

@@ -9,7 +9,7 @@ object Compiler {
         expr: String,
         parse: (String) -> I,
         generate: (I) -> Pair<String, ByteArray>,
-        programInterface: Class<T>
+        programInterface: Class<T>,
     ): T {
         val instructions = parse(expr) // frontend
         val (name, code) = generate(instructions) // backend

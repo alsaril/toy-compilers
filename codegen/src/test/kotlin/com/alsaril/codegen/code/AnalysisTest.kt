@@ -1,7 +1,7 @@
 package com.alsaril.codegen.code
 
 import com.alsaril.codegen.code.ClassFileBuilder.Companion.classFile
-import com.alsaril.codegen.classfile.MethodAccessFlag.STATIC
+import com.alsaril.codegen.classfile.AccessFlag.STATIC
 import com.alsaril.codegen.classfile.attributes.ExceptionHandler
 import org.assertj.core.api.Assertions.assertThatExceptionOfType
 import org.assertj.core.api.Assertions.assertThatIllegalArgumentException
@@ -69,6 +69,36 @@ class AnalysisTest {
         assertThatIllegalArgumentException()
             .isThrownBy { method { +iadd; +`return` } }
             .withMessageContaining("iadd at 0 pops 2 from a stack 0 deep")
+    }
+
+    @Test
+    fun `refuses dup_x1 with fewer than two values on the stack`() {
+        // dup_x1 reaches under the top value, so a lone value is not enough
+        assertThatIllegalArgumentException()
+            .isThrownBy { method { +iconst(0); +dup_x1; +`return` } }
+            .withMessageContaining("dup_x1 at 1 pops 2 from a stack 1 deep")
+    }
+
+    @Test
+    fun `refuses a field store without its receiver`() {
+        assertThatIllegalArgumentException()
+            .isThrownBy { method { +iconst(0); +putfield(field(clazz("A"), "x", "I")); +`return` } }
+            .withMessageContaining("pops 2 from a stack 1 deep")
+    }
+
+    @Test
+    fun `refuses a field read without its receiver`() {
+        assertThatIllegalArgumentException()
+            .isThrownBy { method { +getfield(field(clazz("A"), "x", "I")); +`return` } }
+            .withMessageContaining("pops 1 from a stack 0 deep")
+    }
+
+    @Test
+    fun `ends a path at areturn`() {
+        // anything after it is reached by nothing, which only shows if areturn ends the walk
+        assertThatIllegalArgumentException()
+            .isThrownBy { method("()Ljava/lang/Object;") { +aconst_null; +areturn; +nop } }
+            .withMessageContaining("instruction 2 is unreachable")
     }
 
     @Test

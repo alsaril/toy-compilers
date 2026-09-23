@@ -3,14 +3,16 @@ package com.alsaril.codegen.code
 import com.alsaril.codegen.bytesOf
 import com.alsaril.codegen.methodLimits
 import com.alsaril.codegen.code.ClassFileBuilder.Companion.classFile
-import com.alsaril.codegen.classfile.MethodAccessFlag.PUBLIC
-import com.alsaril.codegen.classfile.MethodAccessFlag.STATIC
+import com.alsaril.codegen.classfile.AccessFlag.FINAL
+import com.alsaril.codegen.classfile.AccessFlag.PRIVATE
+import com.alsaril.codegen.classfile.AccessFlag.PUBLIC
+import com.alsaril.codegen.classfile.AccessFlag.STATIC
 import com.alsaril.codegen.instruction.*
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatNoException
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
-import com.alsaril.codegen.classfile.MethodAccessFlag
+import com.alsaril.codegen.classfile.AccessFlag
 import com.alsaril.codegen.classfile.PrimitiveType
 
 class ClassFileBuilderTest {
@@ -63,6 +65,54 @@ class ClassFileBuilderTest {
     }
 
     @Test
+    fun `accepts a field declared without access flags`() {
+        assertThatNoException().isThrownBy {
+            classFile("NoFieldFlags", "java/lang/Object")
+                .field("x", "I")
+                .build()
+        }
+    }
+
+    @Test
+    fun `writes a declared field with its flags, name and descriptor`() {
+        // given the pool of an otherwise empty class is known, so the indexes are too
+        val (_, bytes) = classFile("Fields", "java/lang/Object")
+            .field("x", "J", PRIVATE, FINAL)
+            .build()
+
+        // then the field sits between the empty interface list and the empty method list
+        assertThat(bytes).endsWith(
+            *bytesOf(
+                0x00, 0x00,              // interfaces_count
+                0x00, 0x01,              // fields_count
+                0x00, 0x12,              // access_flags: private final
+                0x00, 0x01, 0x00, 0x02,  // name and descriptor, the first two utf8 entries
+                0x00, 0x00,              // attributes_count
+                0x00, 0x00,              // methods_count
+                0x00, 0x00,              // attributes_count
+            ),
+        )
+    }
+
+    @Test
+    fun `keeps the fields in the order they were declared`() {
+        val (_, bytes) = classFile("Fields", "java/lang/Object")
+            .field("a", "I", PRIVATE)
+            .field("b", "I", PUBLIC)
+            .build()
+
+        assertThat(bytes).endsWith(
+            *bytesOf(
+                0x00, 0x02,                                      // fields_count
+                0x00, 0x02, 0x00, 0x01, 0x00, 0x02, 0x00, 0x00,  // a: I
+                0x00, 0x01, 0x00, 0x03, 0x00, 0x02, 0x00, 0x00,  // b reuses the I entry
+                0x00, 0x00,                                      // methods_count
+                0x00, 0x00,                                      // attributes_count
+            ),
+        )
+    }
+
+    @Test
     fun `hands out code builders that share one constant pool`() {
         // given
         val builder = classFile("Shared", "java/lang/Object")
@@ -103,7 +153,7 @@ class ClassFileBuilderTest {
     @Nested
     inner class MaxStack {
 
-        private fun stack(descriptor: String, vararg flags: MethodAccessFlag, body: CodeBuilder.() -> Unit) =
+        private fun stack(descriptor: String, vararg flags: AccessFlag, body: CodeBuilder.() -> Unit) =
             classFile("Stack", "java/lang/Object")
                 .method("f", descriptor, *flags, codeBuilder = body)
                 .build().second
@@ -163,6 +213,45 @@ class ClassFileBuilderTest {
         }
 
         @Test
+        fun `counts the receiver and the slots of an instance field`() {
+            // the receiver goes in, the value comes out: a long read ends two deep
+            assertThat(stack("()V", PUBLIC) { +aload(0); +getfield(field(self(), "x", "J")); +`return` })
+                .isEqualTo(2)
+            assertThat(stack("()V", PUBLIC) { +aload(0); +getfield(field(self(), "x", "I")); +`return` })
+                .isOne()
+        }
+
+        @Test
+        fun `counts the receiver and the value a field store takes off the stack`() {
+            // receiver plus a long is three deep at the store, and nothing is left after it
+            assertThat(stack("()V", PUBLIC) {
+                +aload(0)
+                +iconst(0)
+                +iconst(0)
+                +putfield(field(self(), "x", "J"))
+                +`return`
+            }).isEqualTo(3)
+        }
+
+        @Test
+        fun `counts the copy dup_x1 tucks under the top two`() {
+            // two in, three out
+            assertThat(stack("()I", STATIC) {
+                +iconst(1)
+                +iconst(2)
+                +dup_x1
+                +iadd
+                +iadd
+                +ireturn
+            }).isEqualTo(3)
+        }
+
+        @Test
+        fun `counts a returned reference`() {
+            assertThat(stack("()Ljava/lang/Object;", STATIC) { +aconst_null; +areturn }).isOne()
+        }
+
+        @Test
         fun `counts an array round trip`() {
             // deepest at the store: arrayref, arrayref, index, value
             assertThat(stack("()I", STATIC) {
@@ -197,7 +286,7 @@ class ClassFileBuilderTest {
     @Nested
     inner class MaxLocals {
 
-        private fun locals(descriptor: String, vararg flags: MethodAccessFlag, body: CodeBuilder.() -> Unit = { +nop; +`return` }) =
+        private fun locals(descriptor: String, vararg flags: AccessFlag, body: CodeBuilder.() -> Unit = { +nop; +`return` }) =
             classFile("Locals", "java/lang/Object")
                 .method("f", descriptor, *flags, codeBuilder = body)
                 .build().second
@@ -279,6 +368,18 @@ class ClassFileBuilderTest {
 
             assertThat(methodLimits(bytes).single { it.name == "f" }.maxLocals).isEqualTo(5)
         }
+    }
+
+    @Test
+    fun `grows the output as fields are added`() {
+        // given
+        val bare = classFile("Bare", "java/lang/Object").build().second
+        val withField = classFile("WithField", "java/lang/Object")
+            .field("x", "I", PRIVATE)
+            .build().second
+
+        // then
+        assertThat(withField.size).isGreaterThan(bare.size)
     }
 
     @Test

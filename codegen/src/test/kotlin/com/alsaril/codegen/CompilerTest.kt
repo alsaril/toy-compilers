@@ -3,8 +3,8 @@ package com.alsaril.codegen
 import com.alsaril.codegen.Compiler.pipeline
 import com.alsaril.codegen.code.ClassFileBuilder
 import com.alsaril.codegen.code.ClassFileBuilder.Companion.classFile
-import com.alsaril.codegen.classfile.MethodAccessFlag.FINAL
-import com.alsaril.codegen.classfile.MethodAccessFlag.PUBLIC
+import com.alsaril.codegen.classfile.AccessFlag.FINAL
+import com.alsaril.codegen.classfile.AccessFlag.PUBLIC
 import com.alsaril.codegen.code.*
 import com.alsaril.codegen.instruction.*
 import org.assertj.core.api.Assertions.assertThat

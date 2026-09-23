@@ -4,14 +4,18 @@ import com.alsaril.codegen.ByteClassLoader.loadClass
 import com.alsaril.codegen.code.ClassFileBuilder
 import com.alsaril.codegen.classfile.PrimitiveType
 import com.alsaril.codegen.code.ClassFileBuilder.Companion.classFile
-import com.alsaril.codegen.classfile.MethodAccessFlag.PUBLIC
-import com.alsaril.codegen.classfile.MethodAccessFlag.STATIC
+import com.alsaril.codegen.classfile.AccessFlag.FINAL
+import com.alsaril.codegen.classfile.AccessFlag.PRIVATE
+import com.alsaril.codegen.classfile.AccessFlag.PUBLIC
+import com.alsaril.codegen.classfile.AccessFlag.STATIC
 import com.alsaril.codegen.code.*
 import com.alsaril.codegen.instruction.*
 import org.assertj.core.api.Assertions.*
 import org.junit.jupiter.api.Test
 import java.lang.reflect.InvocationTargetException
+import java.lang.reflect.Modifier
 import java.util.function.IntUnaryOperator
+import java.util.function.Supplier
 
 class GeneratedClassTest {
 
@@ -155,13 +159,98 @@ class GeneratedClassTest {
     }
 
     @Test
+    fun `keeps a reference handed to the constructor in a field`() {
+        // given a supplier that stores its constructor argument and hands it back
+        val (name, bytes) = classFile("GenHolder", "java/lang/Object")
+            .iface("java/util/function/Supplier")
+            .field("value", "Ljava/lang/Object;", PRIVATE, FINAL)
+            .method("<init>", "(Ljava/lang/Object;)V", PUBLIC) {
+                +aload(0)
+                +invokespecial(method(parent(), "<init>", "()V"))
+                +aload(0)
+                +aload(1)
+                +putfield(field(self(), "value", "Ljava/lang/Object;"))
+                +`return`
+            }
+            .method("get", "()Ljava/lang/Object;", PUBLIC) {
+                +aload(0)
+                +getfield(field(self(), "value", "Ljava/lang/Object;"))
+                +areturn
+            }
+            .build()
+        val held = Any()
+
+        // when
+        val supplier = loadClass(name, bytes)
+            .getDeclaredConstructor(Any::class.java)
+            .newInstance(held) as Supplier<*>
+
+        // then the field was declared, written, read, and the reference came back as is
+        assertThat(supplier.get()).isSameAs(held)
+    }
+
+    @Test
+    fun `declares a field with the flags it was given`() {
+        // given
+        val (name, bytes) = classFile("GenFlags", "java/lang/Object")
+            .field("a", "I", PRIVATE, FINAL)
+            .field("b", "J", PUBLIC, STATIC)
+            .field("c", "[Ljava/lang/String;")
+            .build()
+
+        // when
+        val clazz = loadClass(name, bytes)
+
+        // then
+        with(clazz.getDeclaredField("a")) {
+            assertThat(type).isEqualTo(Int::class.javaPrimitiveType)
+            assertThat(modifiers).isEqualTo(Modifier.PRIVATE or Modifier.FINAL)
+        }
+        with(clazz.getDeclaredField("b")) {
+            assertThat(type).isEqualTo(Long::class.javaPrimitiveType)
+            assertThat(modifiers).isEqualTo(Modifier.PUBLIC or Modifier.STATIC)
+        }
+        with(clazz.getDeclaredField("c")) {
+            assertThat(type).isEqualTo(Array<String>::class.java)
+            assertThat(modifiers).isZero()
+        }
+    }
+
+    @Test
+    fun `stores and returns one value through dup_x1`() {
+        // given the shape of `return this.last = v`: the copy goes under the receiver,
+        // so it outlives the putfield and is what comes back
+        val (name, bytes) = classFile("GenAssign", "java/lang/Object")
+            .iface("java/util/function/IntUnaryOperator")
+            .field("last", "I", PUBLIC)
+            .withConstructor()
+            .method("applyAsInt", "(I)I", PUBLIC) {
+                +aload(0)
+                +iload(1)
+                +dup_x1
+                +putfield(field(self(), "last", "I"))
+                +ireturn
+            }
+            .build()
+        val clazz = loadClass(name, bytes)
+        val function = clazz.getDeclaredConstructor().newInstance() as IntUnaryOperator
+
+        // when
+        val result = function.applyAsInt(7)
+
+        // then
+        assertThat(result).isEqualTo(7)
+        assertThat(clazz.getDeclaredField("last").getInt(function)).isEqualTo(7)
+    }
+
+    @Test
     fun `resolves the class and constructor a new refers to`() {
         // given
         val (name, bytes) = classFile("GenThrows", "java/lang/Object")
             .iface("java/lang/Runnable")
             .withConstructor()
             .method("run", "()V", PUBLIC) {
-                construct(clazz("java/lang/IllegalStateException"), "<init>", "()V")
+                constructDefault(clazz("java/lang/IllegalStateException"))
                 +athrow
             }
             .build()
@@ -182,7 +271,7 @@ class GeneratedClassTest {
                 +iconst(0)
                 val jump = +ifeq
 
-                construct(clazz("java/lang/IllegalStateException"), "<init>", "()V")
+                constructDefault(clazz("java/lang/IllegalStateException"))
                 +athrow
 
                 val target = +`return`
@@ -445,7 +534,7 @@ class GeneratedClassTest {
             .method("f", "([II)V", PUBLIC, STATIC) {
                 val guarded = +iload(1)
                 val ok = +ifne
-                construct(clazz("java/lang/IllegalStateException"), "<init>", "()V")
+                constructDefault(clazz("java/lang/IllegalStateException"))
                 +athrow
 
                 val okTarget = +aconst_null // the normal path arrives with nothing to rethrow

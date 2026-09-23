@@ -33,8 +33,8 @@ fun CodeBuilder.field(classPointer: ClassPointer, name: String, descriptor: Stri
     return FieldDescriptor(ref, parseType(descriptor).slots)
 }
 
-fun CodeBuilder.construct(classPointer: ClassPointer, name: String, descriptor: String) {
+fun CodeBuilder.constructDefault(classPointer: ClassPointer) {
     +new(classPointer)
     +dup
-    +invokespecial(method(classPointer, name, descriptor))
+    +invokespecial(method(classPointer, "<init>", "()V"))
 }

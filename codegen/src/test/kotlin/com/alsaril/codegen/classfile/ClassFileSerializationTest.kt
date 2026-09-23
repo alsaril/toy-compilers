@@ -404,8 +404,47 @@ class ClassFileSerializationTest {
 
         @Test
         fun `keeps the jvms values for the access flags`() {
-            assertThat(MethodAccessFlag.entries.map { it.value })
+            assertThat(AccessFlag.entries.map { it.value })
                 .containsExactly(0x0001, 0x0002, 0x0008, 0x0010)
+        }
+    }
+
+    @Nested
+    inner class Fields {
+
+        @Test
+        fun `writes flags, name, descriptor and an empty attribute list`() {
+            // given
+            val field = FieldInfo(
+                accessFlags = 0x0012,
+                nameIndex = 1,
+                descriptorIndex = 2,
+                attributes = emptyList(),
+            )
+
+            // then
+            assertThat(field.serialized())
+                .containsExactly(*bytesOf(0x00, 0x12, 0x00, 0x01, 0x00, 0x02, 0x00, 0x00))
+        }
+
+        @Test
+        fun `writes its attributes after the count`() {
+            // given
+            val field = FieldInfo(
+                accessFlags = 0x0002,
+                nameIndex = 1,
+                descriptorIndex = 2,
+                attributes = listOf(RawAttribute(3, bytesOf(0x2A))),
+            )
+
+            // then
+            assertThat(field.serialized()).containsExactly(
+                *bytesOf(
+                    0x00, 0x02, 0x00, 0x01, 0x00, 0x02,
+                    0x00, 0x01,  // attributes_count
+                    0x00, 0x03, 0x00, 0x00, 0x00, 0x01, 0x2A,
+                ),
+            )
         }
     }
 
@@ -421,6 +460,7 @@ class ClassFileSerializationTest {
                 thisClassIndex = 1,
                 parentIndex = 2,
                 ifaceIndexes = emptyList(),
+                fields = emptyList(),
                 methods = emptyList(),
                 constantPool = emptyPool,
             )
@@ -446,7 +486,7 @@ class ClassFileSerializationTest {
         @Test
         fun `writes each interface index`() {
             // given
-            val file = ClassFile(1, 2, listOf(3, 4), emptyList(), emptyPool)
+            val file = ClassFile(1, 2, listOf(3, 4), emptyList(), emptyList(), emptyPool)
 
             // then
             assertThat(file.serialized()).endsWith(
@@ -463,7 +503,7 @@ class ClassFileSerializationTest {
         fun `writes each method after the count`() {
             // given
             val method = MethodInfo(0x0001, 1, 2, emptyList())
-            val file = ClassFile(1, 2, emptyList(), listOf(method, method), emptyPool)
+            val file = ClassFile(1, 2, emptyList(), emptyList(), listOf(method, method), emptyPool)
 
             // then
             assertThat(file.serialized()).endsWith(
@@ -477,10 +517,31 @@ class ClassFileSerializationTest {
         }
 
         @Test
+        fun `writes each field after the count and before the methods`() {
+            // given
+            val field = FieldInfo(0x0002, 3, 4, emptyList())
+            val method = MethodInfo(0x0001, 1, 2, emptyList())
+            val file = ClassFile(1, 2, emptyList(), listOf(field, field), listOf(method), emptyPool)
+
+            // then
+            assertThat(file.serialized()).endsWith(
+                *bytesOf(
+                    0x00, 0x00,  // interfaces_count
+                    0x00, 0x02,  // fields_count
+                    0x00, 0x02, 0x00, 0x03, 0x00, 0x04, 0x00, 0x00,
+                    0x00, 0x02, 0x00, 0x03, 0x00, 0x04, 0x00, 0x00,
+                    0x00, 0x01,  // methods_count
+                    0x00, 0x01, 0x00, 0x01, 0x00, 0x02, 0x00, 0x00,
+                    0x00, 0x00,  // attributes_count
+                ),
+            )
+        }
+
+        @Test
         fun `embeds the constant pool between the version and the access flags`() {
             // given
             val pool = StaticConstantPool(2, listOf(ConstantIntegerInfo(1)))
-            val file = ClassFile(1, 2, emptyList(), emptyList(), pool)
+            val file = ClassFile(1, 2, emptyList(), emptyList(), emptyList(), pool)
 
             // then
             assertThat(file.serialized()).startsWith(
