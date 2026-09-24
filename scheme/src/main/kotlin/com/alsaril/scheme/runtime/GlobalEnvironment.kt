@@ -1,23 +1,20 @@
 package com.alsaril.scheme.runtime
 
-import com.alsaril.scheme.Context
-import com.alsaril.scheme.Function
-
-class TempGlobalContext : Context {
+class GlobalEnvironment : Context {
     private val map = mutableMapOf<String, Any>()
 
     init {
         map["boolean?"] = object : Function {
             override fun call(args: Any): Any {
-                require(args is Pair && args.second is Null)
+                require(args is Cons && args.second is Nil)
                 val arg = args.first
-                return Boolean.from(arg is Boolean)
+                return arg is Boolean
             }
         }
         map["not"] = object : Function {
             override fun call(args: Any): Any {
-                if (args !is Pair || args.second !is Null || args.first !is Boolean) return Boolean.FALSE
-                return args.first.not()
+                if (args !is Cons || args.second !is Nil || args.first !is Boolean) return false
+                return !args.first
             }
         }
 //        map["="] = object : Function {
