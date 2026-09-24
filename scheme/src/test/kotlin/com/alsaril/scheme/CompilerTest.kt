@@ -1,7 +1,7 @@
 package com.alsaril.scheme
 
-import com.alsaril.scheme.compiler.SchemeCompiler
-import com.alsaril.scheme.runtime.Boolean
+import com.alsaril.scheme.compiler.SchemeCompiler.compile
+import com.alsaril.scheme.runtime.GlobalEnvironment
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.CsvSource
@@ -31,10 +31,10 @@ class CompilerTest {
     )
     fun `executes a simple expression`(input: String, expected: Boolean) {
         // given
-        val compiler = SchemeCompiler()
+        val env = GlobalEnvironment()
 
         // when
-        val result = compiler.compile(input).call()
+        val result = compile(input).run(env)
 
         // then
         assertThat(result).isEqualTo(expected)

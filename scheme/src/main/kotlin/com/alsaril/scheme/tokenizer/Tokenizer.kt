@@ -22,7 +22,7 @@ object Tokenizer {
         var i = 0
         while (i < str.length) {
             val symbol = str[i]
-            if (symbol == ' ') {
+            if (symbol.isWhitespace()) {
                 i++
                 continue
             }

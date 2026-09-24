@@ -1,4 +1,4 @@
-package com.alsaril.scheme
+package com.alsaril.scheme.runtime
 
 @FunctionalInterface
 interface Function {

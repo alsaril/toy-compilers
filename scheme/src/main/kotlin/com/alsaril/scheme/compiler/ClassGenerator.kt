@@ -11,26 +11,21 @@ object ClassGenerator {
     private var cnt = 0
 
     fun generate(node: Node): Pair<String, ByteArray> = classFile("Impl${cnt++}", parent = "java/lang/Object")
-        .iface("com/alsaril/scheme/Procedure")
-        .field("global", "Lcom/alsaril/scheme/Context;", PRIVATE, FINAL)
-        .method("<init>", "(Lcom/alsaril/scheme/Context;)V", PUBLIC) {
+        .iface("com/alsaril/scheme/runtime/Program")
+        .method("<init>", "()V", PUBLIC) {
             +aload(0)
-            +dup
             +invokespecial(method(parent(), "<init>", "()V"))
-            +aload(1)
-            +putfield(field(self(), "global", "Lcom/alsaril/scheme/Context;"))
             +`return`
         }
         .generateProcedure(node)
         .build()
 
     private fun CodeBuilder.emitResolve(name: String) {
-        +aload(0)
-        +getfield(field(self(), "global", "Lcom/alsaril/scheme/Context;"))
+        +aload(1)
         +ldc(string(name))
         +invokeinterface(
             imethod(
-                clazz("com/alsaril/scheme/Context"),
+                clazz("com/alsaril/scheme/runtime/Context"),
                 "resolve",
                 "(Ljava/lang/String;)Ljava/lang/Object;"
             )
@@ -38,59 +33,47 @@ object ClassGenerator {
     }
 
     private fun CodeBuilder.pair() {
-        +new(clazz("com/alsaril/scheme/runtime/Pair"))
-        +dup_x2
-        +astore(1)
-        +invokespecial(
-            method(
-                clazz("com/alsaril/scheme/runtime/Pair"),
-                "<init>",
-                "(Ljava/lang/Object;Ljava/lang/Object;)V"
+        +invokestatic(
+            smethod(
+                clazz("com/alsaril/scheme/runtime/Cons"),
+                "of",
+                "(Ljava/lang/Object;Ljava/lang/Object;)Lcom/alsaril/scheme/runtime/Cons;"
             )
         )
-        +aload(1)
     }
 
     private fun CodeBuilder.symbol(name: String) {
         +ldc(string(name))
-        +new(clazz("com/alsaril/scheme/runtime/Symbol"))
-        +dup_x1
-        +astore(1)
-        +invokespecial(
-            method(
+        +invokestatic(
+            smethod(
                 clazz("com/alsaril/scheme/runtime/Symbol"),
-                "<init>",
-                "(Ljava/lang/String;)V"
+                "of",
+                "(Ljava/lang/String;)Lcom/alsaril/scheme/runtime/Symbol;"
             )
         )
-        +aload(1)
     }
 
     private fun CodeBuilder.`null`() {
-        +getstatic(field(clazz("com/alsaril/scheme/runtime/Null"), "INSTANCE", "Lcom/alsaril/scheme/runtime/Null;"))
+        +getstatic(field(clazz("com/alsaril/scheme/runtime/Nil"), "INSTANCE", "Lcom/alsaril/scheme/runtime/Nil;"))
     }
 
     private fun CodeBuilder.number(value: Int) {
         +ldc(int(value))
-        +new(clazz("com/alsaril/scheme/runtime/Number"))
-        +dup_x1
-        +astore(1)
-        +invokespecial(
-            method(
-                clazz("com/alsaril/scheme/runtime/Number"),
-                "<init>",
-                "(I)V"
+        +invokestatic(
+            smethod(
+                clazz("java/lang/Integer"),
+                "valueOf",
+                "(I)Ljava/lang/Integer;"
             )
         )
-        +aload(1)
     }
 
     private fun CodeBuilder.boolean(value: Boolean) {
         +getstatic(
             field(
-                clazz("com/alsaril/scheme/runtime/Boolean"),
+                clazz("java/lang/Boolean"),
                 if (value) "TRUE" else "FALSE",
-                "Lcom/alsaril/scheme/runtime/Boolean;"
+                "Ljava/lang/Boolean;"
             )
         )
     }
@@ -154,11 +137,11 @@ object ClassGenerator {
             return
         }
         emitResolve(op.name)
-        +checkcast(clazz("com/alsaril/scheme/Function"))
+        +checkcast(clazz("com/alsaril/scheme/runtime/Function"))
         copyArgs(args)
         +invokeinterface(
             imethod(
-                clazz("com/alsaril/scheme/Function"),
+                clazz("com/alsaril/scheme/runtime/Function"),
                 "call",
                 "(Ljava/lang/Object;)Ljava/lang/Object;"
             )
@@ -166,7 +149,7 @@ object ClassGenerator {
     }
 
     private fun ClassFileBuilder.generateProcedure(node: Node) =
-        method("call", "()Ljava/lang/Object;", PUBLIC, FINAL) {
+        method("run", "(Lcom/alsaril/scheme/runtime/Context;)Ljava/lang/Object;", PUBLIC, FINAL) {
             when (node) {
                 is Symbol -> emitTerminal(node)
                 is Cell -> emitEval(node)

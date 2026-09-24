@@ -1,17 +1,15 @@
 package com.alsaril.scheme.runtime
 
-import kotlin.Boolean
-
-data class Pair(val first: Any, val second: Any)
-data object Null
-data class Symbol(val name: String)
-enum class Boolean {
-    FALSE, TRUE;
-
-    fun not() = if (this == FALSE) TRUE else FALSE
-
+data class Cons(val first: Any, val second: Any) {
     companion object {
-        fun from(b: Boolean) = if (b) TRUE else FALSE
+        @JvmStatic
+        fun of(first: Any, second: Any) = Cons(first, second)
     }
 }
-data class Number(val value: Int)
+data object Nil
+data class Symbol(val name: String) {
+    companion object {
+        @JvmStatic
+        fun of(name: String) = Symbol(name)
+    }
+}
