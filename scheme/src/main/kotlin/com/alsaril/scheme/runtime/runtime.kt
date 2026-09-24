@@ -6,10 +6,6 @@ data class Cons(val first: Any, val second: Any) {
         fun of(first: Any, second: Any) = Cons(first, second)
     }
 }
+
 data object Nil
-data class Symbol(val name: String) {
-    companion object {
-        @JvmStatic
-        fun of(name: String) = Symbol(name)
-    }
-}
+data class Symbol(val name: String)

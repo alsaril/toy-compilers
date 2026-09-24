@@ -2,6 +2,7 @@ package com.alsaril.scheme.runtime
 
 class GlobalEnvironment : Context {
     private val map = mutableMapOf<String, Any>()
+    private val symbols = mutableMapOf<String, Symbol>()
 
     init {
         map["boolean?"] = object : Function {
@@ -38,4 +39,6 @@ class GlobalEnvironment : Context {
     override fun resolve(name: String): Any {
         return map[name] ?: throw NoSuchElementException("$name not found")
     }
+
+    override fun intern(name: String) = symbols.computeIfAbsent(name, ::Symbol)
 }

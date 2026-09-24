@@ -43,11 +43,12 @@ object ClassGenerator {
     }
 
     private fun CodeBuilder.symbol(name: String) {
+        +aload(1)
         +ldc(string(name))
-        +invokestatic(
-            smethod(
-                clazz("com/alsaril/scheme/runtime/Symbol"),
-                "of",
+        +invokeinterface(
+            imethod(
+                clazz("com/alsaril/scheme/runtime/Context"),
+                "intern",
                 "(Ljava/lang/String;)Lcom/alsaril/scheme/runtime/Symbol;"
             )
         )
