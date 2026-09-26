@@ -1,6 +1,7 @@
 package com.alsaril.scheme.compiler
 
-import com.alsaril.codegen.classfile.AccessFlag.*
+import com.alsaril.codegen.classfile.AccessFlag.FINAL
+import com.alsaril.codegen.classfile.AccessFlag.PUBLIC
 import com.alsaril.codegen.code.*
 import com.alsaril.codegen.code.ClassFileBuilder.Companion.classFile
 import com.alsaril.codegen.instruction.*
@@ -20,7 +21,7 @@ object ClassGenerator {
         .generateProcedure(node)
         .build()
 
-    private fun CodeBuilder.emitResolve(name: String) {
+    private fun CodeBuilder.resolveSymbol(name: String) {
         +aload(1)
         +ldc(string(name))
         +invokeinterface(
@@ -32,17 +33,7 @@ object ClassGenerator {
         )
     }
 
-    private fun CodeBuilder.pair() {
-        +invokestatic(
-            smethod(
-                clazz("com/alsaril/scheme/runtime/Cons"),
-                "of",
-                "(Ljava/lang/Object;Ljava/lang/Object;)Lcom/alsaril/scheme/runtime/Cons;"
-            )
-        )
-    }
-
-    private fun CodeBuilder.symbol(name: String) {
+    private fun CodeBuilder.rawSymbol(name: String) {
         +aload(1)
         +ldc(string(name))
         +invokeinterface(
@@ -58,6 +49,16 @@ object ClassGenerator {
         +getstatic(field(clazz("com/alsaril/scheme/runtime/Nil"), "INSTANCE", "Lcom/alsaril/scheme/runtime/Nil;"))
     }
 
+    private fun CodeBuilder.boolean(value: Boolean) {
+        +getstatic(
+            field(
+                clazz("java/lang/Boolean"),
+                if (value) "TRUE" else "FALSE",
+                "Ljava/lang/Boolean;"
+            )
+        )
+    }
+
     private fun CodeBuilder.number(value: Int) {
         +ldc(int(value))
         +invokestatic(
@@ -69,77 +70,27 @@ object ClassGenerator {
         )
     }
 
-    private fun CodeBuilder.boolean(value: Boolean) {
-        +getstatic(
-            field(
-                clazz("java/lang/Boolean"),
-                if (value) "TRUE" else "FALSE",
-                "Ljava/lang/Boolean;"
+    private fun CodeBuilder.pair() {
+        +invokestatic(
+            smethod(
+                clazz("com/alsaril/scheme/runtime/Cons"),
+                "of",
+                "(Ljava/lang/Object;Ljava/lang/Object;)Lcom/alsaril/scheme/runtime/Cons;"
             )
         )
     }
 
-    private fun CodeBuilder.emitRaw(node: Node) {
-        when (node) {
-            is Cell -> {
-                val (first, second) = node
-                emitRaw(first)
-                emitRaw(second)
-                pair()
-            }
-
-            is Null -> `null`()
-            is Number -> number(node.value)
-            is Symbol -> when (node.name) {
-                "#f" -> boolean(false)
-                "#t" -> boolean(true)
-                else -> symbol(node.name)
-            }
-        }
-    }
-
-    private fun CodeBuilder.emitTerminal(node: Node) {
-        when (node) {
-            is Null -> `null`()
-
-            is Number -> number(node.value)
-
-            is Symbol -> when (node.name) {
-                "#f" -> boolean(false)
-                "#t" -> boolean(true)
-                else -> emitResolve(node.name)
-            }
-
-            is Cell -> copyArgs(node)
-        }
-    }
-
-    private fun CodeBuilder.copyArgs(node: Node) {
-        when (node) {
-            is Null, is Number, is Symbol -> emitTerminal(node)
-            is Cell -> {
-                val (arg, rest) = node
-                when (arg) {
-                    is Null, is Number, is Symbol -> emitTerminal(arg)
-                    is Cell -> emitEval(arg)
-                }
-                copyArgs(rest)
-                pair()
-            }
-        }
-    }
-
-    private fun CodeBuilder.emitEval(cell: Cell) {
+    private fun CodeBuilder.call(cell: Cell) {
         val (op, args) = cell
         require(op is Symbol)
         if (op.name == "quote") {
             require(args is Cell && args.second is Null)
-            emitRaw(args.first)
+            list(args.first, resolve = false, exec = false)
             return
         }
-        emitResolve(op.name)
+        resolveSymbol(op.name)
         +checkcast(clazz("com/alsaril/scheme/runtime/Function"))
-        copyArgs(args)
+        list(args, resolve = true, exec = false)
         +invokeinterface(
             imethod(
                 clazz("com/alsaril/scheme/runtime/Function"),
@@ -149,13 +100,32 @@ object ClassGenerator {
         )
     }
 
+    private fun CodeBuilder.list(node: Node, resolve: Boolean, exec: Boolean) {
+        if (node is Cell) {
+            if (exec) {
+                call(node)
+            } else {
+                val (first, second) = node
+                list(first, resolve = resolve, exec = resolve)
+                list(second, resolve = resolve, exec = false)
+                pair()
+            }
+            return
+        }
+        when (node) {
+            is Null -> `null`()
+            is Number -> number(node.value)
+            is Symbol -> when (node.name) {
+                "#f" -> boolean(false)
+                "#t" -> boolean(true)
+                else -> if (resolve) resolveSymbol(node.name) else rawSymbol(node.name)
+            }
+        }
+    }
+
     private fun ClassFileBuilder.generateProcedure(node: Node) =
         method("run", "(Lcom/alsaril/scheme/runtime/Context;)Ljava/lang/Object;", PUBLIC, FINAL) {
-            when (node) {
-                is Symbol -> emitTerminal(node)
-                is Cell -> emitEval(node)
-                else -> TODO(node.toString())
-            }
+            list(node, resolve = true, exec = true)
             +areturn
         }
 }

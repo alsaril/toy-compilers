@@ -4,7 +4,6 @@ import com.alsaril.codegen.Compiler.pipeline
 import com.alsaril.codegen.code.ClassFileBuilder
 import com.alsaril.codegen.code.ClassFileBuilder.Companion.classFile
 import com.alsaril.codegen.classfile.AccessFlag.FINAL
-import com.alsaril.codegen.classfile.AccessFlag.PRIVATE
 import com.alsaril.codegen.classfile.AccessFlag.PUBLIC
 import com.alsaril.codegen.code.*
 import com.alsaril.codegen.instruction.*
@@ -13,7 +12,6 @@ import org.assertj.core.api.Assertions.assertThatExceptionOfType
 import org.assertj.core.api.Assertions.assertThatIllegalArgumentException
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
-import java.util.function.IntSupplier
 
 /** The interface the classes generated below are asked to implement. */
 interface Counter {
@@ -120,40 +118,6 @@ class CompilerTest {
 
             assertThat(first).isNotSameAs(second)
             assertThat(first.javaClass).isNotSameAs(second.javaClass)
-        }
-
-        @Test
-        fun `hands the arguments it was given to the constructor`() {
-            // given a counter that asks a supplier handed in at construction time
-            val backend = { _: Int ->
-                classFile("GenDelegating", "java/lang/Object")
-                    .iface(counterIface)
-                    .field("source", "Ljava/util/function/IntSupplier;", PRIVATE, FINAL)
-                    .method("<init>", "(Ljava/util/function/IntSupplier;)V", PUBLIC) {
-                        +aload(0)
-                        +invokespecial(method(parent(), "<init>", "()V"))
-                        +aload(0)
-                        +aload(1)
-                        +putfield(field(self(), "source", "Ljava/util/function/IntSupplier;"))
-                        +`return`
-                    }
-                    .method("count", "()I", PUBLIC) {
-                        +aload(0)
-                        +getfield(field(self(), "source", "Ljava/util/function/IntSupplier;"))
-                        +invokeinterface(imethod(clazz("java/util/function/IntSupplier"), "getAsInt", "()I"))
-                        +ireturn
-                    }
-                    .build()
-            }
-            val source = object : IntSupplier {
-                override fun getAsInt() = 42
-            }
-
-            // when
-            val program = pipeline("", ::parse, backend, Counter::class.java, source)
-
-            // then the constructor was picked by the interface the argument implements
-            assertThat(program.count()).isEqualTo(42)
         }
 
         @Test

@@ -296,15 +296,12 @@ name can be defined repeatedly — one compilation per program, not per JVM.
 
 ```kotlin
 pipeline(source, parse, generate, Program::class.java)
-pipeline(source, parse, generate, Program::class.java, io)  // io handed to the constructor
 ```
 
 Parse the source into whatever IR the front end likes, generate class bytes from it, load
-them, check the class implements the interface the front end declared, and instantiate it.
-Any arguments after the interface go to the constructor. The constructor is looked up by
-the one interface each argument's class implements, so the generated `<init>` has to
-declare that interface as the parameter type, and an argument whose class implements no
-interface or several cannot be passed.
+them, check the class implements the interface the front end declared, and instantiate it
+through its no-argument constructor. Anything the program needs at run time is passed to
+the interface's method, not to the constructor.
 A front end is three lines on top of it — everything language-specific is the two functions
 passed in.
 
