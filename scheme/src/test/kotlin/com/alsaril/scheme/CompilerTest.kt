@@ -46,11 +46,19 @@ class CompilerTest {
     @ParameterizedTest
     @CsvSource(
         "(and), #t",
+        "(and 1), 1",
         "(and (= 2 2) (> 2 1)), #t",
         "(and (= 2 2) (< 2 1)), #f",
         "(and 1 2 'c '(f g)), (f g)",
         "(boolean? (and #t #f #t)), #t",
         "(boolean? (and #t #t '4)), #f",
+        "(or), #f",
+        "(or 1), 1",
+        "(or (not (= 2 2)) (> 2 1)), #t",
+        "(or #f (< 2 1)), #f",
+        "(or #f 1), 1",
+        "(boolean? (or #f #f #f)), #t",
+        "(boolean? (or #f #f -15)), #f",
         quoteCharacter = '$'
     )
     fun `executes and or`(input: String, expected: String) {
@@ -64,3 +72,4 @@ class CompilerTest {
         assertThat(result).isEqualTo(expected)
     }
 }
+
