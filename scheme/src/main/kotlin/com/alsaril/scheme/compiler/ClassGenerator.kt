@@ -49,7 +49,7 @@ object ClassGenerator {
         +getstatic(field(clazz("com/alsaril/scheme/runtime/Nil"), "INSTANCE", "Lcom/alsaril/scheme/runtime/Nil;"))
     }
 
-    private fun CodeBuilder.boolean(value: Boolean) {
+    private fun CodeBuilder.boolean(value: Boolean) =
         +getstatic(
             field(
                 clazz("java/lang/Boolean"),
@@ -57,7 +57,6 @@ object ClassGenerator {
                 "Ljava/lang/Boolean;"
             )
         )
-    }
 
     private fun CodeBuilder.number(value: Int) {
         +ldc(int(value))
@@ -80,14 +79,65 @@ object ClassGenerator {
         )
     }
 
+    private fun CodeBuilder.boolTemplate(args: Node, identity: Boolean) {
+        var i = args
+        val l = mutableListOf<Node>()
+        while (i is Cell) {
+            l.add(i.first)
+            i = i.second
+        }
+        require(i is Null)
+        if (l.isEmpty()) {
+            boolean(identity)
+            return
+        }
+        if (l.size == 1) {
+            list(l.first(), resolve = true, exec = true)
+            return
+        }
+        val labels = l.asSequence()
+            .take(l.size - 1)
+            .map {
+                list(it, resolve = true, exec = true)
+                boolean(!identity)
+                +if_acmpeq
+            }
+            .toList()
+
+        val exit = l.last().let {
+            list(it, resolve = true, exec = true)
+            +goto
+        }
+
+        val fail = boolean(!identity)
+        labels.forEach { link(it, fail) }
+        link(exit, end())
+    }
+
+    private fun CodeBuilder.special(name: String, args: Node): Boolean {
+        if (name == "quote") {
+            require(args is Cell && args.second is Null)
+            list(args.first, resolve = false, exec = false)
+            return true
+        }
+
+        if (name == "and") {
+            boolTemplate(args, true)
+            return true
+        }
+
+        if (name == "or") {
+            boolTemplate(args, false)
+            return true
+        }
+
+        return false
+    }
+
     private fun CodeBuilder.call(cell: Cell) {
         val (op, args) = cell
         require(op is Symbol)
-        if (op.name == "quote") {
-            require(args is Cell && args.second is Null)
-            list(args.first, resolve = false, exec = false)
-            return
-        }
+        if (special(op.name, args)) return
         resolveSymbol(op.name)
         +checkcast(clazz("com/alsaril/scheme/runtime/Function"))
         list(args, resolve = true, exec = false)
