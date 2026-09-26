@@ -23,6 +23,19 @@ class GlobalEnvironment : Context {
         f(a, b)
     }
 
+    private fun fvar(f: (List<Any>) -> Any) = object : Function {
+        override fun call(args: Any): Any {
+            val l = mutableListOf<Any>()
+            var ptr = args
+            while (ptr != Nil) {
+                require(ptr is Cons)
+                l.add(ptr.first)
+                ptr = ptr.second
+            }
+            return f(l)
+        }
+    }
+
     init {
         map["boolean?"] = f1 { it is Boolean }
         map["not"] = f1 { it == false }
