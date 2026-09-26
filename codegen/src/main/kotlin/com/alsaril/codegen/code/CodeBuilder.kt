@@ -21,7 +21,6 @@ class CodeBuilder(
 ) {
     private val instructions = mutableListOf<Instruction>()
     private val jumps = mutableMapOf<Int, Int>()
-    private val frames = mutableListOf<StackMapFrame>()
     private val exceptionHandlers = mutableListOf<ExceptionHandler>()
     private var size = 0
 
@@ -41,10 +40,6 @@ class CodeBuilder(
         instructions.add(instruction)
         size += width(instruction)
         return LabelImpl(this, index)
-    }
-
-    internal fun frame(frame: StackMapFrame) {
-        frames.add(frame)
     }
 
     private class LabelImpl(val owner: CodeBuilder, val index: Int) : Label
@@ -74,10 +69,6 @@ class CodeBuilder(
         fragment.jumps.asSequence().map { (from, to) -> from + count to to + count }.forEach {
             jumps[it.first] = it.second
         }
-        fragment.frames
-            .asSequence()
-            .map { frame -> patchOffset(frame, frame.offsetDelta + count) }
-            .forEach(frames::add)
         fragment.exceptionHandlers
             .asSequence()
             .map { it.shift(count) }
@@ -104,7 +95,6 @@ class CodeBuilder(
     fun build() = Fragment(
         instructions.toList(),
         jumps.toMap(),
-        frames.toList(),
         exceptionHandlers.toList(),
         size
     )

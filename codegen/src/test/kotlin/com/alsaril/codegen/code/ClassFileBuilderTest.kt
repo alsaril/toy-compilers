@@ -182,7 +182,7 @@ class ClassFileBuilderTest {
             // the call replaces the receiver with its int result, so the body is one deep
             assertThat(stack("(Ljava/lang/String;)I", STATIC) {
                 +aload(0)
-                +invokevirtual(method(clazz("java/lang/String"), "length", "()I"))
+                invokevirtual(clazz("java/lang/String"), "length", "()I")
                 +ireturn
             }).isOne()
         }
@@ -256,7 +256,7 @@ class ClassFileBuilderTest {
             // deepest at the store: arrayref, arrayref, index, value
             assertThat(stack("()I", STATIC) {
                 +iconst(1)
-                +newarray(PrimitiveType.INT)
+                +newarray(PrimitiveType.INTEGER)
                 +dup
                 +iconst(0)
                 +iconst(7)

@@ -19,6 +19,13 @@ sealed interface StackMapFrame : Writable {
     val offsetDelta: Int
 }
 
+fun StackMapFrame.patchOffset(newOffset: Int) = when (this) {
+    is AppendFrame -> copy(offsetDelta = newOffset)
+    is FullFrame -> copy(offsetDelta = newOffset)
+    is SameFrame, is SameFrameExtended -> sameFrame(offsetDelta = newOffset)
+    is SameLocals1StackItemFrame -> sameLocals1StackItem(offsetDelta = newOffset, stack)
+}
+
 fun sameFrame(offsetDelta: Int) = if (offsetDelta <= 63) SameFrame(offsetDelta) else SameFrameExtended(offsetDelta)
 
 data class SameFrame(
@@ -113,7 +120,11 @@ enum class SimpleVerificationTypeInfo(
 ) : VerificationTypeInfo {
     TopVariableInfo(0),
     IntegerVariableInfo(1),
-    FloatVariableInfo(2);
+    FloatVariableInfo(2),
+    DoubleVariableInfo(3),
+    LongVariableInfo(4),
+    NullVariableInfo(5),
+    UninitializedThis(6);
 
     override fun ClassWriter.write() = u1(tag)
 }
@@ -124,5 +135,14 @@ data class ObjectVariableInfo(
     override fun ClassWriter.write() {
         u1(7)
         u2(cpoolIndex)
+    }
+}
+
+data class UninitializedVariableInfo(
+    private val offset: Int,
+) : VerificationTypeInfo {
+    override fun ClassWriter.write() {
+        u1(8)
+        u2(offset)
     }
 }

@@ -8,7 +8,6 @@ import com.alsaril.codegen.instruction.Instruction
 data class Fragment(
     val instructions: List<Instruction>,
     val jumps: Map<Int, Int>, // points to indexes
-    val frames: List<StackMapFrame>, // points to indexes
     val exceptionHandlers: List<ExceptionHandler>,
     val size: Int,
 )
@@ -18,7 +17,6 @@ fun List<Fragment>.join(): Fragment {
 
     val instructions = mutableListOf<Instruction>()
     val jumps = mutableMapOf<Int, Int>()
-    val frames = mutableListOf<StackMapFrame>()
     val exceptionHandlers = mutableListOf<ExceptionHandler>()
     var count = 0
     var size = 0
@@ -28,10 +26,6 @@ fun List<Fragment>.join(): Fragment {
         fragment.jumps.asSequence().map { (from, to) -> from + count to to + count }.forEach {
             jumps[it.first] = it.second
         }
-        fragment.frames
-            .asSequence()
-            .map { frame -> patchOffset(frame, frame.offsetDelta + count) }
-            .forEach(frames::add)
         fragment.exceptionHandlers
             .asSequence()
             .map { it.shift(count) }
@@ -40,5 +34,5 @@ fun List<Fragment>.join(): Fragment {
         size += fragment.size
     }
 
-    return Fragment(instructions, jumps, frames, exceptionHandlers, size)
+    return Fragment(instructions, jumps, exceptionHandlers, size)
 }

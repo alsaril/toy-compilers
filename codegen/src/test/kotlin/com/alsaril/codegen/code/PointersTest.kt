@@ -1,6 +1,9 @@
 package com.alsaril.codegen.code
 
 import com.alsaril.codegen.constantpool.*
+import com.alsaril.codegen.instruction.PrimitiveType.FLOAT
+import com.alsaril.codegen.instruction.PrimitiveType.INTEGER
+import com.alsaril.codegen.instruction.ReferenceType
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
@@ -23,7 +26,7 @@ class PointersTest {
 
             // then each name is stored as a utf8 followed by the class entry pointing at it
             assertThat(listOf(self, parent, other))
-                .containsExactly(ClassPointer(2), ClassPointer(4), ClassPointer(6))
+                .containsExactly(ClassPointer(2, THIS_CLASS), ClassPointer(4, PARENT_CLASS), ClassPointer(6, "java/lang/String"))
             assertThat(cp.build().entries).containsExactly(
                 ConstantUtf8Info(THIS_CLASS),
                 ConstantClassInfo(nameIndex = 1),
@@ -71,7 +74,7 @@ class PointersTest {
             val pointer = builder(cp).int(42)
 
             // then
-            assertThat(pointer).isEqualTo(DataPointer(1))
+            assertThat(pointer).isEqualTo(DataPointer(1, INTEGER))
             assertThat(cp.build().entries).containsExactly(ConstantIntegerInfo(42))
         }
 
@@ -84,7 +87,7 @@ class PointersTest {
             val pointer = builder(cp).float(1.5f)
 
             // then
-            assertThat(pointer).isEqualTo(DataPointer(1))
+            assertThat(pointer).isEqualTo(DataPointer(1, FLOAT))
             assertThat(cp.build().entries).containsExactly(ConstantFloatInfo(1.5f))
         }
 
@@ -97,7 +100,7 @@ class PointersTest {
             val pointer = builder(cp).string("boom")
 
             // then the pointer addresses the string entry, not the utf8 it wraps
-            assertThat(pointer).isEqualTo(DataPointer(2))
+            assertThat(pointer).isEqualTo(DataPointer(2, ReferenceType("java/lang/String")))
             assertThat(cp.build().entries).containsExactly(
                 ConstantUtf8Info("boom"),
                 ConstantStringInfo(valueIndex = 1),

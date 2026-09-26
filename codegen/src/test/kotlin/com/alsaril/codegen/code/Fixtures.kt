@@ -11,18 +11,18 @@ fun builder(cp: UpdatableConstantPool = UpdatableConstantPool()) = CodeBuilder(c
 
 fun bytecode(block: CodeBuilder.() -> Unit): ByteArray = builder().apply(block).build().bytecode()
 
-fun Fragment.bytecode(): ByteArray = BytecodeSerializer.emit(this).first
+fun Fragment.bytecode(): ByteArray = BytecodeSerializer.emit(this, emptyList()).first
 
 fun frames(
     cp: UpdatableConstantPool = UpdatableConstantPool(),
     block: CodeBuilder.() -> Unit,
-): List<StackMapFrame> = BytecodeSerializer.emit(builder(cp).apply(block).build()).second
+): List<StackMapFrame> = BytecodeSerializer.emit(builder(cp).apply(block).build(), emptyList()).second
 
 fun framesOf(fragment: Fragment): List<StackMapFrame> =
-    BytecodeSerializer.emit(fragment).second
+    BytecodeSerializer.emit(fragment, emptyList()).second
 
 fun handlersOf(fragment: Fragment): List<ExceptionHandler> =
-    BytecodeSerializer.emit(fragment).third
+    BytecodeSerializer.emit(fragment, emptyList()).third
 
 fun handlers(block: CodeBuilder.() -> Unit): List<ExceptionHandler> =
     builder().apply(block).build().exceptionHandlers

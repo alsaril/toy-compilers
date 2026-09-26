@@ -1,9 +1,11 @@
 package com.alsaril.codegen.constantpool
 
-data class ClassPointer(val index: Int)
+import com.alsaril.codegen.instruction.VerificationType
 
-data class MethodDescriptor(val index: Int, val argSlots: Int, val returnSlots: Int)
+data class ClassPointer(val index: Int, val name: String)
 
-data class FieldDescriptor(val index: Int, val slots: Int)
+data class MethodDescriptor(val index: Int, val args: List<VerificationType>, val returnType: VerificationType)
 
-data class DataPointer(val index: Int)
+data class FieldDescriptor(val index: Int, val ownerType: VerificationType, val type: VerificationType)
+
+data class DataPointer(val index: Int, val type: VerificationType)

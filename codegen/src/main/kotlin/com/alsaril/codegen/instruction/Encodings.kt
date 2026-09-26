@@ -54,3 +54,7 @@ abstract class JumpInstruction(val code: Int) : Instruction {
         s2(0)
     }
 }
+
+sealed interface StackInstruction : Instruction { // marker
+    override fun stackEffects() = throw IllegalStateException("should not be called")
+}

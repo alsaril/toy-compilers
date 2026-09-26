@@ -2,12 +2,12 @@ package com.alsaril.codegen
 
 import com.alsaril.codegen.ByteClassLoader.loadClass
 import com.alsaril.codegen.code.ClassFileBuilder
-import com.alsaril.codegen.classfile.PrimitiveType
 import com.alsaril.codegen.code.ClassFileBuilder.Companion.classFile
 import com.alsaril.codegen.classfile.AccessFlag.FINAL
 import com.alsaril.codegen.classfile.AccessFlag.PRIVATE
 import com.alsaril.codegen.classfile.AccessFlag.PUBLIC
 import com.alsaril.codegen.classfile.AccessFlag.STATIC
+import com.alsaril.codegen.classfile.PrimitiveType
 import com.alsaril.codegen.code.*
 import com.alsaril.codegen.instruction.*
 import org.assertj.core.api.Assertions.*
@@ -25,7 +25,7 @@ class GeneratedClassTest {
         PUBLIC,
     ) {
         +aload(0)
-        +invokespecial(method(parent(), "<init>", "()V"))
+        invokespecial(parent(), "<init>", "()V")
         +`return`
     }
 
@@ -116,12 +116,10 @@ class GeneratedClassTest {
 
             val elseBranch = +nop
             link(otherwise, elseBranch)
-            frameSame(elseBranch)
             +iconst(2)
 
             val exit = +ireturn
             link(done, exit)
-            frameStack(exit, IntInfo)
         }
 
         // when it is spliced in behind something else, so it does not land at zero
@@ -166,7 +164,7 @@ class GeneratedClassTest {
             .field("value", "Ljava/lang/Object;", PRIVATE, FINAL)
             .method("<init>", "(Ljava/lang/Object;)V", PUBLIC) {
                 +aload(0)
-                +invokespecial(method(parent(), "<init>", "()V"))
+                invokespecial(parent(), "<init>", "()V")
                 +aload(0)
                 +aload(1)
                 +putfield(field(self(), "value", "Ljava/lang/Object;"))
@@ -276,7 +274,6 @@ class GeneratedClassTest {
 
                 val target = +`return`
                 link(jump, target)
-                frameSame(target)
             }
             .build()
         val instance = loadClass(name, bytes).getDeclaredConstructor()
@@ -301,7 +298,6 @@ class GeneratedClassTest {
 
                 val target = +iload(1)
                 link(jump, target)
-                frameAppend(target, IntInfo)
                 +ireturn
             }
             .build()
@@ -328,7 +324,6 @@ class GeneratedClassTest {
 
                 val target = +fload(1)
                 link(jump, target)
-                frameAppend(target, FloatInfo)
                 +freturn
             }
             .build()
@@ -360,11 +355,9 @@ class GeneratedClassTest {
 
                 val taken = +iconst(1)
                 link(branch, taken)
-                frameSame(taken)
 
                 val exit = +ireturn
                 link(done, exit)
-                frameStack(exit, IntInfo)
             }
             .build()
         return loadClass(loaded, bytes)
@@ -449,12 +442,10 @@ class GeneratedClassTest {
 
                 val caught = +astore(2) // drop the throwable
                 `catch`(guarded, to = done, handler = caught, type = clazz("java/lang/ArrayIndexOutOfBoundsException"))
-                frameStack(caught, objInfo("java/lang/Throwable"))
                 +iconst(-1)
 
                 val exit = +ireturn
                 link(done, exit)
-                frameStack(exit, IntInfo)
             }
             .build()
         val function = loadClass(name, bytes)
@@ -475,13 +466,11 @@ class GeneratedClassTest {
                 val skip = +goto
 
                 val caught = +astore(1) // drop the throwable
-                frameStack(caught, objInfo("java/lang/Throwable"))
                 +iconst(-1)
                 +ireturn
 
                 val guarded = +iconst(1)
                 link(skip, guarded)
-                frameSame(guarded)
                 +newarray(PrimitiveType.BYTE)
                 +iload(0)
                 +baload
@@ -507,12 +496,11 @@ class GeneratedClassTest {
             .method("run", "()V", PUBLIC) {
                 val guarded = +new(clazz("java/lang/IllegalStateException"))
                 +dup
-                +invokespecial(method(clazz("java/lang/IllegalStateException"), "<init>", "()V"))
+                invokespecial(clazz("java/lang/IllegalStateException"), "<init>", "()V")
                 +athrow
 
                 val caught = +astore(1)
                 `catch`(guarded, to = caught, handler = caught, type = clazz("java/lang/ArrayIndexOutOfBoundsException"))
-                frameStack(caught, objInfo("java/lang/Throwable"))
                 +`return`
             }
             .build()
@@ -539,11 +527,9 @@ class GeneratedClassTest {
 
                 val okTarget = +aconst_null // the normal path arrives with nothing to rethrow
                 link(ok, okTarget)
-                frameSame(okTarget)
 
                 val caught = +aload(0)
                 `catch`(guarded, to = caught, handler = caught, type = null)
-                frameStack(caught, objInfo("java/lang/Throwable"))
                 +iconst(0)
                 +iconst(1)
                 +iastore
@@ -554,7 +540,6 @@ class GeneratedClassTest {
 
                 val done = +`return`
                 link(exit, done)
-                frameStack(done, objInfo("java/lang/Throwable"))
             }
             .build()
         val method = loadClass(name, bytes)
@@ -585,12 +570,11 @@ class GeneratedClassTest {
                 +iload(1)
                 val jump = +ifeq
                 +aload(0)
-                +invokevirtual(method(clazz("java/lang/String"), "length", "()I"))
+                invokevirtual(clazz("java/lang/String"), "length", "()I")
                 +istore(2)
 
                 val target = +iload(2)
                 link(jump, target)
-                frameAppend(target, IntInfo)
                 +ireturn
             }
             .build()
@@ -609,7 +593,7 @@ class GeneratedClassTest {
             .method("f", "(Ljava/lang/Object;)I", PUBLIC, STATIC) {
                 +aload(0)
                 +checkcast(clazz("java/util/List"))
-                +invokeinterface(imethod(clazz("java/util/List"), "size", "()I"))
+                invokeinterface(clazz("java/util/List"), "size", "()I")
                 +ireturn
             }
             .build()

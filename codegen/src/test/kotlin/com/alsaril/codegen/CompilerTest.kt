@@ -33,7 +33,7 @@ class CompilerTest {
         PUBLIC,
     ) {
         +aload(0)
-        +invokespecial(method(parent(), "<init>", "()V"))
+        invokespecial(parent(), "<init>", "()V")
         +`return`
     }
 

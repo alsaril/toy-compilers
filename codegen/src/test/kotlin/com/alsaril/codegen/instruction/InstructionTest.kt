@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import com.alsaril.codegen.code.*
 import com.alsaril.codegen.constantpool.DataPointer
+import com.alsaril.codegen.instruction.PrimitiveType.INTEGER
 
 /** Opcode values are the ones listed in JVMS 6.5. */
 class InstructionTest {
@@ -104,15 +105,15 @@ class InstructionTest {
 
         @Test
         fun `uses the single byte form for a low pool index`() {
-            assertThat(bytecode { +ldc(DataPointer(1)) }).containsExactly(*bytesOf(0x12, 0x01))
-            assertThat(bytecode { +ldc(DataPointer(255)) }).containsExactly(*bytesOf(0x12, 0xFF))
+            assertThat(bytecode { +ldc(DataPointer(1, INTEGER)) }).containsExactly(*bytesOf(0x12, 0x01))
+            assertThat(bytecode { +ldc(DataPointer(255, INTEGER)) }).containsExactly(*bytesOf(0x12, 0xFF))
         }
 
         @Test
         fun `switches to the wide form past a single byte index`() {
-            assertThat(bytecode { +ldc(DataPointer(256)) })
+            assertThat(bytecode { +ldc(DataPointer(256, INTEGER)) })
                 .containsExactly(*bytesOf(0x13, 0x01, 0x00))
-            assertThat(bytecode { +ldc(DataPointer(65535)) })
+            assertThat(bytecode { +ldc(DataPointer(65535, INTEGER)) })
                 .containsExactly(*bytesOf(0x13, 0xFF, 0xFF))
         }
     }

@@ -187,10 +187,6 @@ class ExceptionsTest {
         assertThatIllegalArgumentException()
             .isThrownBy { bytecode { val jump = +goto; link(jump, end()) } }
             .withMessageContaining("a jump target names instruction 1")
-
-        assertThatIllegalArgumentException()
-            .isThrownBy { bytecode { +nop; frameSame(end()) } }
-            .withMessageContaining("a frame names instruction 1")
     }
 
     @Test

@@ -17,8 +17,35 @@ import com.alsaril.codegen.instruction.*
 import com.alsaril.codegen.constantpool.ClassPointer
 import com.alsaril.codegen.constantpool.FieldDescriptor
 import com.alsaril.codegen.constantpool.MethodDescriptor
+import com.alsaril.codegen.instruction.PrimitiveType as VerificationPrimitive
 
 class MembersTest {
+
+    // the lookups below used to hand back a descriptor; the builder now emits the call
+    // straight away, so the descriptor is read back off the instruction it produced
+    private fun CodeBuilder.emitted(emit: CodeBuilder.() -> Unit): MethodDescriptor {
+        emit()
+        return when (val call = build().instructions.last()) {
+            is invokevirtual -> MethodDescriptor(call.index, call.args, call.returnType)
+            is invokespecial -> MethodDescriptor(call.index, call.args, call.returnType)
+            is invokestatic -> MethodDescriptor(call.index, call.args, call.returnType)
+            is invokeinterface -> MethodDescriptor(call.index, call.args, call.returnType)
+            else -> error("$call is not a call")
+        }
+    }
+
+    private fun CodeBuilder.method(clazz: ClassPointer, name: String, descriptor: String) =
+        emitted { invokevirtual(clazz, name, descriptor) }
+
+    private fun CodeBuilder.smethod(clazz: ClassPointer, name: String, descriptor: String) =
+        emitted { invokestatic(clazz, name, descriptor) }
+
+    private fun CodeBuilder.imethod(clazz: ClassPointer, name: String, descriptor: String) =
+        emitted { invokeinterface(clazz, name, descriptor) }
+
+    private val MethodDescriptor.argSlots get() = args.sumOf { it.slots }
+    private val MethodDescriptor.returnSlots get() = returnType.slots
+    private val FieldDescriptor.slots get() = type.slots
 
     @Nested
     inner class Descriptors {
@@ -33,7 +60,9 @@ class MembersTest {
             val descriptor = builder.method(builder.clazz("A"), "f", "()V")
 
             // then
-            assertThat(descriptor).isEqualTo(MethodDescriptor(6, argSlots = 1, returnSlots = 0))
+            assertThat(descriptor.index).isEqualTo(6)
+            assertThat(descriptor.argSlots).isOne()
+            assertThat(descriptor.returnSlots).isZero()
             assertThat(cp.build().entries).containsExactly(
                 ConstantUtf8Info("A"),
                 ConstantClassInfo(nameIndex = 1),
@@ -54,7 +83,9 @@ class MembersTest {
             val descriptor = builder.imethod(builder.clazz("A"), "f", "()V")
 
             // then
-            assertThat(descriptor).isEqualTo(MethodDescriptor(6, argSlots = 1, returnSlots = 0))
+            assertThat(descriptor.index).isEqualTo(6)
+            assertThat(descriptor.argSlots).isOne()
+            assertThat(descriptor.returnSlots).isZero()
             assertThat(cp.build().entries).last()
                 .isEqualTo(ConstantInterfaceMethodRefInfo(classNameIndex = 2, nameAndTypeIndex = 5))
         }
@@ -88,7 +119,8 @@ class MembersTest {
             val descriptor = builder.field(builder.clazz("A"), "x", "I")
 
             // then
-            assertThat(descriptor).isEqualTo(FieldDescriptor(6, slots = 1))
+            assertThat(descriptor.index).isEqualTo(6)
+            assertThat(descriptor.slots).isOne()
             assertThat(cp.build().entries).last()
                 .isEqualTo(ConstantFieldRefInfo(classNameIndex = 2, nameAndTypeIndex = 5))
         }
@@ -178,56 +210,56 @@ class MembersTest {
 
         @Test
         fun `writes the invoke family with the ref index`() {
-            assertThat(bytecode { +invokevirtual(MethodDescriptor(0x0102, argSlots = 0, returnSlots = 0)) })
+            assertThat(bytecode { +invokevirtual(MethodDescriptor(0x0102, emptyList(), VerificationPrimitive.TOP)) })
                 .containsExactly(*bytesOf(0xB6, 0x01, 0x02))
-            assertThat(bytecode { +invokespecial(MethodDescriptor(1, argSlots = 0, returnSlots = 0)) })
+            assertThat(bytecode { +invokespecial(MethodDescriptor(1, emptyList(), VerificationPrimitive.TOP)) })
                 .containsExactly(*bytesOf(0xB7, 0x00, 0x01))
-            assertThat(bytecode { +invokestatic(MethodDescriptor(1, argSlots = 0, returnSlots = 0)) })
+            assertThat(bytecode { +invokestatic(MethodDescriptor(1, emptyList(), VerificationPrimitive.TOP)) })
                 .containsExactly(*bytesOf(0xB8, 0x00, 0x01))
         }
 
         @Test
         fun `writes invokeinterface with its argument count and trailing zero`() {
-            assertThat(bytecode { +invokeinterface(MethodDescriptor(1, argSlots = 2, returnSlots = 0)) })
+            assertThat(bytecode { +invokeinterface(MethodDescriptor(1, listOf(AnyReference, VerificationPrimitive.INTEGER), VerificationPrimitive.TOP)) })
                 .containsExactly(*bytesOf(0xB9, 0x00, 0x01, 0x02, 0x00))
         }
 
         @Test
         fun `writes getstatic with the field index`() {
-            assertThat(bytecode { +getstatic(FieldDescriptor(3, slots = 1)) })
+            assertThat(bytecode { +getstatic(FieldDescriptor(3, AnyReference, VerificationPrimitive.INTEGER)) })
                 .containsExactly(*bytesOf(0xB2, 0x00, 0x03))
         }
 
         @Test
         fun `writes getfield with the field index`() {
-            assertThat(bytecode { +getfield(FieldDescriptor(3, slots = 1)) })
+            assertThat(bytecode { +getfield(FieldDescriptor(3, AnyReference, VerificationPrimitive.INTEGER)) })
                 .containsExactly(*bytesOf(0xB4, 0x00, 0x03))
-            assertThat(bytecode { +getfield(FieldDescriptor(0x0102, slots = 2)) })
+            assertThat(bytecode { +getfield(FieldDescriptor(0x0102, AnyReference, VerificationPrimitive.LONG)) })
                 .containsExactly(*bytesOf(0xB4, 0x01, 0x02))
         }
 
         @Test
         fun `writes putfield with the field index`() {
-            assertThat(bytecode { +putfield(FieldDescriptor(3, slots = 1)) })
+            assertThat(bytecode { +putfield(FieldDescriptor(3, AnyReference, VerificationPrimitive.INTEGER)) })
                 .containsExactly(*bytesOf(0xB5, 0x00, 0x03))
-            assertThat(bytecode { +putfield(FieldDescriptor(0x0102, slots = 2)) })
+            assertThat(bytecode { +putfield(FieldDescriptor(0x0102, AnyReference, VerificationPrimitive.LONG)) })
                 .containsExactly(*bytesOf(0xB5, 0x01, 0x02))
         }
 
         @Test
         fun `writes new with the class index`() {
-            assertThat(bytecode { +new(ClassPointer(4)) }).containsExactly(*bytesOf(0xBB, 0x00, 0x04))
+            assertThat(bytecode { +new(ClassPointer(4, "A")) }).containsExactly(*bytesOf(0xBB, 0x00, 0x04))
         }
 
         @Test
         fun `writes checkcast with the class index`() {
-            assertThat(bytecode { +checkcast(ClassPointer(4)) })
+            assertThat(bytecode { +checkcast(ClassPointer(4, "A")) })
                 .containsExactly(*bytesOf(0xC0, 0x00, 0x04))
         }
 
         @Test
         fun `writes instanceof with the class index`() {
-            assertThat(bytecode { +instanceof(ClassPointer(4)) })
+            assertThat(bytecode { +instanceof(ClassPointer(4, "A")) })
                 .containsExactly(*bytesOf(0xC1, 0x00, 0x04))
         }
 
@@ -240,7 +272,7 @@ class MembersTest {
             assertThat(bytecode { +newarray(DOUBLE) }).containsExactly(*bytesOf(0xBC, 0x07))
             assertThat(bytecode { +newarray(BYTE) }).containsExactly(*bytesOf(0xBC, 0x08))
             assertThat(bytecode { +newarray(SHORT) }).containsExactly(*bytesOf(0xBC, 0x09))
-            assertThat(bytecode { +newarray(INT) }).containsExactly(*bytesOf(0xBC, 0x0A))
+            assertThat(bytecode { +newarray(INTEGER) }).containsExactly(*bytesOf(0xBC, 0x0A))
             assertThat(bytecode { +newarray(LONG) }).containsExactly(*bytesOf(0xBC, 0x0B))
         }
 

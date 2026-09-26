@@ -11,13 +11,13 @@ import kotlin.contracts.InvocationKind
 import kotlin.contracts.contract
 
 class ClassFileBuilder {
-    private val thisName: String
+    internal val thisName: String
     private val parentName: String
     private val ifaces = mutableListOf<String>()
     private val fields = mutableListOf<FieldInfo>()
     private val methods = mutableListOf<MethodInfo>()
 
-    private val cp = UpdatableConstantPool()
+    internal val cp = UpdatableConstantPool()
 
     private constructor(name: String, parent: String) {
         this.thisName = name
@@ -56,9 +56,7 @@ class ClassFileBuilder {
         fragment: Fragment,
         vararg accessFlags: AccessFlag,
     ): ClassFileBuilder {
-        val d = parseFunctionDescriptor(descriptor)
-        val headerSlots = d.argSlots(accessFlags.contains(STATIC))
-        val code = serialize(fragment, headerSlots, cp::putUtf8)
+        val code = serialize(fragment, descriptor, accessFlags.contains(STATIC))
         val methodInfo = MethodInfo(
             accessFlags.fold(0) { acc, flag -> acc or flag.value },
             cp.putUtf8(name),

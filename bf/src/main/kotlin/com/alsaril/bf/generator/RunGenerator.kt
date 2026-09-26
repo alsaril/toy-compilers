@@ -10,7 +10,7 @@ import com.alsaril.codegen.classfile.AccessFlag.*
 import com.alsaril.codegen.code.*
 import com.alsaril.codegen.instruction.*
 import com.alsaril.codegen.classfile.PrimitiveType.BYTE
-import com.alsaril.codegen.classfile.PrimitiveType.INT
+import com.alsaril.codegen.classfile.PrimitiveType.INTEGER
 import com.alsaril.codegen.code.join
 import kotlin.math.min
 
@@ -32,7 +32,7 @@ object RunGenerator {
         method("run", "(Ljava/io/InputStream;Ljava/io/OutputStream;II)V", PUBLIC, FINAL) {
             // input: in, out, size, cycles
             +iconst(2)
-            +newarray(INT)
+            +newarray(INTEGER)
             +dup
             +astore(5)
             +iconst(1)
@@ -49,24 +49,11 @@ object RunGenerator {
             +aload(4)
             +aload(5)
 
-            frameFull(
-                ready,
-                listOf(
-                    objInfo(self()),
-                    objInfo("java/io/InputStream"),
-                    objInfo("java/io/OutputStream"),
-                    IntInfo,
-                    objInfo("[B"),
-                    objInfo("[I")
-                ), emptyList()
-            )
-
             val guarded = +invokestatic(smethod(self(), name, descriptor))
             +aconst_null
 
             val caught = +aload(2)
             `catch`(guarded, to = caught, handler = caught, type = null)
-            frameStack(caught, objInfo("java/lang/Throwable"))
             +invokevirtual(method(clazz("java/io/OutputStream"), "flush", "()V"))
 
             +dup
@@ -75,7 +62,6 @@ object RunGenerator {
 
             val done = +`return`
             link(exit, done)
-            frameStack(done, objInfo("java/lang/Throwable"))
         }
     }
 
@@ -206,7 +192,6 @@ object RunGenerator {
 
         val ok_ = +aload(arrayIndex)
         link(ok, ok_)
-        frameSame(ok_)
 
         +aload(stateIndex)
         +iconst(0)
@@ -232,7 +217,6 @@ object RunGenerator {
 
         // cycles check
         val head = +aload(stateIndex)
-        frameSame(head)
         +iconst(1)
         +dup2
         +iaload
@@ -247,7 +231,6 @@ object RunGenerator {
 
         val test = +aload(arrayIndex)
         link(exit, test)
-        frameSame(test)
         +aload(stateIndex)
         +iconst(0)
         +iaload
@@ -257,7 +240,6 @@ object RunGenerator {
 
         val entry = start ?: test
         link(safe, entry)
-        frameSame(entry)
     }
 
     private fun ClassFileBuilder.emitCall(target: Pair<String, String>) = emitFragment {
@@ -273,12 +255,11 @@ object RunGenerator {
     private fun ClassFileBuilder.wrapMethodBody(body: Fragment) = emitFragment {
         +iconst(0)
         +istore(readIndex)
-        val start = fragment(body)
-        val exit = +`return`
-        frameAppend(start ?: exit, IntInfo)
+        fragment(body)
+        +`return`
     }
 
-    private val EMPTY = Fragment(emptyList(), emptyMap(), emptyList(), emptyList(), size = 0)
+    private val EMPTY = Fragment(emptyList(), emptyMap(),  emptyList(), size = 0)
 
     private fun ClassFileBuilder.bodyLengthLimit() = methodLengthLimit - wrapMethodBody(EMPTY).size
 

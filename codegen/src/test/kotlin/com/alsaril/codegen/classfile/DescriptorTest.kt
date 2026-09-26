@@ -5,7 +5,7 @@ import com.alsaril.codegen.classfile.PrimitiveType.BYTE
 import com.alsaril.codegen.classfile.PrimitiveType.CHAR
 import com.alsaril.codegen.classfile.PrimitiveType.DOUBLE
 import com.alsaril.codegen.classfile.PrimitiveType.FLOAT
-import com.alsaril.codegen.classfile.PrimitiveType.INT
+import com.alsaril.codegen.classfile.PrimitiveType.INTEGER
 import com.alsaril.codegen.classfile.PrimitiveType.LONG
 import com.alsaril.codegen.classfile.PrimitiveType.SHORT
 import com.alsaril.codegen.classfile.PrimitiveType.VOID
@@ -25,7 +25,7 @@ class DescriptorTest {
             assertThat(parseType("C")).isEqualTo(CHAR)
             assertThat(parseType("D")).isEqualTo(DOUBLE)
             assertThat(parseType("F")).isEqualTo(FLOAT)
-            assertThat(parseType("I")).isEqualTo(INT)
+            assertThat(parseType("I")).isEqualTo(INTEGER)
             assertThat(parseType("J")).isEqualTo(LONG)
             assertThat(parseType("S")).isEqualTo(SHORT)
             assertThat(parseType("Z")).isEqualTo(BOOLEAN)
@@ -34,19 +34,19 @@ class DescriptorTest {
 
         @Test
         fun `take two slots for a long and a double`() {
-            assertThat(LONG.slots).isEqualTo(2)
-            assertThat(DOUBLE.slots).isEqualTo(2)
+            assertThat(LONG.verificationType.slots).isEqualTo(2)
+            assertThat(DOUBLE.verificationType.slots).isEqualTo(2)
         }
 
         @Test
         fun `take no slot at all for void, which is not a value`() {
-            assertThat(VOID.slots).isZero()
+            assertThat(VOID.verificationType.slots).isZero()
         }
 
         @Test
         fun `take one slot for everything narrower`() {
-            assertThat(listOf(BYTE, CHAR, FLOAT, INT, SHORT, BOOLEAN))
-                .allSatisfy { assertThat(it.slots).isOne() }
+            assertThat(listOf(BYTE, CHAR, FLOAT, INTEGER, SHORT, BOOLEAN))
+                .allSatisfy { assertThat(it.verificationType.slots).isOne() }
         }
     }
 
@@ -61,7 +61,7 @@ class DescriptorTest {
 
         @Test
         fun `take one slot, whatever class they name`() {
-            assertThat(parseType("Ljava/util/Map;").slots).isOne()
+            assertThat(parseType("Ljava/util/Map;").verificationType.slots).isOne()
         }
     }
 
@@ -70,21 +70,21 @@ class DescriptorTest {
 
         @Test
         fun `wrap the type they hold`() {
-            assertThat(parseType("[I")).isEqualTo(ArrayType(INT))
+            assertThat(parseType("[I")).isEqualTo(ArrayType(INTEGER))
             assertThat(parseType("[Ljava/lang/String;"))
                 .isEqualTo(ArrayType(ReferenceType("java/lang/String")))
         }
 
         @Test
         fun `nest`() {
-            assertThat(parseType("[[I")).isEqualTo(ArrayType(ArrayType(INT)))
+            assertThat(parseType("[[I")).isEqualTo(ArrayType(ArrayType(INTEGER)))
         }
 
         @Test
         fun `take one slot even when they hold something two wide`() {
             // the slot holds the reference, not the elements
-            assertThat(parseType("[J").slots).isOne()
-            assertThat(parseType("[[D").slots).isOne()
+            assertThat(parseType("[J").verificationType.slots).isOne()
+            assertThat(parseType("[[D").verificationType.slots).isOne()
         }
     }
 
@@ -105,8 +105,8 @@ class DescriptorTest {
                         listOf(
                             ReferenceType("java/io/InputStream"),
                             ReferenceType("java/io/OutputStream"),
-                            INT,
-                            INT,
+                            INTEGER,
+                            INTEGER,
                         ),
                         VOID,
                     )
@@ -116,7 +116,7 @@ class DescriptorTest {
         @Test
         fun `read an array argument`() {
             assertThat(parseFunctionDescriptor("([II)V"))
-                .isEqualTo(FunctionDescriptor(listOf(ArrayType(INT), INT), VOID))
+                .isEqualTo(FunctionDescriptor(listOf(ArrayType(INTEGER), INTEGER), VOID))
         }
 
         @Test
@@ -129,10 +129,10 @@ class DescriptorTest {
         @Test
         fun `add up to the slots the arguments occupy`() {
             // which is what a method needs before its body asks for any more
-            assertThat(parseFunctionDescriptor("()V").args.sumOf { it.slots }).isZero()
-            assertThat(parseFunctionDescriptor("(II)V").args.sumOf { it.slots }).isEqualTo(2)
-            assertThat(parseFunctionDescriptor("(JD)V").args.sumOf { it.slots }).isEqualTo(4)
-            assertThat(parseFunctionDescriptor("(J[JI)V").args.sumOf { it.slots }).isEqualTo(4)
+            assertThat(parseFunctionDescriptor("()V").args.sumOf { it.verificationType.slots }).isZero()
+            assertThat(parseFunctionDescriptor("(II)V").args.sumOf { it.verificationType.slots }).isEqualTo(2)
+            assertThat(parseFunctionDescriptor("(JD)V").args.sumOf { it.verificationType.slots }).isEqualTo(4)
+            assertThat(parseFunctionDescriptor("(J[JI)V").args.sumOf { it.verificationType.slots }).isEqualTo(4)
         }
     }
 
