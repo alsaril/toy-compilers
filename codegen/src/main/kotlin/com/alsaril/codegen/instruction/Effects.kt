@@ -1,5 +1,7 @@
 package com.alsaril.codegen.instruction
 
+import com.alsaril.codegen.verification.VerificationType
+
 sealed interface StackEffect {
     val type: VerificationType
 }

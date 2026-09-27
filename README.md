@@ -7,7 +7,7 @@ bytecode backend plus one language front end per module.
 
 | Module | What it is | Docs |
 |---|---|---|
-| [`codegen`](codegen/README.md) | JVM class file writer: constant pool, stack map frames, exception handlers, a bytecode DSL, derived method limits | [README](codegen/README.md) |
+| [`codegen`](codegen/README.md) | JVM class file writer: constant pool, exception handlers, a bytecode DSL, and an analysis that type-checks each method like the JVM verifier and derives `max_stack`, `max_locals` and the stack map frames | [README](codegen/README.md) |
 | [`bf`](bf/README.md) | Brainfuck compiler — parses to an instruction tree and generates a `Program` class | [README](bf/README.md) |
 | [`math`](math/README.md) | Arithmetic expression compiler — parses to an expression tree and generates a `Program` class | [README](math/README.md) |
 

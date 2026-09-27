@@ -7,11 +7,13 @@ import org.junit.jupiter.api.Test
 import com.alsaril.codegen.code.*
 import com.alsaril.codegen.classfile.PrimitiveType as ElementType
 import com.alsaril.codegen.constantpool.DataPointer
-import com.alsaril.codegen.instruction.PrimitiveType.FLOAT
-import com.alsaril.codegen.instruction.PrimitiveType.INTEGER
-import com.alsaril.codegen.instruction.PrimitiveType.LONG
-import com.alsaril.codegen.instruction.PrimitiveType.NULL
-import com.alsaril.codegen.instruction.PrimitiveType.VOID
+import com.alsaril.codegen.verification.AnyReference
+import com.alsaril.codegen.verification.PrimitiveType.FLOAT
+import com.alsaril.codegen.verification.PrimitiveType.INTEGER
+import com.alsaril.codegen.verification.PrimitiveType.LONG
+import com.alsaril.codegen.verification.PrimitiveType.NULL
+import com.alsaril.codegen.verification.PrimitiveType.VOID
+import com.alsaril.codegen.verification.ReferenceType
 
 /** Opcode values are the ones listed in JVMS 6.5. */
 class InstructionTest {

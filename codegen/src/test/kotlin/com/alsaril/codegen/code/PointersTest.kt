@@ -1,9 +1,9 @@
 package com.alsaril.codegen.code
 
 import com.alsaril.codegen.constantpool.*
-import com.alsaril.codegen.instruction.PrimitiveType.FLOAT
-import com.alsaril.codegen.instruction.PrimitiveType.INTEGER
-import com.alsaril.codegen.instruction.ReferenceType
+import com.alsaril.codegen.verification.PrimitiveType.FLOAT
+import com.alsaril.codegen.verification.PrimitiveType.INTEGER
+import com.alsaril.codegen.verification.ReferenceType
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test

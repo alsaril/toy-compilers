@@ -9,8 +9,8 @@ import com.alsaril.codegen.classfile.PrimitiveType.INTEGER
 import com.alsaril.codegen.classfile.PrimitiveType.LONG
 import com.alsaril.codegen.classfile.PrimitiveType.SHORT
 import com.alsaril.codegen.classfile.PrimitiveType.VOID
-import com.alsaril.codegen.instruction.PrimitiveType as Verification
-import com.alsaril.codegen.instruction.ReferenceType as VerificationReference
+import com.alsaril.codegen.verification.PrimitiveType as Verification
+import com.alsaril.codegen.verification.ReferenceType as VerificationReference
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatIllegalArgumentException
 import org.junit.jupiter.api.Nested

@@ -12,7 +12,9 @@ import com.alsaril.codegen.constantpool.ConstantUtf8Info
 import com.alsaril.codegen.constantpool.FieldDescriptor
 import com.alsaril.codegen.constantpool.UpdatableConstantPool
 import com.alsaril.codegen.instruction.*
-import com.alsaril.codegen.instruction.PrimitiveType.*
+import com.alsaril.codegen.verification.AnyReference
+import com.alsaril.codegen.verification.PrimitiveType.*
+import com.alsaril.codegen.verification.ReferenceType
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatIllegalArgumentException
 import org.junit.jupiter.api.Nested

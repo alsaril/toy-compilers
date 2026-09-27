@@ -4,33 +4,115 @@ Writes JVM class files by hand — constant pool, fields, methods, bytecode, sta
 and exception handlers. No ASM. Language-agnostic: it knows about the class file format,
 nothing about sources.
 
+A method body is given as instructions alone. Everything the class file needs to know about
+the code on top of that — `max_stack`, `max_locals` and the stack map frames — is derived by
+an analysis that checks the body the way the JVM's verifier does, tracking the type of every
+value on the stack and in every local, and refuses a body the verifier would.
+
 ## Pipeline
 
 ```
 ClassFileBuilder ─> CodeBuilder ─> Fragment ─> BytecodeSerializer ─> ClassFile ─> ClassWriter ─> ByteArray
+                                                       │
+                                                    Analyzer
 ```
 
-Five packages, and the dependencies run one way — `code` on top, `constantpool` at the
-bottom, no cycles:
+Six packages, and the dependencies run one way — `code` on top, then `instruction`,
+`classfile` and `constantpool`, with `verification` at the bottom; no cycles:
 
 | package | holds |
 |---|---|
-| `code` | `ClassFileBuilder`, `CodeBuilder`, `Fragment`, `BytecodeSerializer`, `Members`, `Pointers`, `Frames` — everything that builds |
-| `instruction` | the opcodes, their encodings and their stack effects |
+| `code` | `ClassFileBuilder`, `CodeBuilder`, `Fragment`, `BytecodeSerializer`, `Analyzer`, `Locals`, `ClassHierarchy`, `Members`, `Pointers` — everything that builds |
+| `instruction` | the opcodes, their encodings, and their effects on the stack and the locals |
 | `classfile` | the static JVMS records: `ClassFile`, `FieldInfo`, `MethodInfo`, `AccessFlag`, descriptors, and `attributes/` |
 | `constantpool` | the pool, and the typed indices into it (`ClassPointer`, `MethodDescriptor`, `FieldDescriptor`, `DataPointer`) |
-| *(root)* | `ClassWriter`, `Writable`, `ByteClassLoader`, `Compiler` |
+| `verification` | the verification types of JVMS 4.10.1.2, which effects, descriptors and pool references are all stated in |
+| *(root)* | `ClassWriter`, `Writable` and `DosWriter`, which every package writes through; `ByteClassLoader`, `Compiler` |
 
 A body is built as a **list of instructions**, not as bytes. Nothing has an address until
 `BytecodeSerializer` lays the fragment out, and that is also when `max_stack`, `max_locals`,
-the frame deltas and the exception table offsets are derived. A caller never names an
-offset.
+the stack map frames and the exception table offsets are derived. A caller never names an
+offset and never describes a frame.
 
 Everything serialisable implements `Writable`, which writes into a `ClassWriter` — a narrow
 byte sink implemented once, by `DosWriter` (`u1`, `s1`, `u2`, `s2`, `int`, `float`, `long`,
 `double`, `bytes`, `utf8`). Class file structures follow JVMS §4.1–4.7 one-to-one:
 `ClassFile`, `FieldInfo`, `MethodInfo`, `AttributeInfo` with `CodeAttribute` and
 `StackMapTableAttribute`, and `ExceptionHandler` for a row of the `Code` attribute's exception table.
+
+## Analysis
+
+**`max_stack`, `max_locals` and the stack map frames are all derived; none is given.**
+`Analyzer` walks the instructions from the method entry and from every handler entry,
+tracking the [verification type](#instructions) of every value on the stack and in every
+local slot, as the JVM's own verifier does (JVMS 4.10.1).
+
+- **The entry** holds the arguments the descriptor declares, from slot 0 — after `this`
+  for an instance method, and after an uninitialised `this` in a constructor.
+- **Each instruction** applies its [effects](#instructions): pops are checked against the
+  type on the stack, reads against the type in the slot, and pushes and writes record
+  theirs. The [dynamic instructions](#instructions) have a rule each — `aload` pushes
+  whatever the slot holds, the `dup` forms copy whatever is on top, `new` pushes an
+  `Uninitialized` naming its own index.
+- **A constructor call** turns every copy of the object it initialises, on the stack and in
+  the locals, into the class — or into this class, for the parent constructor called on
+  `this`. Until then the object can be copied, kept in a local and have its constructor
+  called, and nothing else takes it.
+- **A handler entry** holds the throwable alone on the stack, typed `java/lang/Throwable`
+  whatever the handler catches, and the locals every instruction in its range starts with.
+- **Where paths meet**, the stacks have to be equally deep, and each value merges: equal
+  types stay, `null` and a class give the class, and two classes give what the
+  `ClassHierarchy` names; anything else is refused. The locals merge the same way, except
+  that a slot the paths cannot agree on becomes `top` — unusable from there on, not an
+  error — and a slot only one path defined is dropped. A merge that changes what is known
+  about an instruction walks on from it again, until nothing changes.
+
+`Locals` keeps the local slots the way the verifier models them: a `long` or a `double`
+takes its slot and the next, which holds `top`. Every change goes through its `write`, which
+fills skipped slots with `top`, cuts a wide value written over at either half, and marks the
+second half of a wide value it writes. A wide value without `top` after it is refused on
+construction, so the pair cannot come apart.
+
+From the walk:
+
+- `max_stack` is the deepest the stack gets, in slots;
+- `max_locals` is the most slots any instruction is entered with or leaves behind, which
+  covers the arguments, every slot an instruction writes, and a wide value's second half;
+- **a frame goes on every jump target and every handler entry** — once each, in code order,
+  however many jumps reach it, and on a target that is also the next instruction. Each is a
+  `full_frame` naming a `long` or a `double` once for both of its slots. Its offset delta
+  from the frame before, and the offset of the `new` an uninitialised type points at, are
+  filled in when the code is laid out.
+
+The frame records in `classfile/attributes` cover every kind of JVMS §4.7.4 but
+`chop_frame`; the analyzer produces `full_frame` alone.
+
+The walk is also where a malformed body is caught: an unlinked jump, code that runs past its
+last instruction or is never reached, an operand of the wrong type or missing, a local read
+before it is written, paths that meet with stacks that cannot merge, an object used before
+its constructor ran. Each message names the instruction and its index. Paths that cannot
+meet and code that runs past its end raise an `IllegalStateException`, everything else an
+`IllegalArgumentException`.
+
+### Class hierarchy
+
+Merging two classes and passing a value where a class is declared both need to know how
+classes relate, which the analyzer cannot find out itself. It asks the `ClassHierarchy` the
+class was built with:
+
+```kotlin
+interface ClassHierarchy {
+    fun isAssignable(from: String, to: String): Boolean
+    fun commonSuperclass(a: String, b: String): String
+}
+
+classFile(name, parent, hierarchy)
+```
+
+The default, `LenientHierarchy`, knows no classes. It accepts any class where another is
+declared, leaving that check to the JVM verifier, and meets two different classes as
+`java/lang/Object` — always a valid frame, but too wide for code that goes on to use the
+value as something narrower.
 
 ## Constant pool
 
@@ -40,16 +122,24 @@ class, string, name-and-type, and field/method/interface refs — so repeating a
 descriptor costs one entry. Long and double correctly occupy two slots.
 
 `ClassPointer` / `DataPointer` resolve to a pool index at creation, so `clazz("A")` or
-`string("boom")` registers once and the index is fixed from then on.
+`string("boom")` registers once and the index is fixed from then on. Each also carries what
+the analyzer needs to know about it: a `ClassPointer` the class name, a `DataPointer` the
+type of the constant it loads.
 
 ## Instructions
 
-`instruction/` holds the IR, and each opcode is one line stating the two
-things about it that matter:
+`instruction/` holds the IR. Each opcode states its encoding and what it does to the
+operand stack and to the local slots:
 
 ```kotlin
-data object aconst_null : NoArgInstruction(0x01), PushesOne
-data class iload(override val index: Int) : LocalSlotInstruction(0x1a, 0x15), PushesOne
+data object iadd : NoArgInstruction(0x60) {
+    override fun stackEffects() = listOf(Pop(INTEGER), Pop(INTEGER), Push(INTEGER))
+}
+
+data class istore(override val index: Int) : LocalSlotInstruction(0x3b, 0x36) {
+    override fun stackEffects() = listOf(Pop(INTEGER))
+    override fun localEffects() = listOf(Write(index, INTEGER))
+}
 ```
 
 **A class is named after its JVMS mnemonic, in lower case**, so a body reads as the
@@ -62,19 +152,28 @@ being a keyword.
   re-slotting or re-valuing one re-encodes it: `LocalSlotInstruction` takes the compact
   form for slots 0–3, the operand form to 255 and the wide prefix past that; `iconst`
   spans `iconst_<i>`, `bipush` and `sipush`; `ldc` and `iinc` each pick between a narrow
-  and a wide form. `iconst`, `ldc` and `iinc` carry their range check in `init`;
-  `LocalSlotInstruction` checks its slot as it writes, its `index` being abstract and so
-  out of reach of the base class's `init`.
-- **`Effects.kt`** — what an instruction does to the operand stack and to the local slots.
-  Eight mixins (`PushesOne`, `PopsOne`, `PopsTwoPushesOne`, `Invocation`, `TouchesLocal`, …)
-  supply the effect for every opcode but seven: the four `dup` forms (`dup`, `dup_x1`,
-  `dup_x2`, `dup2`), each one of a kind, and the three field accesses — `getstatic`,
-  `getfield`, `putfield` — whose depth comes from the field's type rather than from the
-  opcode.
-- **`Instruction.kt`** — the opcodes, and the sealed interface both axes refine.
+  and a wide form. `iconst`, `lconst`, `fconst`, `ldc` and `iinc` carry their range check
+  in `init`; `LocalSlotInstruction` checks its slot as it writes, its `index` being
+  abstract and so out of reach of the base class's `init`.
+- **`Effects.kt`** — `Pop` and `Push` for the operand stack, `Read` and `Write` for a local
+  slot, each naming the verification type involved. Pops are listed top first, the order
+  the instruction takes its operands in; a call pops its arguments last to first, then its
+  receiver.
+- **`Instruction.kt`** — the opcodes, and the sealed interface the files above refine.
 
-`Instruction` is sealed, so all three files must stay in that one package — nothing outside
-it can introduce an instruction.
+Effects are stated in the verification types of JVMS 4.10.1.2, which live in the
+`verification` package below everything else: `INTEGER`, `FLOAT`, `LONG`, `DOUBLE`, `NULL`,
+`TOP`, `UNINITIALIZED_THIS` and `VOID`, `ReferenceType` for a class or an array (named as the
+constant pool names it, `java/lang/String` or `[I`), `Uninitialized` for an object `new` made
+whose constructor has not run, and `AnyReference` for an operand that may be any object or
+null. Each knows how many slots it takes and whether it may be handed on as a reference.
+
+A few instructions have no effect they could state on their own: `aload`, `astore`, `new`
+and the four `dup` forms move or copy whatever type the frame holds. They are marked
+`DynamicInstruction`, and the analyzer has a rule for each.
+
+`Instruction` is sealed, so its files must stay in that one package — nothing outside it
+can introduce an instruction.
 
 ## Bytecode DSL
 
@@ -93,8 +192,8 @@ method("f", "()I", PUBLIC, STATIC) {
 
 Being a member rather than a top-level extension, it is in scope only inside a
 `CodeBuilder.() -> Unit` block. Around it sits the code that does more than name an
-opcode: `Members` (pool refs for methods and fields), `Pointers` (refs for classes and
-constants), `Frames`, and `link` / `` `catch` `` / `end` for addressing.
+opcode: `Members` (calls, field refs and `constructDefault`), `Pointers` (refs for classes
+and constants), and `link` / `` `catch` `` / `end` for addressing.
 
 `@DslMarker` (`@CodeDsl`) keeps a nested block from resolving an outer receiver.
 
@@ -102,23 +201,32 @@ constants), `Frames`, and `link` / `` `catch` `` / `end` for addressing.
 as an index into the instructions of the builder that handed it out. A label belongs to
 that builder and nowhere else: one handed to a different builder is refused rather than
 silently naming whatever sits at that index there. That single return value is the whole
-addressing story, since jump targets, frame anchors and exception ranges are all labels.
+addressing story, since jump targets and exception ranges are both labels.
 
-Indices are also what makes a fragment portable. A jump, a frame or a guarded range inside
-one refers to positions in its own instruction list, so splicing it somewhere else shifts
-every reference by the number of instructions ahead of it and nothing else has to change —
+Indices are also what makes a fragment portable. A jump or a guarded range inside one
+refers to positions in its own instruction list, so splicing it somewhere else shifts every
+reference by the number of instructions ahead of it and nothing else has to change —
 where a byte offset would have had to be recomputed, and a jump patched.
 
-**Int and float are both covered** — constants, locals, arithmetic, negation and returns —
-alongside `areturn`, `checkcast`, `instanceof`, `newarray`, `getstatic`, `getfield`,
-`putfield` and the invoke family. A float
-constant that has an opcode of its own (0, 1, 2) uses it; anything else goes to the pool as
-`ldc`. `newarray` takes the `PrimitiveType` of its element and encodes the atype code itself.
+**What is covered:**
 
-**Local slots widen automatically.** `iload`, `fload`, `aload` and the stores take a slot
-and nothing else; which of the three encodings that slot needs is settled when the
-instruction is written, as above. The ceiling is 65535, which is `max_locals`' own limit,
-and the [width checks](#width-checks) reject anything beyond.
+- `int` — constants, locals, `iinc`, arithmetic, loads and stores into `int[]` and `byte[]`,
+  comparisons with zero and with each other, returns;
+- `float` — constants, locals, arithmetic, negation, returns;
+- `long` — the constants 0 and 1, and stores to a local;
+- references — `aconst_null`, locals, `new`, `newarray`, `checkcast`, `instanceof`,
+  identity and null comparisons, `areturn`, `athrow`;
+- fields and calls — `getstatic`, `getfield`, `putfield` and the invoke family;
+- the stack — `dup`, `dup_x1`, `dup_x2`, `dup2`.
+
+A float constant that has an opcode of its own (0, 1, 2) uses it; any other goes to the pool
+as `ldc`. A long constant is `lconst`, 0 or 1. `newarray` takes the `PrimitiveType` of its
+element and encodes the atype code itself.
+
+**Local slots widen automatically.** The loads and stores take a slot and nothing else;
+which of the three encodings that slot needs is settled when the instruction is written,
+as above. The ceiling is 65535, which is `max_locals`' own limit, and the
+[width checks](#width-checks) reject anything beyond.
 
 **Jumps name a label.** A branch is emitted like anything else and linked to its target
 whenever that becomes known, before or after; the operand is a placeholder until layout
@@ -135,35 +243,34 @@ When the target already exists, the two collapse into one line — `link(+goto, 
 
 ## Calls and fields
 
-The three method helpers differ only in how many slots a call takes off the stack, which is
-what `max_stack` is derived from:
-
-| helper | for | operands |
-|---|---|---|
-| `method` | `invokevirtual`, `invokespecial` | arguments **plus the receiver** |
-| `smethod` | `invokestatic` | arguments alone |
-| `imethod` | `invokeinterface` | arguments plus the receiver, and the count byte |
-
-Each hands back a descriptor that the instruction takes whole, so the slot counts reach
-`max_stack` without being restated:
+A call is emitted by one of four helpers, one per invoke instruction, each taking the class
+that owns the method, its name and its descriptor:
 
 ```kotlin
-+invokestatic(smethod(self(), "f", "(I)I"))
+invokestatic(self(), "f", "(I)I")
+invokevirtual(clazz("java/lang/String"), "length", "()I")
+invokeinterface(clazz("java/util/List"), "size", "()I")
+invokespecial(parent(), "<init>", "()V")
 ```
 
-`field` carries the slots its type occupies, so a `long` or a `double` counts as two in each
-of the field accesses: `getstatic` pushes them, `getfield` swaps the receiver for them, and
-`putfield` takes them off together with the receiver.
+Each registers the ref in the pool — an interface method ref for `invokeinterface`, a
+method ref for the others — and emits the instruction with the types the descriptor
+gives: the arguments, the result and, for everything but `invokestatic`, a receiver of the
+owning class taken first. An `invokespecial` of `<init>` is marked as a constructor call
+for the class, which is what lets the analyzer tell initialising an object apart from
+calling one of its methods. `invokeinterface` writes its argument count from the same
+types, a `long` or a `double` counting twice. Like `+`, each helper hands back the label of
+the call, so a call can be a jump target or open a guarded range.
 
-`constructDefault(clazz(...))` is the one helper that emits rather than just resolves: `new`,
-`dup` and `invokespecial` of the class's `<init>()V`, leaving the fresh instance on the stack.
+`field(clazz, name, descriptor)` registers a field ref and hands back a `FieldDescriptor` —
+the pool index, the class that owns the field and the type it holds — which `getstatic`,
+`getfield` and `putfield` take whole.
 
-Picking the wrong one is not a compile error and usually not a crash — it shifts the derived
-depth by one, which over-declares (harmless) or under-declares (`VerifyError`). Hence the
-separate names rather than a boolean.
+`constructDefault(clazz(...))` emits `new`, `dup` and `invokespecial` of the class's
+`<init>()V`, leaving the fresh instance on the stack.
 
-The `field` above only *refers* to a field, of this class or any other. A field this class
-owns is declared on `ClassFileBuilder`, next to its methods, with the same `AccessFlag`s:
+`field` only *refers* to a field, of this class or any other. A field this class owns is
+declared on `ClassFileBuilder`, next to its methods, with the same `AccessFlag`s:
 
 ```kotlin
 classFile("Holder", "java/lang/Object")
@@ -177,26 +284,6 @@ classFile("Holder", "java/lang/Object")
 
 Fields are written in the order they were declared, with no attributes — so no
 `ConstantValue`; a field starts at its default and is set by code.
-
-## Stack map frames
-
-A frame is attached to the instruction it describes, under that instruction's label:
-
-```kotlin
-val target = +iload(1)
-link(jump, target)
-frameAppend(target, IntInfo)
-```
-
-`frameSame`, `frameStack`, `frameAppend` and `frameFull` are the four kinds. A frame is
-written as the distance from the *previous* frame, so the delta only exists once the code
-is laid out — until then the frame carries its instruction index and the serializer sorts,
-measures and picks the compact or extended encoding.
-
-An offset can be named only once. Two requests for the **same** frame on one instruction
-collapse; two that **disagree** are refused, naming the offset and both descriptions.
-
-Almost all of the frame kinds in JVMS §4.7.4 are implemented; only `chop_frame` is missing.
 
 ## Exception handlers
 
@@ -251,59 +338,30 @@ method(name, descriptor, PUBLIC) {
 `newCodeBuilder()` hands out builders sharing the class's constant pool, so pieces can be
 built apart and spliced into a method of the same class.
 
-`Fragment` is an instruction list plus its jumps, frames, handlers and encoded length.
-Joining and splicing **shift every index by the instruction count ahead of it** — not by the
-byte length, which is the same number only while every instruction is one byte wide. There
-is no offset arithmetic and nothing to patch afterwards: a fragment's jumps and frames point
+`Fragment` is an instruction list plus its jumps, handlers and encoded length. Joining and
+splicing **shift every index by the instruction count ahead of it** — not by the byte
+length, which is the same number only while every instruction is one byte wide. There is
+no offset arithmetic and nothing to patch afterwards: a fragment's jumps and handlers point
 at positions in its own list, and moving the list moves them.
 
 `build()` reads the instructions out into a fragment rather than freezing the builder, so it
 can be called more than once and emission can carry on afterwards.
-
-## Method limits
-
-**Both limits are derived; neither is given.** `BytecodeSerializer.analyze` walks the
-instruction list breadth-first from the method entry and from every handler entry, carrying
-the stack depth:
-
-- `max_stack` is the deepest the walk sees. Each instruction declares what it pops and
-  pushes via its effect mixin, so the depth is computed, never declared.
-- `max_locals` is the highest slot any instruction touches, plus one, against the floor the
-  descriptor sets — a `long` or a `double` argument takes two slots, and an instance method
-  needs one more for `this`.
-
-A **handler entry is a root of its own**, entered with the throwable alone on the stack, so
-a handler body that nothing falls into is still walked.
-
-The walk is also where a malformed body is caught, each message naming the instruction
-and its index:
-
-```
-a method body must hold at least one instruction
-ifeq at 1 was never linked to a target
-nop at 0 continues to 1, which is past the last instruction
-ireturn at 3 is reached with a stack 1 deep on one path and 0 deep on another
-iadd at 0 pops 2 from a stack 0 deep
-instruction 1 is unreachable
-```
 
 ## Loading
 
 `ByteClassLoader.loadClass(name, bytes)` gives each class its own loader, so the same class
 name can be defined repeatedly — one compilation per program, not per JVM.
 
-`Compiler.pipeline` is the whole contract between a language module and this one:
+`Compiler.pipeline` runs the whole chain from source text to a live object:
 
 ```kotlin
 pipeline(source, parse, generate, Program::class.java)
 ```
 
-Parse the source into whatever IR the front end likes, generate class bytes from it, load
-them, check the class implements the interface the front end declared, and instantiate it
-through its no-argument constructor. Anything the program needs at run time is passed to
-the interface's method, not to the constructor.
-A front end is three lines on top of it — everything language-specific is the two functions
-passed in.
+It parses the source into whatever IR `parse` returns, generates class bytes from it with
+`generate`, loads them, checks the class implements the interface it was given, and
+instantiates it through its no-argument constructor. Anything the program needs at run time
+is passed to the interface's method, not to the constructor.
 
 ## Width checks
 
@@ -338,5 +396,7 @@ fit, at the point the value is emitted.
 ## Tests
 
 Byte-level expectations are written out literally from the JVMS rather than produced by a
-second copy of the encoder, and `GeneratedClassTest` loads and runs generated classes so
-the **JVM verifier** checks the pool, bytecode, frames and exception table.
+second copy of the encoder, and the frames the analyzer derives are checked entry by entry
+against the verification types they should hold. `GeneratedClassTest` loads and runs
+generated classes, so the **JVM verifier** checks the pool, bytecode, frames and exception
+table as well.

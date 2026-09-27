@@ -1,8 +1,8 @@
 package com.alsaril.codegen.code
 
 import com.alsaril.codegen.instruction.Instruction
-import com.alsaril.codegen.instruction.PrimitiveType.TOP
-import com.alsaril.codegen.instruction.VerificationType
+import com.alsaril.codegen.verification.PrimitiveType.TOP
+import com.alsaril.codegen.verification.VerificationType
 
 internal data class Locals(private val slots: List<VerificationType>) {
     init {

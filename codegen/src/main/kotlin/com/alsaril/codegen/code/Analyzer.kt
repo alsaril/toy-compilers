@@ -7,7 +7,8 @@ import com.alsaril.codegen.classfile.attributes.UninitializedVariableInfo
 import com.alsaril.codegen.classfile.parseFunctionDescriptor
 import com.alsaril.codegen.constantpool.UpdatableConstantPool
 import com.alsaril.codegen.instruction.*
-import com.alsaril.codegen.instruction.PrimitiveType.*
+import com.alsaril.codegen.verification.*
+import com.alsaril.codegen.verification.PrimitiveType.*
 import java.util.*
 
 internal class Analyzer(

@@ -1,8 +1,8 @@
 package com.alsaril.codegen.code
 
-import com.alsaril.codegen.instruction.PrimitiveType.*
-import com.alsaril.codegen.instruction.ReferenceType
-import com.alsaril.codegen.instruction.Uninitialized
+import com.alsaril.codegen.verification.PrimitiveType.*
+import com.alsaril.codegen.verification.ReferenceType
+import com.alsaril.codegen.verification.Uninitialized
 import com.alsaril.codegen.instruction.iload
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatIllegalArgumentException

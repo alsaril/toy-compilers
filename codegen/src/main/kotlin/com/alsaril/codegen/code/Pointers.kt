@@ -2,9 +2,9 @@ package com.alsaril.codegen.code
 
 import com.alsaril.codegen.constantpool.ClassPointer
 import com.alsaril.codegen.constantpool.DataPointer
-import com.alsaril.codegen.instruction.PrimitiveType.FLOAT
-import com.alsaril.codegen.instruction.PrimitiveType.INTEGER
-import com.alsaril.codegen.instruction.ReferenceType
+import com.alsaril.codegen.verification.PrimitiveType.FLOAT
+import com.alsaril.codegen.verification.PrimitiveType.INTEGER
+import com.alsaril.codegen.verification.ReferenceType
 
 fun CodeBuilder.self() = clazz(thisClass)
 

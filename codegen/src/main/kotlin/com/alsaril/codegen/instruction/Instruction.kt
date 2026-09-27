@@ -8,7 +8,10 @@ import com.alsaril.codegen.constantpool.ClassPointer
 import com.alsaril.codegen.constantpool.DataPointer
 import com.alsaril.codegen.constantpool.FieldDescriptor
 import com.alsaril.codegen.constantpool.MethodDescriptor
-import com.alsaril.codegen.instruction.PrimitiveType.*
+import com.alsaril.codegen.verification.AnyReference
+import com.alsaril.codegen.verification.PrimitiveType.*
+import com.alsaril.codegen.verification.ReferenceType
+import com.alsaril.codegen.verification.VerificationType
 
 sealed interface Instruction : Writable {
     fun stackEffects(): List<StackEffect> = emptyList()

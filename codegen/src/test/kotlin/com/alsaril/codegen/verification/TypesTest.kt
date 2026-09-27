@@ -1,6 +1,6 @@
-package com.alsaril.codegen.instruction
+package com.alsaril.codegen.verification
 
-import com.alsaril.codegen.instruction.PrimitiveType.*
+import com.alsaril.codegen.verification.PrimitiveType.*
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
 

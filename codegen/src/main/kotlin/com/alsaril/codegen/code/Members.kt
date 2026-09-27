@@ -8,6 +8,7 @@ import com.alsaril.codegen.constantpool.FieldDescriptor
 import com.alsaril.codegen.constantpool.MethodDescriptor
 import com.alsaril.codegen.constantpool.UpdatableConstantPool.RefType.*
 import com.alsaril.codegen.instruction.*
+import com.alsaril.codegen.verification.ReferenceType
 
 
 fun CodeBuilder.field(classPointer: ClassPointer, name: String, descriptor: String): FieldDescriptor {

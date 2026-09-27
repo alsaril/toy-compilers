@@ -1,6 +1,6 @@
 package com.alsaril.codegen.constantpool
 
-import com.alsaril.codegen.instruction.VerificationType
+import com.alsaril.codegen.verification.VerificationType
 
 data class ClassPointer(val index: Int, val name: String)
 

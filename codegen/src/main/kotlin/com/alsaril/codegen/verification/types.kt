@@ -1,4 +1,4 @@
-package com.alsaril.codegen.instruction
+package com.alsaril.codegen.verification
 
 sealed interface VerificationType {
     val slots: Int

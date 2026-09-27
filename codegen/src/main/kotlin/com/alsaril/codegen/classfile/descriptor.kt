@@ -2,7 +2,7 @@ package com.alsaril.codegen.classfile
 
 import com.alsaril.codegen.classfile.PrimitiveType.Companion.asPrimitiveType
 import com.alsaril.codegen.classfile.PrimitiveType.VOID
-import com.alsaril.codegen.instruction.VerificationType
+import com.alsaril.codegen.verification.VerificationType
 
 sealed interface Type {
     val descriptor: String
@@ -10,15 +10,15 @@ sealed interface Type {
 }
 
 enum class PrimitiveType(override val descriptor: String, override val verificationType: VerificationType) : Type {
-    BYTE("B", com.alsaril.codegen.instruction.PrimitiveType.INTEGER),
-    CHAR("C", com.alsaril.codegen.instruction.PrimitiveType.INTEGER),
-    DOUBLE("D", com.alsaril.codegen.instruction.PrimitiveType.DOUBLE),
-    FLOAT("F", com.alsaril.codegen.instruction.PrimitiveType.FLOAT),
-    INTEGER("I", com.alsaril.codegen.instruction.PrimitiveType.INTEGER),
-    LONG("J", com.alsaril.codegen.instruction.PrimitiveType.LONG),
-    SHORT("S", com.alsaril.codegen.instruction.PrimitiveType.INTEGER),
-    BOOLEAN("Z", com.alsaril.codegen.instruction.PrimitiveType.INTEGER),
-    VOID("V", com.alsaril.codegen.instruction.PrimitiveType.VOID);
+    BYTE("B", com.alsaril.codegen.verification.PrimitiveType.INTEGER),
+    CHAR("C", com.alsaril.codegen.verification.PrimitiveType.INTEGER),
+    DOUBLE("D", com.alsaril.codegen.verification.PrimitiveType.DOUBLE),
+    FLOAT("F", com.alsaril.codegen.verification.PrimitiveType.FLOAT),
+    INTEGER("I", com.alsaril.codegen.verification.PrimitiveType.INTEGER),
+    LONG("J", com.alsaril.codegen.verification.PrimitiveType.LONG),
+    SHORT("S", com.alsaril.codegen.verification.PrimitiveType.INTEGER),
+    BOOLEAN("Z", com.alsaril.codegen.verification.PrimitiveType.INTEGER),
+    VOID("V", com.alsaril.codegen.verification.PrimitiveType.VOID);
 
     companion object {
         private val c2type = entries.associateBy { it.descriptor }
@@ -29,12 +29,12 @@ enum class PrimitiveType(override val descriptor: String, override val verificat
 
 data class ArrayType(val elem: Type) : Type {
     override val descriptor = "[${elem.descriptor}"
-    override val verificationType = com.alsaril.codegen.instruction.ReferenceType(descriptor)
+    override val verificationType = com.alsaril.codegen.verification.ReferenceType(descriptor)
 }
 
 data class ReferenceType(val clazz: String) : Type {
     override val descriptor = "L$clazz;"
-    override val verificationType = com.alsaril.codegen.instruction.ReferenceType(clazz)
+    override val verificationType = com.alsaril.codegen.verification.ReferenceType(clazz)
 }
 
 data class FunctionDescriptor(val args: List<Type>, val returnType: Type)
