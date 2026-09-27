@@ -15,7 +15,7 @@ object ClassGenerator {
         .iface("com/alsaril/scheme/runtime/Program")
         .method("<init>", "()V", PUBLIC) {
             +aload(0)
-            +invokespecial(method(parent(), "<init>", "()V"))
+            invokespecial(parent(), "<init>", "()V")
             +`return`
         }
         .generateProcedure(node)
@@ -24,24 +24,20 @@ object ClassGenerator {
     private fun CodeBuilder.resolveSymbol(name: String) {
         +aload(1)
         +ldc(string(name))
-        +invokeinterface(
-            imethod(
-                clazz("com/alsaril/scheme/runtime/Context"),
-                "resolve",
-                "(Ljava/lang/String;)Ljava/lang/Object;"
-            )
+        invokeinterface(
+            clazz("com/alsaril/scheme/runtime/Context"),
+            "resolve",
+            "(Ljava/lang/String;)Ljava/lang/Object;"
         )
     }
 
     private fun CodeBuilder.rawSymbol(name: String) {
         +aload(1)
         +ldc(string(name))
-        +invokeinterface(
-            imethod(
-                clazz("com/alsaril/scheme/runtime/Context"),
-                "intern",
-                "(Ljava/lang/String;)Lcom/alsaril/scheme/runtime/Symbol;"
-            )
+        invokeinterface(
+            clazz("com/alsaril/scheme/runtime/Context"),
+            "intern",
+            "(Ljava/lang/String;)Lcom/alsaril/scheme/runtime/Symbol;"
         )
     }
 
@@ -60,22 +56,14 @@ object ClassGenerator {
 
     private fun CodeBuilder.number(value: Int) {
         +ldc(int(value))
-        +invokestatic(
-            smethod(
-                clazz("java/lang/Integer"),
-                "valueOf",
-                "(I)Ljava/lang/Integer;"
-            )
-        )
+        invokestatic(clazz("java/lang/Integer"), "valueOf", "(I)Ljava/lang/Integer;")
     }
 
     private fun CodeBuilder.pair() {
-        +invokestatic(
-            smethod(
-                clazz("com/alsaril/scheme/runtime/Cons"),
-                "of",
-                "(Ljava/lang/Object;Ljava/lang/Object;)Lcom/alsaril/scheme/runtime/Cons;"
-            )
+        invokestatic(
+            clazz("com/alsaril/scheme/runtime/Cons"),
+            "of",
+            "(Ljava/lang/Object;Ljava/lang/Object;)Lcom/alsaril/scheme/runtime/Cons;"
         )
     }
 
@@ -141,12 +129,10 @@ object ClassGenerator {
         resolveSymbol(op.name)
         +checkcast(clazz("com/alsaril/scheme/runtime/Function"))
         list(args, resolve = true, exec = false)
-        +invokeinterface(
-            imethod(
-                clazz("com/alsaril/scheme/runtime/Function"),
-                "call",
-                "(Ljava/lang/Object;)Ljava/lang/Object;"
-            )
+        invokeinterface(
+            clazz("com/alsaril/scheme/runtime/Function"),
+            "call",
+            "(Ljava/lang/Object;)Ljava/lang/Object;"
         )
     }
 
