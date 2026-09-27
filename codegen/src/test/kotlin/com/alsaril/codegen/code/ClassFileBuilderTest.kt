@@ -246,6 +246,35 @@ class ClassFileBuilderTest {
         }
 
         @Test
+        fun `counts a long constant as two slots`() {
+            assertThat(stack("()V", STATIC) { +lconst(0); +lconst(1); +`return` }).isEqualTo(4)
+        }
+
+        @Test
+        fun `counts both values dup2 copies`() {
+            // two ints in, both copied
+            assertThat(stack("()V", STATIC) { +iconst(1); +iconst(2); +dup2; +`return` }).isEqualTo(4)
+        }
+
+        @Test
+        fun `counts the one long dup2 copies`() {
+            // a long is copied whole, which is as wide as two ints
+            assertThat(stack("()V", STATIC) { +lconst(1); +dup2; +`return` }).isEqualTo(4)
+        }
+
+        @Test
+        fun `counts the copy dup_x2 tucks under the top three`() {
+            assertThat(stack("()V", STATIC) { +iconst(1); +iconst(2); +iconst(3); +dup_x2; +`return` })
+                .isEqualTo(4)
+        }
+
+        @Test
+        fun `counts the copy dup_x2 tucks under a long`() {
+            // a long under the top counts as the two values dup_x2 reaches past
+            assertThat(stack("()V", STATIC) { +lconst(0); +iconst(1); +dup_x2; +`return` }).isEqualTo(4)
+        }
+
+        @Test
         fun `counts a returned reference`() {
             assertThat(stack("()Ljava/lang/Object;", STATIC) { +aconst_null; +areturn }).isOne()
         }
@@ -330,6 +359,11 @@ class ClassFileBuilderTest {
             // slot 0 - so the room for this belongs to the descriptor's count alone
             assertThat(locals("()V", PUBLIC) { +iconst(0); +istore(3); +`return` }).isEqualTo(4)
             assertThat(locals("(I)V", PUBLIC) { +iconst(0); +istore(3); +`return` }).isEqualTo(4)
+        }
+
+        @Test
+        fun `counts a local written past a long argument from the slot after both of its halves`() {
+            assertThat(locals("(J)V", STATIC) { +iconst(0); +istore(2); +`return` }).isEqualTo(3)
         }
 
         @Test

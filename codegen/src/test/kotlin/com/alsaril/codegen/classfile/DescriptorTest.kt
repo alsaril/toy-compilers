@@ -9,6 +9,8 @@ import com.alsaril.codegen.classfile.PrimitiveType.INTEGER
 import com.alsaril.codegen.classfile.PrimitiveType.LONG
 import com.alsaril.codegen.classfile.PrimitiveType.SHORT
 import com.alsaril.codegen.classfile.PrimitiveType.VOID
+import com.alsaril.codegen.instruction.PrimitiveType as Verification
+import com.alsaril.codegen.instruction.ReferenceType as VerificationReference
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatIllegalArgumentException
 import org.junit.jupiter.api.Nested
@@ -48,6 +50,17 @@ class DescriptorTest {
             assertThat(listOf(BYTE, CHAR, FLOAT, INTEGER, SHORT, BOOLEAN))
                 .allSatisfy { assertThat(it.verificationType.slots).isOne() }
         }
+
+        @Test
+        fun `are checked as the type the JVM widens them to`() {
+            // everything narrower than an int is an int on the stack and in a local
+            assertThat(listOf(BYTE, CHAR, SHORT, BOOLEAN, INTEGER))
+                .allSatisfy { assertThat(it.verificationType).isEqualTo(Verification.INTEGER) }
+            assertThat(FLOAT.verificationType).isEqualTo(Verification.FLOAT)
+            assertThat(LONG.verificationType).isEqualTo(Verification.LONG)
+            assertThat(DOUBLE.verificationType).isEqualTo(Verification.DOUBLE)
+            assertThat(VOID.verificationType).isEqualTo(Verification.VOID)
+        }
     }
 
     @Nested
@@ -57,6 +70,12 @@ class DescriptorTest {
         fun `read the class name between the L and the semicolon`() {
             assertThat(parseType("Ljava/lang/String;"))
                 .isEqualTo(ReferenceType("java/lang/String"))
+        }
+
+        @Test
+        fun `are checked as the class they name`() {
+            assertThat(parseType("Ljava/lang/String;").verificationType)
+                .isEqualTo(VerificationReference("java/lang/String"))
         }
 
         @Test
@@ -81,11 +100,24 @@ class DescriptorTest {
         }
 
         @Test
+        fun `are checked under their own descriptor, which is how the pool names an array class`() {
+            assertThat(parseType("[I").verificationType).isEqualTo(VerificationReference("[I"))
+            assertThat(parseType("[[Ljava/lang/String;").verificationType)
+                .isEqualTo(VerificationReference("[[Ljava/lang/String;"))
+        }
+
+        @Test
         fun `take one slot even when they hold something two wide`() {
             // the slot holds the reference, not the elements
             assertThat(parseType("[J").verificationType.slots).isOne()
             assertThat(parseType("[[D").verificationType.slots).isOne()
         }
+    }
+
+    @Test
+    fun `spells every type back as the descriptor it was read from`() {
+        listOf("B", "C", "D", "F", "I", "J", "S", "Z", "V", "Ljava/lang/String;", "[I", "[[Ljava/lang/Object;")
+            .forEach { assertThat(parseType(it).descriptor).isEqualTo(it) }
     }
 
     @Nested

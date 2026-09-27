@@ -5,8 +5,13 @@ import org.assertj.core.api.Assertions.*
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import com.alsaril.codegen.code.*
+import com.alsaril.codegen.classfile.PrimitiveType as ElementType
 import com.alsaril.codegen.constantpool.DataPointer
+import com.alsaril.codegen.instruction.PrimitiveType.FLOAT
 import com.alsaril.codegen.instruction.PrimitiveType.INTEGER
+import com.alsaril.codegen.instruction.PrimitiveType.LONG
+import com.alsaril.codegen.instruction.PrimitiveType.NULL
+import com.alsaril.codegen.instruction.PrimitiveType.VOID
 
 /** Opcode values are the ones listed in JVMS 6.5. */
 class InstructionTest {
@@ -51,6 +56,24 @@ class InstructionTest {
         fun `rejects a float constant that needs a constant pool entry`() {
             assertThatIllegalArgumentException().isThrownBy { bytecode { +fconst(3) } }
             assertThatIllegalArgumentException().isThrownBy { bytecode { +fconst(-1) } }
+        }
+    }
+
+    @Nested
+    inner class Lconst {
+
+        @Test
+        fun `writes the compact long constants`() {
+            assertThat(bytecode { +lconst(0) }).containsExactly(*bytesOf(0x09))
+            assertThat(bytecode { +lconst(1) }).containsExactly(*bytesOf(0x0A))
+        }
+
+        @Test
+        fun `rejects a long constant that needs a constant pool entry`() {
+            assertThatIllegalArgumentException()
+                .isThrownBy { bytecode { +lconst(2) } }
+                .withMessage("2 is out of range for lconst, ldc2_w should be used")
+            assertThatIllegalArgumentException().isThrownBy { bytecode { +lconst(-1) } }
         }
     }
 
@@ -226,6 +249,8 @@ class InstructionTest {
             assertThat(bytecode { +ifgt }).startsWith(*bytesOf(0x9D))
             assertThat(bytecode { +if_icmplt }).startsWith(*bytesOf(0xA1))
             assertThat(bytecode { +if_icmpge }).startsWith(*bytesOf(0xA2))
+            assertThat(bytecode { +if_acmpeq }).startsWith(*bytesOf(0xA5))
+            assertThat(bytecode { +if_acmpne }).startsWith(*bytesOf(0xA6))
             assertThat(bytecode { +ifnull }).startsWith(*bytesOf(0xC6))
             assertThat(bytecode { +ifnonnull }).startsWith(*bytesOf(0xC7))
         }
@@ -336,6 +361,133 @@ class InstructionTest {
             assertThatExceptionOfType(IllegalArgumentException::class.java)
                 .isThrownBy { bytecode { val jump = +goto; repeat(40_000) { +nop }; link(jump, +nop) } }
                 .withMessageContaining("does not fit an s2")
+        }
+    }
+
+    /**
+     * What each instruction does to the stack and the locals, which is all the analyzer knows
+     * about it. Pops are listed top first, so the value an instruction takes first leads.
+     */
+    @Nested
+    inner class Effects {
+
+        @Test
+        fun `push the type a constant carries`() {
+            assertThat(aconst_null.stackEffects()).containsExactly(Push(NULL))
+            assertThat(iconst(7).stackEffects()).containsExactly(Push(INTEGER))
+            assertThat(lconst(1).stackEffects()).containsExactly(Push(LONG))
+            assertThat(fconst(1).stackEffects()).containsExactly(Push(FLOAT))
+            assertThat(ldc(DataPointer(3, ReferenceType("java/lang/String"))).stackEffects())
+                .containsExactly(Push(ReferenceType("java/lang/String")))
+        }
+
+        @Test
+        fun `take arithmetic operands of their own type`() {
+            assertThat(iadd.stackEffects()).containsExactly(Pop(INTEGER), Pop(INTEGER), Push(INTEGER))
+            assertThat(fdiv.stackEffects()).containsExactly(Pop(FLOAT), Pop(FLOAT), Push(FLOAT))
+            assertThat(fneg.stackEffects()).containsExactly(Pop(FLOAT), Push(FLOAT))
+        }
+
+        @Test
+        fun `take the index before the array it reads`() {
+            assertThat(iaload.stackEffects())
+                .containsExactly(Pop(INTEGER), Pop(ReferenceType("[I")), Push(INTEGER))
+            assertThat(baload.stackEffects())
+                .containsExactly(Pop(INTEGER), Pop(ReferenceType("[B")), Push(INTEGER))
+        }
+
+        @Test
+        fun `take the value and the index before the array they write`() {
+            assertThat(iastore.stackEffects())
+                .containsExactly(Pop(INTEGER), Pop(INTEGER), Pop(ReferenceType("[I")))
+            assertThat(bastore.stackEffects())
+                .containsExactly(Pop(INTEGER), Pop(INTEGER), Pop(ReferenceType("[B")))
+        }
+
+        @Test
+        fun `push an array of the element they are given`() {
+            assertThat(newarray(ElementType.BYTE).stackEffects())
+                .containsExactly(Pop(INTEGER), Push(ReferenceType("[B")))
+            assertThat(newarray(ElementType.LONG).stackEffects())
+                .containsExactly(Pop(INTEGER), Push(ReferenceType("[J")))
+        }
+
+        @Test
+        fun `take the value before the object a field store writes`() {
+            val owner = ReferenceType("A")
+
+            assertThat(putfield(3, owner, LONG).stackEffects()).containsExactly(Pop(LONG), Pop(owner))
+            assertThat(getfield(3, owner, LONG).stackEffects()).containsExactly(Pop(owner), Push(LONG))
+            assertThat(getstatic(3, LONG).stackEffects()).containsExactly(Push(LONG))
+        }
+
+        @Test
+        fun `take a call's arguments last to first, then push what it returns`() {
+            // given a receiver of class A and two arguments
+            val args = listOf(ReferenceType("A"), INTEGER, FLOAT)
+
+            // then every call shape takes the same operands in the same order
+            val expected = arrayOf(Pop(FLOAT), Pop(INTEGER), Pop(ReferenceType("A")), Push(LONG))
+            assertThat(invokevirtual(1, args, LONG).stackEffects()).containsExactly(*expected)
+            assertThat(invokeinterface(1, args, LONG).stackEffects()).containsExactly(*expected)
+            assertThat(invokespecial(1, args, LONG, null).stackEffects()).containsExactly(*expected)
+            assertThat(invokestatic(1, args, LONG).stackEffects()).containsExactly(*expected)
+        }
+
+        @Test
+        fun `push void for a call that returns nothing, which the analyzer leaves off the stack`() {
+            assertThat(invokestatic(1, emptyList(), VOID).stackEffects()).containsExactly(Push(VOID))
+        }
+
+        @Test
+        fun `take what a return or a branch tests`() {
+            assertThat(ireturn.stackEffects()).containsExactly(Pop(INTEGER))
+            assertThat(freturn.stackEffects()).containsExactly(Pop(FLOAT))
+            assertThat(areturn.stackEffects()).containsExactly(Pop(AnyReference))
+            assertThat(athrow.stackEffects()).containsExactly(Pop(AnyReference))
+            assertThat(`return`.stackEffects()).isEmpty()
+            assertThat(ifeq.stackEffects()).containsExactly(Pop(INTEGER))
+            assertThat(if_icmplt.stackEffects()).containsExactly(Pop(INTEGER), Pop(INTEGER))
+            assertThat(if_acmpeq.stackEffects()).containsExactly(Pop(AnyReference), Pop(AnyReference))
+            assertThat(if_acmpne.stackEffects()).containsExactly(Pop(AnyReference), Pop(AnyReference))
+            assertThat(ifnull.stackEffects()).containsExactly(Pop(AnyReference))
+            assertThat(goto.stackEffects()).isEmpty()
+        }
+
+        @Test
+        fun `take any reference to cast or test, and push what that says`() {
+            assertThat(checkcast(4, "java/util/List").stackEffects())
+                .containsExactly(Pop(AnyReference), Push(ReferenceType("java/util/List")))
+            assertThat(instanceof(4).stackEffects()).containsExactly(Pop(AnyReference), Push(INTEGER))
+        }
+
+        @Test
+        fun `read and write locals as their own type`() {
+            assertThat(iload(2).localEffects()).containsExactly(Read(2, INTEGER))
+            assertThat(fload(2).localEffects()).containsExactly(Read(2, FLOAT))
+            assertThat(istore(1).localEffects()).containsExactly(Write(1, INTEGER))
+            assertThat(fstore(1).localEffects()).containsExactly(Write(1, FLOAT))
+            assertThat(iinc(3, 1).localEffects()).containsExactly(Read(3, INTEGER), Write(3, INTEGER))
+        }
+
+        @Test
+        fun `touch no local unless they are a load, a store or iinc`() {
+            assertThat(iadd.localEffects()).isEmpty()
+            assertThat(iconst(1).localEffects()).isEmpty()
+        }
+
+        @Test
+        fun `leave the effects of instructions that copy or move whatever is there to the frame`() {
+            // dup and friends copy whatever type is on top, and aload, astore and new depend on
+            // the frame too, so none of them has an effect it could state on its own
+            listOf(dup, dup_x1, dup_x2, dup2, aload(0), astore(0), new(4)).forEach {
+                assertThatIllegalStateException()
+                    .isThrownBy { it.stackEffects() }
+                    .withMessageContaining("takes its stack effect from the frame it runs in")
+                assertThatIllegalStateException()
+                    .isThrownBy { it.localEffects() }
+                    .withMessageContaining("takes its local effect from the frame it runs in")
+            }
         }
     }
 }

@@ -12,10 +12,17 @@ import com.alsaril.codegen.classfile.attributes.SameFrame
 import com.alsaril.codegen.classfile.attributes.SameFrameExtended
 import com.alsaril.codegen.classfile.attributes.SameLocals1StackItemFrameExtended
 import com.alsaril.codegen.classfile.attributes.SameLocals1StackItemFrameShort
+import com.alsaril.codegen.classfile.attributes.SimpleVerificationTypeInfo.DoubleVariableInfo
 import com.alsaril.codegen.classfile.attributes.SimpleVerificationTypeInfo.FloatVariableInfo
 import com.alsaril.codegen.classfile.attributes.SimpleVerificationTypeInfo.IntegerVariableInfo
+import com.alsaril.codegen.classfile.attributes.SimpleVerificationTypeInfo.LongVariableInfo
+import com.alsaril.codegen.classfile.attributes.SimpleVerificationTypeInfo.NullVariableInfo
 import com.alsaril.codegen.classfile.attributes.SimpleVerificationTypeInfo.TopVariableInfo
+import com.alsaril.codegen.classfile.attributes.SimpleVerificationTypeInfo.UninitializedThis
 import com.alsaril.codegen.classfile.attributes.StackMapTableAttribute
+import com.alsaril.codegen.classfile.attributes.UninitializedVariableInfo
+import com.alsaril.codegen.classfile.attributes.patchOffset
+import com.alsaril.codegen.classfile.attributes.patchUnitialized
 import com.alsaril.codegen.classfile.attributes.sameFrame
 import com.alsaril.codegen.classfile.attributes.sameLocals1StackItem
 import com.alsaril.codegen.constantpool.ConstantIntegerInfo
@@ -293,6 +300,61 @@ class ClassFileSerializationTest {
         }
 
         @Test
+        fun `says what a frame it refuses could have held`() {
+            assertThatIllegalArgumentException()
+                .isThrownBy { SameFrame(64) }
+                .withMessage("a same_frame holds an offset delta of 0..63, not 64")
+            assertThatIllegalArgumentException()
+                .isThrownBy { SameLocals1StackItemFrameShort(64, IntegerVariableInfo) }
+                .withMessage("a same_locals_1_stack_item_frame holds an offset delta of 0..63, not 64")
+            assertThatIllegalArgumentException()
+                .isThrownBy { AppendFrame(0, List(4) { IntegerVariableInfo }) }
+                .withMessage("an append_frame adds 1..3 locals, not 4")
+        }
+
+        @Test
+        fun `moves a frame to a new offset, keeping what it describes`() {
+            val locals = listOf(IntegerVariableInfo)
+
+            assertThat(AppendFrame(0, locals).patchOffset(9)).isEqualTo(AppendFrame(9, locals))
+            assertThat(FullFrame(0, locals, locals).patchOffset(300)).isEqualTo(FullFrame(300, locals, locals))
+            assertThat(SameLocals1StackItemFrameShort(0, IntegerVariableInfo).patchOffset(9))
+                .isEqualTo(SameLocals1StackItemFrameShort(9, IntegerVariableInfo))
+        }
+
+        @Test
+        fun `re-picks the compact or the extended form for the offset it moves to`() {
+            assertThat(SameFrame(3).patchOffset(64)).isEqualTo(SameFrameExtended(64))
+            assertThat(SameFrameExtended(300).patchOffset(5)).isEqualTo(SameFrame(5))
+            assertThat(SameLocals1StackItemFrameShort(3, IntegerVariableInfo).patchOffset(64))
+                .isEqualTo(SameLocals1StackItemFrameExtended(64, IntegerVariableInfo))
+            assertThat(SameLocals1StackItemFrameExtended(300, IntegerVariableInfo).patchOffset(5))
+                .isEqualTo(SameLocals1StackItemFrameShort(5, IntegerVariableInfo))
+        }
+
+        @Test
+        fun `points every uninitialised type at the byte offset of its new`() {
+            // given uninitialised types naming the instructions at indices 1 and 2
+            val frame = FullFrame(
+                offsetDelta = 0,
+                locals = listOf(UninitializedVariableInfo(1), IntegerVariableInfo),
+                stack = listOf(UninitializedVariableInfo(2), UninitializedVariableInfo(1)),
+            )
+
+            // when those instructions are laid out at bytes 4 and 7
+            val patched = frame.patchUnitialized(mapOf(1 to 4, 2 to 7))
+
+            // then every copy moves, in both halves, and nothing else changes
+            assertThat(patched).isEqualTo(
+                FullFrame(
+                    offsetDelta = 0,
+                    locals = listOf(UninitializedVariableInfo(4), IntegerVariableInfo),
+                    stack = listOf(UninitializedVariableInfo(7), UninitializedVariableInfo(4)),
+                ),
+            )
+        }
+
+        @Test
         fun `writes a full frame with both locals and stack`() {
             // given
             val frame = FullFrame(
@@ -326,9 +388,23 @@ class ClassFileSerializationTest {
         }
 
         @Test
+        fun `writes the two slot, null and uninitialised this types as their tag`() {
+            assertThat(DoubleVariableInfo.serialized()).containsExactly(*bytesOf(0x03))
+            assertThat(LongVariableInfo.serialized()).containsExactly(*bytesOf(0x04))
+            assertThat(NullVariableInfo.serialized()).containsExactly(*bytesOf(0x05))
+            assertThat(UninitializedThis.serialized()).containsExactly(*bytesOf(0x06))
+        }
+
+        @Test
         fun `writes an object type as a tag and a constant pool index`() {
             assertThat(ObjectVariableInfo(258).serialized())
                 .containsExactly(*bytesOf(0x07, 0x01, 0x02))
+        }
+
+        @Test
+        fun `writes an uninitialised type as a tag and the offset of its new`() {
+            assertThat(UninitializedVariableInfo(258).serialized())
+                .containsExactly(*bytesOf(0x08, 0x01, 0x02))
         }
     }
 

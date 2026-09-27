@@ -205,6 +205,85 @@ class MembersTest {
         }
     }
 
+    /** What a call or a field tells the analyzer: the types it takes and leaves behind. */
+    @Nested
+    inner class Types {
+
+        private val a = ReferenceType("A")
+
+        @Test
+        fun `take the receiver as the class that owns the method`() {
+            // given
+            val builder = builder()
+            val owner = builder.clazz("A")
+
+            // then an instance call takes its receiver first, and a static call has none
+            assertThat(builder.method(owner, "f", "(I)V").args).containsExactly(a, VerificationPrimitive.INTEGER)
+            assertThat(builder.imethod(owner, "f", "(I)V").args).containsExactly(a, VerificationPrimitive.INTEGER)
+            assertThat(builder.emitted { invokespecial(owner, "f", "(I)V") }.args)
+                .containsExactly(a, VerificationPrimitive.INTEGER)
+            assertThat(builder.smethod(owner, "f", "(I)V").args).containsExactly(VerificationPrimitive.INTEGER)
+        }
+
+        @Test
+        fun `take the arguments and the result from the descriptor`() {
+            // given
+            val builder = builder()
+
+            // when
+            val call = builder.smethod(builder.clazz("A"), "f", "(IJLjava/lang/String;[I)F")
+
+            // then
+            assertThat(call.args).containsExactly(
+                VerificationPrimitive.INTEGER,
+                VerificationPrimitive.LONG,
+                ReferenceType("java/lang/String"),
+                ReferenceType("[I"),
+            )
+            assertThat(call.returnType).isEqualTo(VerificationPrimitive.FLOAT)
+        }
+
+        @Test
+        fun `mark a call to a constructor with the class it builds`() {
+            // given
+            val builder = builder()
+            val owner = builder.clazz("A")
+
+            // then only <init> initialises what it is called on
+            assertThat(builder.emitted { invokespecial(owner, "<init>", "()V") }.constructorFor).isEqualTo(a)
+            assertThat(builder.emitted { invokespecial(owner, "helper", "()V") }.constructorFor).isNull()
+        }
+
+        @Test
+        fun `take a field as the class that owns it and the type it holds`() {
+            // given
+            val builder = builder()
+
+            // then
+            assertThat(builder.field(builder.clazz("A"), "x", "J"))
+                .isEqualTo(FieldDescriptor(6, a, VerificationPrimitive.LONG))
+        }
+
+        @Test
+        fun `hand back the label of the call they emit`() {
+            // given one instruction ahead of every call, so each lands at index 1
+            val calls = listOf<CodeBuilder.(ClassPointer) -> Label>(
+                { invokevirtual(it, "f", "()V") },
+                { invokespecial(it, "f", "()V") },
+                { invokestatic(it, "f", "()V") },
+                { invokeinterface(it, "f", "()V") },
+            )
+
+            // then like every other emitter, so a call can be a branch target or open a guarded range
+            calls.forEach { call ->
+                val builder = builder()
+                with(builder) { +nop }
+                val label = builder.call(builder.clazz("A"))
+                assertThat(builder.indexOf(label)).isOne()
+            }
+        }
+    }
+
     @Nested
     inner class Instructions {
 

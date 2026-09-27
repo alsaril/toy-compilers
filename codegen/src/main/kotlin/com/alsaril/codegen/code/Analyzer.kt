@@ -4,6 +4,7 @@ import com.alsaril.codegen.classfile.attributes.FullFrame
 import com.alsaril.codegen.classfile.attributes.ObjectVariableInfo
 import com.alsaril.codegen.classfile.attributes.SimpleVerificationTypeInfo.*
 import com.alsaril.codegen.classfile.attributes.UninitializedVariableInfo
+import com.alsaril.codegen.classfile.attributes.VerificationTypeInfo
 import com.alsaril.codegen.classfile.parseFunctionDescriptor
 import com.alsaril.codegen.constantpool.UpdatableConstantPool
 import com.alsaril.codegen.instruction.*
@@ -87,9 +88,7 @@ internal class Analyzer(
             }
 
             if (instruction is JumpInstruction) {
-                nextPcs.asSequence().filter { it != pc + 1 }.forEach {
-                    framesIndexes.add(it)
-                }
+                framesIndexes.add(fragment.jumps[pc]!!)
             }
 
             nextPcs.forEach {
@@ -117,7 +116,7 @@ internal class Analyzer(
         val maxStack = frames.asSequence().maxOfOrNull { it!!.stack.sumOf(VerificationType::slots) }!!
         val maxLocals = frames.asSequence().maxOfOrNull { it!!.locals.size }!!
         val stackMapFrames = framesIndexes.map {
-            FullFrame(it, frames[it]!!.locals.toInfo(), frames[it]!!.stack.toInfo())
+            FullFrame(it, frames[it]!!.locals.localsInfo(), frames[it]!!.stack.map { type -> type.toInfo() })
         }
 
         return Triple(maxStack, maxLocals, stackMapFrames)
@@ -363,18 +362,26 @@ internal class Analyzer(
         }
     }
 
-    private fun List<VerificationType>.toInfo() = map {
-        when (it) {
-            TOP -> TopVariableInfo
-            INTEGER -> IntegerVariableInfo
-            FLOAT -> FloatVariableInfo
-            DOUBLE -> DoubleVariableInfo
-            LONG -> LongVariableInfo
-            NULL -> NullVariableInfo
-            UNINITIALIZED_THIS -> UninitializedThis
-            is ReferenceType -> ObjectVariableInfo(cp.putClass(it.descriptor))
-            is Uninitialized -> UninitializedVariableInfo(it.offset)
-            VOID, AnyReference -> throw IllegalStateException("$it describes no value, so no frame can hold it")
+    private fun List<VerificationType>.localsInfo(): List<VerificationTypeInfo> {
+        val info = mutableListOf<VerificationTypeInfo>()
+        var slot = 0
+        while (slot < size) {
+            info.add(this[slot].toInfo())
+            slot += this[slot].slots
         }
+        return info
+    }
+
+    private fun VerificationType.toInfo() = when (this) {
+        TOP -> TopVariableInfo
+        INTEGER -> IntegerVariableInfo
+        FLOAT -> FloatVariableInfo
+        DOUBLE -> DoubleVariableInfo
+        LONG -> LongVariableInfo
+        NULL -> NullVariableInfo
+        UNINITIALIZED_THIS -> UninitializedThis
+        is ReferenceType -> ObjectVariableInfo(cp.putClass(descriptor))
+        is Uninitialized -> UninitializedVariableInfo(offset)
+        VOID, AnyReference -> throw IllegalStateException("$this describes no value, so no frame can hold it")
     }
 }
