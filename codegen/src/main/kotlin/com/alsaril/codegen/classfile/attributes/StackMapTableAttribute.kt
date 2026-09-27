@@ -19,13 +19,28 @@ sealed interface StackMapFrame : Writable {
     val offsetDelta: Int
 }
 
+fun StackMapFrame.patchOffset(newOffset: Int) = when (this) {
+    is AppendFrame -> copy(offsetDelta = newOffset)
+    is FullFrame -> copy(offsetDelta = newOffset)
+    is SameFrame, is SameFrameExtended -> sameFrame(offsetDelta = newOffset)
+    is SameLocals1StackItemFrame -> sameLocals1StackItem(offsetDelta = newOffset, stack)
+}
+
+fun FullFrame.patchUninitialized(i2loc: Map<Int, Int>) = copy(
+    locals = locals.patchOffsets(i2loc),
+    stack = stack.patchOffsets(i2loc),
+)
+
+private fun List<VerificationTypeInfo>.patchOffsets(i2loc: Map<Int, Int>) =
+    map { if (it is UninitializedVariableInfo) it.copy(offset = i2loc[it.offset]!!) else it }
+
 fun sameFrame(offsetDelta: Int) = if (offsetDelta <= 63) SameFrame(offsetDelta) else SameFrameExtended(offsetDelta)
 
 data class SameFrame(
     override val offsetDelta: Int,
 ) : StackMapFrame {
     init {
-        require(offsetDelta in 0..63)
+        require(offsetDelta in 0..63) { "a same_frame holds an offset delta of 0..63, not $offsetDelta" }
     }
 
     override fun ClassWriter.write() {
@@ -56,7 +71,9 @@ data class SameLocals1StackItemFrameShort(
     override val stack: VerificationTypeInfo,
 ) : SameLocals1StackItemFrame {
     init {
-        require(offsetDelta in 0..63)
+        require(offsetDelta in 0..63) {
+            "a same_locals_1_stack_item_frame holds an offset delta of 0..63, not $offsetDelta"
+        }
     }
 
     override fun ClassWriter.write() {
@@ -81,7 +98,7 @@ data class AppendFrame(
     val locals: List<VerificationTypeInfo>,
 ) : StackMapFrame {
     init {
-        require(locals.size in 1..3)
+        require(locals.size in 1..3) { "an append_frame adds 1..3 locals, not ${locals.size}" }
     }
 
     override fun ClassWriter.write() {
@@ -109,20 +126,33 @@ data class FullFrame(
 interface VerificationTypeInfo : Writable
 
 enum class SimpleVerificationTypeInfo(
-    private val tag: Int,
+    val tag: Int,
 ) : VerificationTypeInfo {
     TopVariableInfo(0),
     IntegerVariableInfo(1),
-    FloatVariableInfo(2);
+    FloatVariableInfo(2),
+    DoubleVariableInfo(3),
+    LongVariableInfo(4),
+    NullVariableInfo(5),
+    UninitializedThis(6);
 
     override fun ClassWriter.write() = u1(tag)
 }
 
 data class ObjectVariableInfo(
-    private val cpoolIndex: Int,
+    val cpoolIndex: Int,
 ) : VerificationTypeInfo {
     override fun ClassWriter.write() {
         u1(7)
         u2(cpoolIndex)
+    }
+}
+
+data class UninitializedVariableInfo(
+    val offset: Int,
+) : VerificationTypeInfo {
+    override fun ClassWriter.write() {
+        u1(8)
+        u2(offset)
     }
 }

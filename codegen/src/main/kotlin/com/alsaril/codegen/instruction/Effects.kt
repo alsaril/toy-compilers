@@ -1,40 +1,28 @@
 package com.alsaril.codegen.instruction
 
-internal interface PushesOne : Instruction {
-    override fun stackEffects() = 0 to 1
+import com.alsaril.codegen.verification.Expected
+import com.alsaril.codegen.verification.OfType
+import com.alsaril.codegen.verification.VerificationType
+
+sealed interface StackEffect
+
+data class Pop(val expected: Expected) : StackEffect {
+    constructor(type: VerificationType) : this(OfType(type))
 }
 
-internal interface PopsOne : Instruction {
-    override fun stackEffects() = 1 to 0
-}
+data class Push(val type: VerificationType) : StackEffect
 
-internal interface PopsTwo : Instruction {
-    override fun stackEffects() = 2 to 0
-}
-
-internal interface PopsThree : Instruction {
-    override fun stackEffects() = 3 to 0
-}
-
-internal interface PopsOnePushesOne : Instruction {
-    override fun stackEffects() = 1 to 1
-}
-
-internal interface PopsTwoPushesOne : Instruction {
-    override fun stackEffects() = 2 to 1
-}
-
-internal interface Invocation : Instruction {
-    val argSlots: Int
-    val returnSlots: Int
-
-    override fun stackEffects() = argSlots to returnSlots
-}
-
-internal interface TouchesLocal : Instruction {
+sealed interface LocalEffect {
     val index: Int
+    val type: VerificationType
+}
 
-    val slots: Int get() = 1
+data class Read(override val index: Int, override val type: VerificationType): LocalEffect
+data class Write(override val index: Int, override val type: VerificationType): LocalEffect
 
-    override fun locals() = index + slots
+sealed interface Invocation : Instruction {
+    val args: List<VerificationType>
+    val returnType: VerificationType
+
+    override fun stackEffects(): List<StackEffect> = args.map { Pop(it) } + Push(returnType)
 }

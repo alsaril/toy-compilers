@@ -1,27 +1,43 @@
 package com.alsaril.codegen.classfile
 
-import com.alsaril.codegen.classfile.PrimitiveType.*
+import com.alsaril.codegen.classfile.PrimitiveType.Companion.asPrimitiveType
+import com.alsaril.codegen.classfile.PrimitiveType.VOID
+import com.alsaril.codegen.verification.VerificationType
 
 sealed interface Type {
-    val slots: Int
+    val descriptor: String
+    val verificationType: VerificationType
 }
 
-enum class PrimitiveType(override val slots: Int = 1) : Type {
-    BYTE, CHAR, DOUBLE(2), FLOAT, INT, LONG(2), SHORT, BOOLEAN, VOID(0)
+enum class PrimitiveType(override val descriptor: String, override val verificationType: VerificationType) : Type {
+    BYTE("B", com.alsaril.codegen.verification.PrimitiveType.INTEGER),
+    CHAR("C", com.alsaril.codegen.verification.PrimitiveType.INTEGER),
+    DOUBLE("D", com.alsaril.codegen.verification.PrimitiveType.DOUBLE),
+    FLOAT("F", com.alsaril.codegen.verification.PrimitiveType.FLOAT),
+    INTEGER("I", com.alsaril.codegen.verification.PrimitiveType.INTEGER),
+    LONG("J", com.alsaril.codegen.verification.PrimitiveType.LONG),
+    SHORT("S", com.alsaril.codegen.verification.PrimitiveType.INTEGER),
+    BOOLEAN("Z", com.alsaril.codegen.verification.PrimitiveType.INTEGER),
+    VOID("V", com.alsaril.codegen.verification.PrimitiveType.VOID);
+
+    companion object {
+        private val c2type = entries.associateBy { it.descriptor }
+
+        fun Char.asPrimitiveType() = c2type[this.toString()]
+    }
 }
 
 data class ArrayType(val elem: Type) : Type {
-    override val slots = 1
+    override val descriptor = "[${elem.descriptor}"
+    override val verificationType = com.alsaril.codegen.verification.ReferenceType(descriptor)
 }
 
 data class ReferenceType(val clazz: String) : Type {
-    override val slots = 1
+    override val descriptor = "L$clazz;"
+    override val verificationType = com.alsaril.codegen.verification.ReferenceType(clazz)
 }
 
-data class FunctionDescriptor(val args: List<Type>, val returnType: Type) {
-    fun argSlots(static: Boolean) = args.sumOf { it.slots } + (if (static) 0 else 1)
-    fun returnSlots() = returnType.slots
-}
+data class FunctionDescriptor(val args: List<Type>, val returnType: Type)
 
 fun parseType(descriptor: String): Type {
     val (type, next) = parseNextType(descriptor, 0)
@@ -45,18 +61,7 @@ private fun parseNextType(descriptor: String, pos: Int): Pair<Type, Int> {
         return ReferenceType(descriptor.substring(pos + 1, index)) to index + 1
     }
 
-    when (symbol) {
-        'B' -> BYTE
-        'C' -> CHAR
-        'D' -> DOUBLE
-        'F' -> FLOAT
-        'I' -> INT
-        'J' -> LONG
-        'S' -> SHORT
-        'Z' -> BOOLEAN
-        'V' -> VOID
-        else -> null
-    }?.let { return it to pos + 1 }
+    symbol.asPrimitiveType()?.let { return it to pos + 1 }
 
     throw IllegalArgumentException("unknown symbol at $pos: $symbol")
 }

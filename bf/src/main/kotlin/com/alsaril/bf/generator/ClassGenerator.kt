@@ -14,7 +14,7 @@ object ClassGenerator {
         .iface("com/alsaril/bf/Program")
         .method("<init>", "()V", PUBLIC) {
             +aload(0)
-            +invokespecial(method(parent(), "<init>", "()V"))
+            invokespecial(parent(), "<init>", "()V")
             +`return`
         }
         .method("guard", "(II)V", PRIVATE, FINAL, STATIC) {
@@ -30,7 +30,6 @@ object ClassGenerator {
 
             val handler = raise("Buffer overflow")
             link(j1, handler); link(j2, handler)
-            frameSame(handler)
         }
         .generateRun(instructions)
         .build()

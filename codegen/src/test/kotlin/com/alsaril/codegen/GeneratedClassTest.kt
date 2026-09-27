@@ -2,12 +2,12 @@ package com.alsaril.codegen
 
 import com.alsaril.codegen.ByteClassLoader.loadClass
 import com.alsaril.codegen.code.ClassFileBuilder
-import com.alsaril.codegen.classfile.PrimitiveType
 import com.alsaril.codegen.code.ClassFileBuilder.Companion.classFile
 import com.alsaril.codegen.classfile.AccessFlag.FINAL
 import com.alsaril.codegen.classfile.AccessFlag.PRIVATE
 import com.alsaril.codegen.classfile.AccessFlag.PUBLIC
 import com.alsaril.codegen.classfile.AccessFlag.STATIC
+import com.alsaril.codegen.classfile.PrimitiveType
 import com.alsaril.codegen.code.*
 import com.alsaril.codegen.instruction.*
 import org.assertj.core.api.Assertions.*
@@ -25,7 +25,7 @@ class GeneratedClassTest {
         PUBLIC,
     ) {
         +aload(0)
-        +invokespecial(method(parent(), "<init>", "()V"))
+        invokespecial(parent(), "<init>", "()V")
         +`return`
     }
 
@@ -116,12 +116,10 @@ class GeneratedClassTest {
 
             val elseBranch = +nop
             link(otherwise, elseBranch)
-            frameSame(elseBranch)
             +iconst(2)
 
             val exit = +ireturn
             link(done, exit)
-            frameStack(exit, IntInfo)
         }
 
         // when it is spliced in behind something else, so it does not land at zero
@@ -166,7 +164,7 @@ class GeneratedClassTest {
             .field("value", "Ljava/lang/Object;", PRIVATE, FINAL)
             .method("<init>", "(Ljava/lang/Object;)V", PUBLIC) {
                 +aload(0)
-                +invokespecial(method(parent(), "<init>", "()V"))
+                invokespecial(parent(), "<init>", "()V")
                 +aload(0)
                 +aload(1)
                 +putfield(field(self(), "value", "Ljava/lang/Object;"))
@@ -262,7 +260,7 @@ class GeneratedClassTest {
     }
 
     @Test
-    fun `lands a branch on the offset its frame sits at`() {
+    fun `lands a branch on the instruction it was linked to`() {
         // given a body that jumps over the throw, so returning at all says the offset held
         val (name, bytes) = classFile("GenBranch", "java/lang/Object")
             .iface("java/lang/Runnable")
@@ -276,7 +274,6 @@ class GeneratedClassTest {
 
                 val target = +`return`
                 link(jump, target)
-                frameSame(target)
             }
             .build()
         val instance = loadClass(name, bytes).getDeclaredConstructor()
@@ -301,7 +298,6 @@ class GeneratedClassTest {
 
                 val target = +iload(1)
                 link(jump, target)
-                frameAppend(target, IntInfo)
                 +ireturn
             }
             .build()
@@ -328,7 +324,6 @@ class GeneratedClassTest {
 
                 val target = +fload(1)
                 link(jump, target)
-                frameAppend(target, FloatInfo)
                 +freturn
             }
             .build()
@@ -360,11 +355,9 @@ class GeneratedClassTest {
 
                 val taken = +iconst(1)
                 link(branch, taken)
-                frameSame(taken)
 
                 val exit = +ireturn
                 link(done, exit)
-                frameStack(exit, IntInfo)
             }
             .build()
         return loadClass(loaded, bytes)
@@ -449,12 +442,10 @@ class GeneratedClassTest {
 
                 val caught = +astore(2) // drop the throwable
                 `catch`(guarded, to = done, handler = caught, type = clazz("java/lang/ArrayIndexOutOfBoundsException"))
-                frameStack(caught, objInfo("java/lang/Throwable"))
                 +iconst(-1)
 
                 val exit = +ireturn
                 link(done, exit)
-                frameStack(exit, IntInfo)
             }
             .build()
         val function = loadClass(name, bytes)
@@ -475,13 +466,11 @@ class GeneratedClassTest {
                 val skip = +goto
 
                 val caught = +astore(1) // drop the throwable
-                frameStack(caught, objInfo("java/lang/Throwable"))
                 +iconst(-1)
                 +ireturn
 
                 val guarded = +iconst(1)
                 link(skip, guarded)
-                frameSame(guarded)
                 +newarray(PrimitiveType.BYTE)
                 +iload(0)
                 +baload
@@ -507,12 +496,11 @@ class GeneratedClassTest {
             .method("run", "()V", PUBLIC) {
                 val guarded = +new(clazz("java/lang/IllegalStateException"))
                 +dup
-                +invokespecial(method(clazz("java/lang/IllegalStateException"), "<init>", "()V"))
+                invokespecial(clazz("java/lang/IllegalStateException"), "<init>", "()V")
                 +athrow
 
                 val caught = +astore(1)
                 `catch`(guarded, to = caught, handler = caught, type = clazz("java/lang/ArrayIndexOutOfBoundsException"))
-                frameStack(caught, objInfo("java/lang/Throwable"))
                 +`return`
             }
             .build()
@@ -539,11 +527,9 @@ class GeneratedClassTest {
 
                 val okTarget = +aconst_null // the normal path arrives with nothing to rethrow
                 link(ok, okTarget)
-                frameSame(okTarget)
 
                 val caught = +aload(0)
                 `catch`(guarded, to = caught, handler = caught, type = null)
-                frameStack(caught, objInfo("java/lang/Throwable"))
                 +iconst(0)
                 +iconst(1)
                 +iastore
@@ -554,7 +540,6 @@ class GeneratedClassTest {
 
                 val done = +`return`
                 link(exit, done)
-                frameStack(done, objInfo("java/lang/Throwable"))
             }
             .build()
         val method = loadClass(name, bytes)
@@ -585,12 +570,11 @@ class GeneratedClassTest {
                 +iload(1)
                 val jump = +ifeq
                 +aload(0)
-                +invokevirtual(method(clazz("java/lang/String"), "length", "()I"))
+                invokevirtual(clazz("java/lang/String"), "length", "()I")
                 +istore(2)
 
                 val target = +iload(2)
                 link(jump, target)
-                frameAppend(target, IntInfo)
                 +ireturn
             }
             .build()
@@ -609,7 +593,7 @@ class GeneratedClassTest {
             .method("f", "(Ljava/lang/Object;)I", PUBLIC, STATIC) {
                 +aload(0)
                 +checkcast(clazz("java/util/List"))
-                +invokeinterface(imethod(clazz("java/util/List"), "size", "()I"))
+                invokeinterface(clazz("java/util/List"), "size", "()I")
                 +ireturn
             }
             .build()
@@ -622,5 +606,492 @@ class GeneratedClassTest {
         assertThatExceptionOfType(InvocationTargetException::class.java)
             .isThrownBy { method.invoke(null, "not a list") }
             .withCauseInstanceOf(ClassCastException::class.java)
+    }
+
+    @Test
+    fun `settles a loop whose local changes type on the way round`() {
+        // given f(n) looping n times, with slot 1 an int on the way in and a float on the way round
+        val (name, bytes) = classFile("GenLoopWiden", "java/lang/Object")
+            .method("f", "(I)I", PUBLIC, STATIC) {
+                +iconst(0)
+                +istore(1)
+
+                val head = +iload(0)
+                val exit = +ifeq
+                +fconst(0)
+                +fstore(1)
+                +iinc(0, -1)
+                val back = +goto
+
+                val done = +iconst(7)
+                +ireturn
+                link(exit, done); link(back, head)
+            }
+            .build()
+        val method = loadClass(name, bytes).getDeclaredMethod("f", Int::class.javaPrimitiveType)
+
+        // then the frames past the loop agreed the slot is no longer an int
+        assertThat(method.invoke(null, 0)).isEqualTo(7)
+        assertThat(method.invoke(null, 3)).isEqualTo(7)
+    }
+
+    @Test
+    fun `keeps the locals after a long argument where a branch target says they are`() {
+        // given an int in slot 2, after the two slots of the long, read at a branch target
+        val (name, bytes) = classFile("GenWideLocal", "java/lang/Object")
+            .method("f", "(JI)I", PUBLIC, STATIC) {
+                +iload(2)
+                val jump = +ifeq
+                +iconst(5)
+                +istore(2)
+
+                val target = +iload(2)
+                link(jump, target)
+                +ireturn
+            }
+            .build()
+        val method = loadClass(name, bytes)
+            .getDeclaredMethod("f", Long::class.javaPrimitiveType, Int::class.javaPrimitiveType)
+
+        // then
+        assertThat(method.invoke(null, 1L, 0)).isEqualTo(0)
+        assertThat(method.invoke(null, 1L, 3)).isEqualTo(5)
+    }
+
+    @Test
+    fun `lands a jump on the instruction right after it`() {
+        // given a branch whose target is where the code would have gone anyway
+        val (name, bytes) = classFile("GenNextTarget", "java/lang/Object")
+            .method("f", "(I)I", PUBLIC, STATIC) {
+                +iload(0)
+                val jump = +ifeq
+                link(jump, +iconst(1))
+                +ireturn
+            }
+            .build()
+        val method = loadClass(name, bytes).getDeclaredMethod("f", Int::class.javaPrimitiveType)
+
+        // then it still needs a frame there, and has one
+        assertThat(method.invoke(null, 0)).isEqualTo(1)
+        assertThat(method.invoke(null, 1)).isEqualTo(1)
+    }
+
+    @Test
+    fun `builds an object whose constructor argument a branch chooses`() {
+        // given f(x) = new StringBuilder(x != 0 ? "yes" : "no").toString(), the new crossing the branch
+        val builder = "java/lang/StringBuilder"
+        val (name, bytes) = classFile("GenUninitialised", "java/lang/Object")
+            .method("f", "(I)Ljava/lang/String;", PUBLIC, STATIC) {
+                +new(clazz(builder))
+                +dup
+                +iload(0)
+                val otherwise = +ifeq
+                +ldc(string("yes"))
+                val done = +goto
+
+                link(otherwise, +ldc(string("no")))
+                link(done, invokespecial(clazz(builder), "<init>", "(Ljava/lang/String;)V"))
+                invokevirtual(clazz(builder), "toString", "()Ljava/lang/String;")
+                +areturn
+            }
+            .build()
+        val method = loadClass(name, bytes).getDeclaredMethod("f", Int::class.javaPrimitiveType)
+
+        // then both paths met with the same uninitialised object on the stack
+        assertThat(method.invoke(null, 1)).isEqualTo("yes")
+        assertThat(method.invoke(null, 0)).isEqualTo("no")
+    }
+
+    @Test
+    fun `branches before the parent constructor has run`() {
+        // given a constructor that branches while this is still uninitialised
+        val (name, bytes) = classFile("GenEarlyBranch", "java/lang/Object")
+            .method("<init>", "(I)V", PUBLIC) {
+                +aload(0)
+                +iload(1)
+                val skip = +ifeq
+                +nop
+                link(skip, invokespecial(parent(), "<init>", "()V"))
+                +`return`
+            }
+            .build()
+        val constructor = loadClass(name, bytes).getDeclaredConstructor(Int::class.javaPrimitiveType)
+
+        // then
+        assertThatNoException().isThrownBy { constructor.newInstance(0) }
+        assertThatNoException().isThrownBy { constructor.newInstance(1) }
+    }
+
+    @Test
+    fun `builds another object inside a constructor`() {
+        // given a constructor that makes an Object after its own parent has run
+        val (name, bytes) = classFile("GenNestedNew", "java/lang/Object")
+            .method("<init>", "()V", PUBLIC) {
+                +aload(0)
+                invokespecial(parent(), "<init>", "()V")
+                constructDefault(clazz("java/lang/Object"))
+                +astore(1)
+                +`return`
+            }
+            .build()
+
+        // then the inner constructor call was told apart from the one on this
+        assertThat(loadClass(name, bytes).getDeclaredConstructor().newInstance()).isNotNull()
+    }
+
+    @Test
+    fun `keeps null in a local`() {
+        // given
+        val (name, bytes) = classFile("GenNullLocal", "java/lang/Object")
+            .method("f", "()Ljava/lang/Object;", PUBLIC, STATIC) {
+                +aconst_null
+                +astore(0)
+                +aload(0)
+                +areturn
+            }
+            .build()
+
+        // then
+        assertThat(loadClass(name, bytes).getDeclaredMethod("f").invoke(null)).isNull()
+    }
+
+    @Test
+    fun `guards a range that opens with a store`() {
+        // given a handler covering the store to slot 0, so the throw may come before it
+        val (name, bytes) = classFile("GenGuardedStore", "java/lang/Object")
+            .method("f", "()I", PUBLIC, STATIC) {
+                +iconst(5)
+                val guarded = +istore(0)
+                +iload(0)
+                val end = +ireturn
+
+                val caught = +iconst(-1)
+                `catch`(guarded, to = end, handler = caught, type = null)
+                +ireturn
+            }
+            .build()
+
+        // then the handler frame did not count on slot 0
+        assertThat(loadClass(name, bytes).getDeclaredMethod("f").invoke(null)).isEqualTo(5)
+    }
+
+    @Test
+    fun `meets two unrelated classes on the stack as Object`() {
+        // given f(x) = x != 0 ? Integer.valueOf(1) : "s"
+        val (name, bytes) = classFile("GenMeetClasses", "java/lang/Object")
+            .method("f", "(I)Ljava/lang/Object;", PUBLIC, STATIC) {
+                +iload(0)
+                val otherwise = +ifeq
+                +iconst(1)
+                invokestatic(clazz("java/lang/Integer"), "valueOf", "(I)Ljava/lang/Integer;")
+                val done = +goto
+
+                link(otherwise, +ldc(string("s")))
+                link(done, +areturn)
+            }
+            .build()
+        val method = loadClass(name, bytes).getDeclaredMethod("f", Int::class.javaPrimitiveType)
+
+        // then
+        assertThat(method.invoke(null, 1)).isEqualTo(1)
+        assertThat(method.invoke(null, 0)).isEqualTo("s")
+    }
+
+    @Test
+    fun `passes a subclass, an implementation and null where a class is declared`() {
+        // given calls declared on Object and CharSequence, handed a String and a null
+        val (name, bytes) = classFile("GenAssignable", "java/lang/Object")
+            .method("hash", "()I", PUBLIC, STATIC) {
+                +ldc(string("abc"))
+                invokestatic(clazz("java/util/Objects"), "hashCode", "(Ljava/lang/Object;)I")
+                +ireturn
+            }
+            .method("length", "()I", PUBLIC, STATIC) {
+                +ldc(string("abc"))
+                invokeinterface(clazz("java/lang/CharSequence"), "length", "()I")
+                +ireturn
+            }
+            .method("hashNull", "()I", PUBLIC, STATIC) {
+                +aconst_null
+                invokestatic(clazz("java/util/Objects"), "hashCode", "(Ljava/lang/Object;)I")
+                +ireturn
+            }
+            .build()
+        val clazz = loadClass(name, bytes)
+
+        // then
+        assertThat(clazz.getDeclaredMethod("hash").invoke(null)).isEqualTo("abc".hashCode())
+        assertThat(clazz.getDeclaredMethod("length").invoke(null)).isEqualTo(3)
+        assertThat(clazz.getDeclaredMethod("hashNull").invoke(null)).isEqualTo(0)
+    }
+
+    @Test
+    fun `compares references by identity`() {
+        // given same(a, b) through if_acmpeq and different(a, b) through if_acmpne
+        fun ClassFileBuilder.compare(name: String, jump: Instruction) =
+            method(name, "(Ljava/lang/Object;Ljava/lang/Object;)I", PUBLIC, STATIC) {
+                +aload(0)
+                +aload(1)
+                val taken = +jump
+                +iconst(0)
+                +ireturn
+                link(taken, +iconst(1))
+                +ireturn
+            }
+        val (name, bytes) = classFile("GenIdentity", "java/lang/Object")
+            .compare("same", if_acmpeq)
+            .compare("different", if_acmpne)
+            .build()
+        val clazz = loadClass(name, bytes)
+        val same = clazz.getDeclaredMethod("same", Any::class.java, Any::class.java)
+        val different = clazz.getDeclaredMethod("different", Any::class.java, Any::class.java)
+        val one = Any()
+
+        // then equal objects that are not the same one still differ
+        assertThat(same.invoke(null, one, one)).isEqualTo(1)
+        assertThat(same.invoke(null, one, Any())).isEqualTo(0)
+        assertThat(different.invoke(null, one, one)).isEqualTo(0)
+        assertThat(different.invoke(null, "a", String(charArrayOf('a')))).isEqualTo(1)
+    }
+
+    @Test
+    fun `hands a long constant to a method taking one`() {
+        // given
+        val (name, bytes) = classFile("GenLongConstant", "java/lang/Object")
+            .method("f", "()Ljava/lang/Object;", PUBLIC, STATIC) {
+                +lconst(1)
+                invokestatic(clazz("java/lang/Long"), "valueOf", "(J)Ljava/lang/Long;")
+                +areturn
+            }
+            .build()
+
+        // then
+        assertThat(loadClass(name, bytes).getDeclaredMethod("f").invoke(null)).isEqualTo(1L)
+    }
+
+    @Test
+    fun `copies two ints or one long with dup2`() {
+        // given 2 + 3 + 2 + 3, and 1 + 1 as a long
+        val (name, bytes) = classFile("GenDup2", "java/lang/Object")
+            .method("ints", "()I", PUBLIC, STATIC) {
+                +iconst(2)
+                +iconst(3)
+                +dup2
+                +iadd
+                +iadd
+                +iadd
+                +ireturn
+            }
+            .method("long", "()Ljava/lang/Object;", PUBLIC, STATIC) {
+                +lconst(1)
+                +dup2
+                invokestatic(clazz("java/lang/Long"), "sum", "(JJ)J")
+                invokestatic(clazz("java/lang/Long"), "valueOf", "(J)Ljava/lang/Long;")
+                +areturn
+            }
+            .build()
+        val clazz = loadClass(name, bytes)
+
+        // then
+        assertThat(clazz.getDeclaredMethod("ints").invoke(null)).isEqualTo(10)
+        assertThat(clazz.getDeclaredMethod("long").invoke(null)).isEqualTo(2L)
+    }
+
+    @Test
+    fun `tucks a copy of the top under the two below it with dup_x2`() {
+        // given 1 2 3 becoming 3 1 2 3, then 3 - (1 - (2 - 3)), which only comes to 1 in that order
+        val (name, bytes) = classFile("GenDupX2", "java/lang/Object")
+            .method("f", "()I", PUBLIC, STATIC) {
+                +iconst(1)
+                +iconst(2)
+                +iconst(3)
+                +dup_x2
+                +isub
+                +isub
+                +isub
+                +ireturn
+            }
+            .build()
+
+        // then
+        assertThat(loadClass(name, bytes).getDeclaredMethod("f").invoke(null)).isEqualTo(1)
+    }
+
+    @Test
+    fun `calls a private method and the parent's version of a method through invokespecial`() {
+        // given a class overriding toString, calling past its override and into its private method
+        val (name, bytes) = classFile("GenSpecial", "java/lang/Object")
+            .withConstructor()
+            .method("secret", "()I", PRIVATE) { +iconst(42); +ireturn }
+            .method("viaPrivate", "()I", PUBLIC) {
+                +aload(0)
+                invokespecial(self(), "secret", "()I")
+                +ireturn
+            }
+            .method("toString", "()Ljava/lang/String;", PUBLIC) { +ldc(string("overridden")); +areturn }
+            .method("viaParent", "()Ljava/lang/String;", PUBLIC) {
+                +aload(0)
+                invokespecial(parent(), "toString", "()Ljava/lang/String;")
+                +areturn
+            }
+            .build()
+        val clazz = loadClass(name, bytes)
+        val instance = clazz.getDeclaredConstructor().newInstance()
+
+        // then neither call was taken for a constructor, and each reached the method it named
+        assertThat(clazz.getDeclaredMethod("viaPrivate").invoke(instance)).isEqualTo(42)
+        assertThat(instance.toString()).isEqualTo("overridden")
+        assertThat(clazz.getDeclaredMethod("viaParent").invoke(instance) as String).startsWith("GenSpecial@")
+    }
+
+    @Test
+    fun `keeps an object in a local until its constructor runs`() {
+        // given an Object parked in slot 0 before it is initialised, and returned from there after
+        val (name, bytes) = classFile("GenParkedNew", "java/lang/Object")
+            .method("f", "()Ljava/lang/Object;", PUBLIC, STATIC) {
+                +new(clazz("java/lang/Object"))
+                +astore(0)
+                +aload(0)
+                invokespecial(clazz("java/lang/Object"), "<init>", "()V")
+                +aload(0)
+                +areturn
+            }
+            .build()
+
+        // then the constructor initialised the copy in the local too
+        assertThat(loadClass(name, bytes).getDeclaredMethod("f").invoke(null)).isNotNull()
+    }
+
+    @Test
+    fun `keeps the locals after a stored long where a branch target says they are`() {
+        // given a long stored to slots 1 and 2, with the int in slot 0 read at a branch target
+        val (name, bytes) = classFile("GenStoredLong", "java/lang/Object")
+            .method("f", "(I)I", PUBLIC, STATIC) {
+                +lconst(1)
+                +lstore(1)
+
+                +iload(0)
+                val jump = +ifeq
+                +iconst(5)
+                +istore(0)
+
+                val target = +iload(0)
+                link(jump, target)
+                +ireturn
+            }
+            .build()
+        val method = loadClass(name, bytes).getDeclaredMethod("f", Int::class.javaPrimitiveType)
+
+        // then
+        assertThat(method.invoke(null, 0)).isEqualTo(0)
+        assertThat(method.invoke(null, 3)).isEqualTo(5)
+    }
+
+    @Test
+    fun `reads a local each path left a different reference in`() {
+        // given f(x) and g(x) storing to slot 1 on both arms and returning it after they meet:
+        // null or a String in f, an Integer or a String in g
+        fun ClassFileBuilder.storeEither(name: String, a: CodeBuilder.() -> Unit) =
+            method(name, "(I)Ljava/lang/Object;", PUBLIC, STATIC) {
+                +iload(0)
+                val otherwise = +ifeq
+                a()
+                +astore(1)
+                val done = +goto
+
+                link(otherwise, +ldc(string("s")))
+                +astore(1)
+                link(done, +aload(1))
+                +areturn
+            }
+        val (name, bytes) = classFile("GenMergedLocal", "java/lang/Object")
+            .storeEither("f") { +aconst_null }
+            .storeEither("g") {
+                +iconst(1)
+                invokestatic(clazz("java/lang/Integer"), "valueOf", "(I)Ljava/lang/Integer;")
+            }
+            .build()
+        val clazz = loadClass(name, bytes)
+        val f = clazz.getDeclaredMethod("f", Int::class.javaPrimitiveType)
+        val g = clazz.getDeclaredMethod("g", Int::class.javaPrimitiveType)
+
+        // then the slot was still a reference where it was read
+        assertThat(f.invoke(null, 1)).isNull()
+        assertThat(f.invoke(null, 0)).isEqualTo("s")
+        assertThat(g.invoke(null, 1)).isEqualTo(1)
+        assertThat(g.invoke(null, 0)).isEqualTo("s")
+    }
+
+    @Test
+    fun `hands a handler the exception as the class it catches`() {
+        // given f() throwing an UncheckedIOException and returning its IOException cause from the
+        // handler, through getCause as UncheckedIOException declares it - a Throwable would not do
+        val unchecked = "java/io/UncheckedIOException"
+        val (name, bytes) = classFile("GenCaughtType", "java/lang/Object")
+            .method("f", "()Ljava/lang/Object;", PUBLIC, STATIC) {
+                val guarded = +new(clazz(unchecked))
+                +dup
+                +ldc(string("boom"))
+                constructDefault(clazz("java/io/IOException"))
+                invokespecial(clazz(unchecked), "<init>", "(Ljava/lang/String;Ljava/io/IOException;)V")
+                +athrow
+
+                val caught = invokevirtual(clazz(unchecked), "getCause", "()Ljava/io/IOException;")
+                `catch`(guarded, to = caught, handler = caught, type = clazz(unchecked))
+                +areturn
+            }
+            .build()
+
+        // then
+        assertThat(loadClass(name, bytes).getDeclaredMethod("f").invoke(null))
+            .isInstanceOf(java.io.IOException::class.java)
+    }
+
+    @Test
+    fun `reads and writes a boolean array through the byte array instructions`() {
+        // given a hierarchy that takes nothing but an exact match, so a boolean[] gets past the
+        // analyzer only because baload and bastore accept it as well as a byte[]
+        val strict = object : ClassHierarchy {
+            override fun isAssignable(from: String, to: String) = from == to
+            override fun commonSuperclass(a: String, b: String) = a
+        }
+        val (name, bytes) = classFile("GenBooleanArray", "java/lang/Object", strict)
+            .method("f", "()I", PUBLIC, STATIC) {
+                +iconst(1)
+                +newarray(PrimitiveType.BOOLEAN)
+                +dup
+                +iconst(0)
+                +iconst(1)
+                +bastore
+                +iconst(0)
+                +baload
+                +ireturn
+            }
+            .build()
+
+        // then
+        assertThat(loadClass(name, bytes).getDeclaredMethod("f").invoke(null)).isEqualTo(1)
+    }
+
+    @Test
+    fun `guards a constructor call on an object kept in a local`() {
+        // given the object parked in slot 0 before its constructor runs, and a handler covering
+        // the call alone - the JVM checks the handler against the locals after the call too,
+        // when slot 0 holds the initialised object
+        val (name, bytes) = classFile("GenGuardedInit", "java/lang/Object")
+            .method("f", "()V", PUBLIC, STATIC) {
+                +new(clazz("java/lang/Object"))
+                +astore(0)
+                +aload(0)
+                val guarded = invokespecial(clazz("java/lang/Object"), "<init>", "()V")
+                val end = +`return`
+
+                val caught = +`return`
+                `catch`(guarded, to = end, handler = caught, type = null)
+            }
+            .build()
+
+        // then
+        assertThatNoException().isThrownBy { loadClass(name, bytes).getDeclaredMethod("f").invoke(null) }
     }
 }

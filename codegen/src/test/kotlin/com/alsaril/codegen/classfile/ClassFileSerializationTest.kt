@@ -1,5 +1,6 @@
 package com.alsaril.codegen.classfile
 
+import com.alsaril.codegen.constantpool.ClassPointer
 import com.alsaril.codegen.ClassWriter
 import com.alsaril.codegen.bytesOf
 import com.alsaril.codegen.classfile.attributes.AppendFrame
@@ -12,10 +13,17 @@ import com.alsaril.codegen.classfile.attributes.SameFrame
 import com.alsaril.codegen.classfile.attributes.SameFrameExtended
 import com.alsaril.codegen.classfile.attributes.SameLocals1StackItemFrameExtended
 import com.alsaril.codegen.classfile.attributes.SameLocals1StackItemFrameShort
+import com.alsaril.codegen.classfile.attributes.SimpleVerificationTypeInfo.DoubleVariableInfo
 import com.alsaril.codegen.classfile.attributes.SimpleVerificationTypeInfo.FloatVariableInfo
 import com.alsaril.codegen.classfile.attributes.SimpleVerificationTypeInfo.IntegerVariableInfo
+import com.alsaril.codegen.classfile.attributes.SimpleVerificationTypeInfo.LongVariableInfo
+import com.alsaril.codegen.classfile.attributes.SimpleVerificationTypeInfo.NullVariableInfo
 import com.alsaril.codegen.classfile.attributes.SimpleVerificationTypeInfo.TopVariableInfo
+import com.alsaril.codegen.classfile.attributes.SimpleVerificationTypeInfo.UninitializedThis
 import com.alsaril.codegen.classfile.attributes.StackMapTableAttribute
+import com.alsaril.codegen.classfile.attributes.UninitializedVariableInfo
+import com.alsaril.codegen.classfile.attributes.patchOffset
+import com.alsaril.codegen.classfile.attributes.patchUninitialized
 import com.alsaril.codegen.classfile.attributes.sameFrame
 import com.alsaril.codegen.classfile.attributes.sameLocals1StackItem
 import com.alsaril.codegen.constantpool.ConstantIntegerInfo
@@ -90,8 +98,8 @@ class ClassFileSerializationTest {
                 maxLocals = 0,
                 code = bytesOf(0xB1),
                 exceptionHandlers = listOf(
-                    ExceptionHandler(startPc = 0, endPc = 1, handlerPc = 1, catchType = 0),
-                    ExceptionHandler(startPc = 2, endPc = 3, handlerPc = 4, catchType = 5),
+                    ExceptionHandler(startPc = 0, endPc = 1, handlerPc = 1, catchType = null),
+                    ExceptionHandler(startPc = 2, endPc = 3, handlerPc = 4, catchType = ClassPointer(5, "E")),
                 ),
                 attributes = emptyList(),
             )
@@ -293,6 +301,61 @@ class ClassFileSerializationTest {
         }
 
         @Test
+        fun `says what a frame it refuses could have held`() {
+            assertThatIllegalArgumentException()
+                .isThrownBy { SameFrame(64) }
+                .withMessage("a same_frame holds an offset delta of 0..63, not 64")
+            assertThatIllegalArgumentException()
+                .isThrownBy { SameLocals1StackItemFrameShort(64, IntegerVariableInfo) }
+                .withMessage("a same_locals_1_stack_item_frame holds an offset delta of 0..63, not 64")
+            assertThatIllegalArgumentException()
+                .isThrownBy { AppendFrame(0, List(4) { IntegerVariableInfo }) }
+                .withMessage("an append_frame adds 1..3 locals, not 4")
+        }
+
+        @Test
+        fun `moves a frame to a new offset, keeping what it describes`() {
+            val locals = listOf(IntegerVariableInfo)
+
+            assertThat(AppendFrame(0, locals).patchOffset(9)).isEqualTo(AppendFrame(9, locals))
+            assertThat(FullFrame(0, locals, locals).patchOffset(300)).isEqualTo(FullFrame(300, locals, locals))
+            assertThat(SameLocals1StackItemFrameShort(0, IntegerVariableInfo).patchOffset(9))
+                .isEqualTo(SameLocals1StackItemFrameShort(9, IntegerVariableInfo))
+        }
+
+        @Test
+        fun `re-picks the compact or the extended form for the offset it moves to`() {
+            assertThat(SameFrame(3).patchOffset(64)).isEqualTo(SameFrameExtended(64))
+            assertThat(SameFrameExtended(300).patchOffset(5)).isEqualTo(SameFrame(5))
+            assertThat(SameLocals1StackItemFrameShort(3, IntegerVariableInfo).patchOffset(64))
+                .isEqualTo(SameLocals1StackItemFrameExtended(64, IntegerVariableInfo))
+            assertThat(SameLocals1StackItemFrameExtended(300, IntegerVariableInfo).patchOffset(5))
+                .isEqualTo(SameLocals1StackItemFrameShort(5, IntegerVariableInfo))
+        }
+
+        @Test
+        fun `points every uninitialised type at the byte offset of its new`() {
+            // given uninitialised types naming the instructions at indices 1 and 2
+            val frame = FullFrame(
+                offsetDelta = 0,
+                locals = listOf(UninitializedVariableInfo(1), IntegerVariableInfo),
+                stack = listOf(UninitializedVariableInfo(2), UninitializedVariableInfo(1)),
+            )
+
+            // when those instructions are laid out at bytes 4 and 7
+            val patched = frame.patchUninitialized(mapOf(1 to 4, 2 to 7))
+
+            // then every copy moves, in both halves, and nothing else changes
+            assertThat(patched).isEqualTo(
+                FullFrame(
+                    offsetDelta = 0,
+                    locals = listOf(UninitializedVariableInfo(4), IntegerVariableInfo),
+                    stack = listOf(UninitializedVariableInfo(7), UninitializedVariableInfo(4)),
+                ),
+            )
+        }
+
+        @Test
         fun `writes a full frame with both locals and stack`() {
             // given
             val frame = FullFrame(
@@ -326,9 +389,23 @@ class ClassFileSerializationTest {
         }
 
         @Test
+        fun `writes the two slot, null and uninitialised this types as their tag`() {
+            assertThat(DoubleVariableInfo.serialized()).containsExactly(*bytesOf(0x03))
+            assertThat(LongVariableInfo.serialized()).containsExactly(*bytesOf(0x04))
+            assertThat(NullVariableInfo.serialized()).containsExactly(*bytesOf(0x05))
+            assertThat(UninitializedThis.serialized()).containsExactly(*bytesOf(0x06))
+        }
+
+        @Test
         fun `writes an object type as a tag and a constant pool index`() {
             assertThat(ObjectVariableInfo(258).serialized())
                 .containsExactly(*bytesOf(0x07, 0x01, 0x02))
+        }
+
+        @Test
+        fun `writes an uninitialised type as a tag and the offset of its new`() {
+            assertThat(UninitializedVariableInfo(258).serialized())
+                .containsExactly(*bytesOf(0x08, 0x01, 0x02))
         }
     }
 
@@ -337,13 +414,13 @@ class ClassFileSerializationTest {
 
         @Test
         fun `writes the range, the handler and the caught type as four indexes`() {
-            assertThat(ExceptionHandler(1, 258, 3, 4).serialized())
+            assertThat(ExceptionHandler(1, 258, 3, ClassPointer(4, "E")).serialized())
                 .containsExactly(*bytesOf(0x00, 0x01, 0x01, 0x02, 0x00, 0x03, 0x00, 0x04))
         }
 
         @Test
         fun `writes a catch all as a zero type`() {
-            assertThat(ExceptionHandler(0, 1, 1, catchType = 0).serialized())
+            assertThat(ExceptionHandler(0, 1, 1, catchType = null).serialized())
                 .endsWith(*bytesOf(0x00, 0x00))
         }
 
@@ -351,7 +428,7 @@ class ClassFileSerializationTest {
         fun `rejects a location past a u2`() {
             // the range itself is well formed, so the width is what is left to reject
             assertThatIllegalArgumentException()
-                .isThrownBy { ExceptionHandler(0x10000, 0x10001, 0, 0).serialized() }
+                .isThrownBy { ExceptionHandler(0x10000, 0x10001, 0, null).serialized() }
                 .withMessageContaining("does not fit a u2")
         }
 
@@ -359,7 +436,7 @@ class ClassFileSerializationTest {
         fun `rejects a range covering no instruction`() {
             // a location the jvm would refuse at load time, which no u2 check can see
             assertThatIllegalArgumentException()
-                .isThrownBy { ExceptionHandler(4, 4, 8, 0) }
+                .isThrownBy { ExceptionHandler(4, 4, 8, null) }
                 .withMessageContaining("[4, 4) covers no instruction")
         }
     }

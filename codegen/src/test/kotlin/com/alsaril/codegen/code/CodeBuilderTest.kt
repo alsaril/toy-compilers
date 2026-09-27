@@ -1,14 +1,7 @@
 package com.alsaril.codegen.code
 
 import com.alsaril.codegen.bytesOf
-import com.alsaril.codegen.classfile.attributes.AppendFrame
 import com.alsaril.codegen.classfile.attributes.ExceptionHandler
-import com.alsaril.codegen.classfile.attributes.FullFrame
-import com.alsaril.codegen.classfile.attributes.SameFrame
-import com.alsaril.codegen.classfile.attributes.SameFrameExtended
-import com.alsaril.codegen.classfile.attributes.SameLocals1StackItemFrameShort
-import com.alsaril.codegen.classfile.attributes.SimpleVerificationTypeInfo.IntegerVariableInfo
-import com.alsaril.codegen.classfile.attributes.StackMapFrame
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatIllegalArgumentException
 import org.junit.jupiter.api.Nested
@@ -24,7 +17,6 @@ class CodeBuilderTest {
 
         // then
         assertThat(fragment.size).isZero()
-        assertThat(fragment.frames).isEmpty()
     }
 
     @Test
@@ -52,15 +44,6 @@ class CodeBuilderTest {
             // then it is refused rather than reaching instruction 0 of this one
             assertThatIllegalArgumentException()
                 .isThrownBy { builder().apply { link(+goto, target) } }
-                .withMessageContaining("handed out by another builder")
-        }
-
-        @Test
-        fun `refuses a frame anchored on another builder's label`() {
-            val target = with(builder()) { +nop }
-
-            assertThatIllegalArgumentException()
-                .isThrownBy { builder().apply { +nop; frameSame(target) } }
                 .withMessageContaining("handed out by another builder")
         }
 
@@ -148,16 +131,6 @@ class CodeBuilderTest {
 
         private fun piece(block: CodeBuilder.() -> Unit) = builder().apply(block).build()
 
-        // `size` nops, carrying a frame on the ones named by index. The offset delta a
-        // frame is given here is thrown away and recomputed when the code is laid out
-        private fun framed(size: Int, vararg frames: Pair<Int, StackMapFrame>) = builder().apply {
-            val byIndex = frames.toMap()
-            repeat(size) { i ->
-                val label = +nop
-                byIndex[i]?.let { frame(patchOffset(it, indexOf(label))) }
-            }
-        }.build()
-
         @Test
         fun `appends the bytes where the builder had got to`() {
             assertThat(bytecode { +nop; fragment(piece { +aconst_null; +iconst(-1) }) })
@@ -183,45 +156,6 @@ class CodeBuilderTest {
         }
 
         @Test
-        fun `rewrites the first frame against the builder's position`() {
-            // the frame sits at offset 1 of a fragment spliced in at offset 3
-            assertThat(frames { repeat(3) { +nop }; fragment(framed(3, 1 to SameFrame(0))) })
-                .containsExactly(SameFrame(4))
-        }
-
-        @Test
-        fun `rewrites the first frame whatever kind it is`() {
-            // given a fragment spliced in at 1, whose own frame sits at offset 1
-            val locals = listOf(IntegerVariableInfo)
-
-            // then every frame shape carries its contents across the move
-            assertThat(frames { +nop; fragment(framed(2, 1 to SameFrameExtended(0))) })
-                .containsExactly(SameFrame(2))
-            assertThat(frames { +nop; fragment(framed(2, 1 to AppendFrame(0, locals))) })
-                .containsExactly(AppendFrame(2, locals))
-            assertThat(frames { +nop; fragment(framed(2, 1 to FullFrame(0, locals, emptyList()))) })
-                .containsExactly(FullFrame(2, locals, emptyList()))
-            assertThat(frames {
-                +nop
-                fragment(framed(2, 1 to SameLocals1StackItemFrameShort(0, IntegerVariableInfo)))
-            }).containsExactly(SameLocals1StackItemFrameShort(2, IntegerVariableInfo))
-        }
-
-        @Test
-        fun `leaves the frames after the first alone`() {
-            assertThat(frames { fragment(framed(5, 0 to SameFrame(0), 3 to SameFrame(0))) })
-                .containsExactly(SameFrame(0), SameFrame(2))
-        }
-
-        @Test
-        fun `measures a frame already in the builder before the one it splices`() {
-            // the builder's frame is at offset 1, and the fragment's own frame at offset 0
-            // of a fragment spliced in at 2, so the second sits at 2 and is one past the first
-            assertThat(frames { +nop; frameSame(+nop); fragment(framed(3, 0 to SameFrame(0))) })
-                .containsExactly(SameFrame(1), SameFrame(0))
-        }
-
-        @Test
         fun `slides an exception handler by where the fragment landed`() {
             // given a fragment guarding its own first instruction
             val piece = builder().apply {
@@ -232,7 +166,7 @@ class CodeBuilderTest {
 
             // then the row moves with the code it guards
             assertThat(builder().apply { repeat(4) { +nop }; fragment(piece) }.build().exceptionHandlers)
-                .containsExactly(ExceptionHandler(4, 5, 5, catchType = 0))
+                .containsExactly(ExceptionHandler(4, 5, 5, catchType = null))
         }
 
         @Test
@@ -247,8 +181,8 @@ class CodeBuilderTest {
             // then
             assertThat(builder().apply { +nop; fragment(piece) }.build().exceptionHandlers)
                 .containsExactly(
-                    ExceptionHandler(1, 2, 2, catchType = 0),
-                    ExceptionHandler(3, 4, 4, catchType = 0),
+                    ExceptionHandler(1, 2, 2, catchType = null),
+                    ExceptionHandler(3, 4, 4, catchType = null),
                 )
         }
 

@@ -182,7 +182,7 @@ class ClassFileBuilderTest {
             // the call replaces the receiver with its int result, so the body is one deep
             assertThat(stack("(Ljava/lang/String;)I", STATIC) {
                 +aload(0)
-                +invokevirtual(method(clazz("java/lang/String"), "length", "()I"))
+                invokevirtual(clazz("java/lang/String"), "length", "()I")
                 +ireturn
             }).isOne()
         }
@@ -226,8 +226,7 @@ class ClassFileBuilderTest {
             // receiver plus a long is three deep at the store, and nothing is left after it
             assertThat(stack("()V", PUBLIC) {
                 +aload(0)
-                +iconst(0)
-                +iconst(0)
+                +lconst(0)
                 +putfield(field(self(), "x", "J"))
                 +`return`
             }).isEqualTo(3)
@@ -247,6 +246,43 @@ class ClassFileBuilderTest {
         }
 
         @Test
+        fun `leaves nothing behind for a call that returns void`() {
+            assertThat(stack("()V", STATIC) {
+                invokestatic(clazz("java/lang/System"), "gc", "()V")
+                +`return`
+            }).isZero()
+        }
+
+        @Test
+        fun `counts a long constant as two slots`() {
+            assertThat(stack("()V", STATIC) { +lconst(0); +lconst(1); +`return` }).isEqualTo(4)
+        }
+
+        @Test
+        fun `counts both values dup2 copies`() {
+            // two ints in, both copied
+            assertThat(stack("()V", STATIC) { +iconst(1); +iconst(2); +dup2; +`return` }).isEqualTo(4)
+        }
+
+        @Test
+        fun `counts the one long dup2 copies`() {
+            // a long is copied whole, which is as wide as two ints
+            assertThat(stack("()V", STATIC) { +lconst(1); +dup2; +`return` }).isEqualTo(4)
+        }
+
+        @Test
+        fun `counts the copy dup_x2 tucks under the top three`() {
+            assertThat(stack("()V", STATIC) { +iconst(1); +iconst(2); +iconst(3); +dup_x2; +`return` })
+                .isEqualTo(4)
+        }
+
+        @Test
+        fun `counts the copy dup_x2 tucks under a long`() {
+            // a long under the top counts as the two values dup_x2 reaches past
+            assertThat(stack("()V", STATIC) { +lconst(0); +iconst(1); +dup_x2; +`return` }).isEqualTo(4)
+        }
+
+        @Test
         fun `counts a returned reference`() {
             assertThat(stack("()Ljava/lang/Object;", STATIC) { +aconst_null; +areturn }).isOne()
         }
@@ -256,7 +292,7 @@ class ClassFileBuilderTest {
             // deepest at the store: arrayref, arrayref, index, value
             assertThat(stack("()I", STATIC) {
                 +iconst(1)
-                +newarray(PrimitiveType.INT)
+                +newarray(PrimitiveType.INTEGER)
                 +dup
                 +iconst(0)
                 +iconst(7)
@@ -331,6 +367,30 @@ class ClassFileBuilderTest {
             // slot 0 - so the room for this belongs to the descriptor's count alone
             assertThat(locals("()V", PUBLIC) { +iconst(0); +istore(3); +`return` }).isEqualTo(4)
             assertThat(locals("(I)V", PUBLIC) { +iconst(0); +istore(3); +`return` }).isEqualTo(4)
+        }
+
+        @Test
+        fun `counts a local written past a long argument from the slot after both of its halves`() {
+            assertThat(locals("(J)V", STATIC) { +iconst(0); +istore(2); +`return` }).isEqualTo(3)
+        }
+
+        @Test
+        fun `counts a slot written on one path only, even where the paths meet without it`() {
+            // the store to slot 5 is the last thing its arm does, and the merge after it drops
+            // the slot the other arm never wrote, so no instruction is entered with it defined
+            assertThat(locals("(I)I", STATIC) {
+                +iload(0)
+                val skip = +ifeq
+                +iconst(1)
+                +istore(5)
+                link(skip, +iconst(7))
+                +ireturn
+            }).isEqualTo(6)
+        }
+
+        @Test
+        fun `counts a stored long as the two slots it takes`() {
+            assertThat(locals("()V", STATIC) { +lconst(0); +lstore(3); +`return` }).isEqualTo(5)
         }
 
         @Test

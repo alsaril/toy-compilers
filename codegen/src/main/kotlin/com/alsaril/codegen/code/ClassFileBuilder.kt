@@ -11,17 +11,19 @@ import kotlin.contracts.InvocationKind
 import kotlin.contracts.contract
 
 class ClassFileBuilder {
-    private val thisName: String
+    internal val thisName: String
     private val parentName: String
     private val ifaces = mutableListOf<String>()
     private val fields = mutableListOf<FieldInfo>()
     private val methods = mutableListOf<MethodInfo>()
 
-    private val cp = UpdatableConstantPool()
+    internal val cp = UpdatableConstantPool()
+    internal val hierarchy: ClassHierarchy
 
-    private constructor(name: String, parent: String) {
+    private constructor(name: String, parent: String, hierarchy: ClassHierarchy) {
         this.thisName = name
         this.parentName = parent
+        this.hierarchy = hierarchy
     }
 
     fun iface(name: String): ClassFileBuilder {
@@ -56,9 +58,7 @@ class ClassFileBuilder {
         fragment: Fragment,
         vararg accessFlags: AccessFlag,
     ): ClassFileBuilder {
-        val d = parseFunctionDescriptor(descriptor)
-        val headerSlots = d.argSlots(accessFlags.contains(STATIC))
-        val code = serialize(fragment, headerSlots, cp::putUtf8)
+        val code = serialize(fragment, descriptor, constructor = name == "<init>", static = accessFlags.contains(STATIC))
         val methodInfo = MethodInfo(
             accessFlags.fold(0) { acc, flag -> acc or flag.value },
             cp.putUtf8(name),
@@ -92,6 +92,7 @@ class ClassFileBuilder {
     fun newCodeBuilder() = CodeBuilder(cp, thisName, parentName)
 
     companion object {
-        fun classFile(name: String, parent: String) = ClassFileBuilder(name, parent)
+        fun classFile(name: String, parent: String, hierarchy: ClassHierarchy = LenientHierarchy) =
+            ClassFileBuilder(name, parent, hierarchy)
     }
 }

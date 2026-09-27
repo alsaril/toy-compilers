@@ -5,10 +5,12 @@ import com.alsaril.codegen.classfile.PrimitiveType.BYTE
 import com.alsaril.codegen.classfile.PrimitiveType.CHAR
 import com.alsaril.codegen.classfile.PrimitiveType.DOUBLE
 import com.alsaril.codegen.classfile.PrimitiveType.FLOAT
-import com.alsaril.codegen.classfile.PrimitiveType.INT
+import com.alsaril.codegen.classfile.PrimitiveType.INTEGER
 import com.alsaril.codegen.classfile.PrimitiveType.LONG
 import com.alsaril.codegen.classfile.PrimitiveType.SHORT
 import com.alsaril.codegen.classfile.PrimitiveType.VOID
+import com.alsaril.codegen.verification.PrimitiveType as Verification
+import com.alsaril.codegen.verification.ReferenceType as VerificationReference
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatIllegalArgumentException
 import org.junit.jupiter.api.Nested
@@ -25,7 +27,7 @@ class DescriptorTest {
             assertThat(parseType("C")).isEqualTo(CHAR)
             assertThat(parseType("D")).isEqualTo(DOUBLE)
             assertThat(parseType("F")).isEqualTo(FLOAT)
-            assertThat(parseType("I")).isEqualTo(INT)
+            assertThat(parseType("I")).isEqualTo(INTEGER)
             assertThat(parseType("J")).isEqualTo(LONG)
             assertThat(parseType("S")).isEqualTo(SHORT)
             assertThat(parseType("Z")).isEqualTo(BOOLEAN)
@@ -33,20 +35,14 @@ class DescriptorTest {
         }
 
         @Test
-        fun `take two slots for a long and a double`() {
-            assertThat(LONG.slots).isEqualTo(2)
-            assertThat(DOUBLE.slots).isEqualTo(2)
-        }
-
-        @Test
-        fun `take no slot at all for void, which is not a value`() {
-            assertThat(VOID.slots).isZero()
-        }
-
-        @Test
-        fun `take one slot for everything narrower`() {
-            assertThat(listOf(BYTE, CHAR, FLOAT, INT, SHORT, BOOLEAN))
-                .allSatisfy { assertThat(it.slots).isOne() }
+        fun `are checked as the type the JVM widens them to`() {
+            // everything narrower than an int is an int on the stack and in a local
+            assertThat(listOf(BYTE, CHAR, SHORT, BOOLEAN, INTEGER))
+                .allSatisfy { assertThat(it.verificationType).isEqualTo(Verification.INTEGER) }
+            assertThat(FLOAT.verificationType).isEqualTo(Verification.FLOAT)
+            assertThat(LONG.verificationType).isEqualTo(Verification.LONG)
+            assertThat(DOUBLE.verificationType).isEqualTo(Verification.DOUBLE)
+            assertThat(VOID.verificationType).isEqualTo(Verification.VOID)
         }
     }
 
@@ -60,9 +56,11 @@ class DescriptorTest {
         }
 
         @Test
-        fun `take one slot, whatever class they name`() {
-            assertThat(parseType("Ljava/util/Map;").slots).isOne()
+        fun `are checked as the class they name`() {
+            assertThat(parseType("Ljava/lang/String;").verificationType)
+                .isEqualTo(VerificationReference("java/lang/String"))
         }
+
     }
 
     @Nested
@@ -70,22 +68,29 @@ class DescriptorTest {
 
         @Test
         fun `wrap the type they hold`() {
-            assertThat(parseType("[I")).isEqualTo(ArrayType(INT))
+            assertThat(parseType("[I")).isEqualTo(ArrayType(INTEGER))
             assertThat(parseType("[Ljava/lang/String;"))
                 .isEqualTo(ArrayType(ReferenceType("java/lang/String")))
         }
 
         @Test
         fun `nest`() {
-            assertThat(parseType("[[I")).isEqualTo(ArrayType(ArrayType(INT)))
+            assertThat(parseType("[[I")).isEqualTo(ArrayType(ArrayType(INTEGER)))
         }
 
         @Test
-        fun `take one slot even when they hold something two wide`() {
-            // the slot holds the reference, not the elements
-            assertThat(parseType("[J").slots).isOne()
-            assertThat(parseType("[[D").slots).isOne()
+        fun `are checked under their own descriptor, which is how the pool names an array class`() {
+            assertThat(parseType("[I").verificationType).isEqualTo(VerificationReference("[I"))
+            assertThat(parseType("[[Ljava/lang/String;").verificationType)
+                .isEqualTo(VerificationReference("[[Ljava/lang/String;"))
         }
+
+    }
+
+    @Test
+    fun `spells every type back as the descriptor it was read from`() {
+        listOf("B", "C", "D", "F", "I", "J", "S", "Z", "V", "Ljava/lang/String;", "[I", "[[Ljava/lang/Object;")
+            .forEach { assertThat(parseType(it).descriptor).isEqualTo(it) }
     }
 
     @Nested
@@ -105,8 +110,8 @@ class DescriptorTest {
                         listOf(
                             ReferenceType("java/io/InputStream"),
                             ReferenceType("java/io/OutputStream"),
-                            INT,
-                            INT,
+                            INTEGER,
+                            INTEGER,
                         ),
                         VOID,
                     )
@@ -116,7 +121,7 @@ class DescriptorTest {
         @Test
         fun `read an array argument`() {
             assertThat(parseFunctionDescriptor("([II)V"))
-                .isEqualTo(FunctionDescriptor(listOf(ArrayType(INT), INT), VOID))
+                .isEqualTo(FunctionDescriptor(listOf(ArrayType(INTEGER), INTEGER), VOID))
         }
 
         @Test
@@ -124,15 +129,6 @@ class DescriptorTest {
             assertThat(parseFunctionDescriptor("(Ljava/util/Map;)F").returnType).isEqualTo(FLOAT)
             assertThat(parseFunctionDescriptor("()Ljava/lang/String;").returnType)
                 .isEqualTo(ReferenceType("java/lang/String"))
-        }
-
-        @Test
-        fun `add up to the slots the arguments occupy`() {
-            // which is what a method needs before its body asks for any more
-            assertThat(parseFunctionDescriptor("()V").args.sumOf { it.slots }).isZero()
-            assertThat(parseFunctionDescriptor("(II)V").args.sumOf { it.slots }).isEqualTo(2)
-            assertThat(parseFunctionDescriptor("(JD)V").args.sumOf { it.slots }).isEqualTo(4)
-            assertThat(parseFunctionDescriptor("(J[JI)V").args.sumOf { it.slots }).isEqualTo(4)
         }
     }
 
