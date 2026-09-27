@@ -100,8 +100,13 @@ internal class Analyzer(
             }
 
             i2h[pc]?.forEach { handler ->
-                val caught = handler.catchType?.name ?: "java/lang/Throwable"
-                deque.addLast(handler.handlerPc to Frame(stack = listOf(ReferenceType(caught)), locals = enterFrame.locals))
+                val caught = listOf(ReferenceType(handler.catchType?.name ?: "java/lang/Throwable"))
+                deque.addLast(handler.handlerPc to Frame(stack = caught, locals = enterFrame.locals))
+                // a constructor call initializes every copy of its object, locals included, and
+                // HotSpot checks the handler against the locals it leaves as well
+                if (instruction is invokespecial && instruction.constructorFor != null) {
+                    deque.addLast(handler.handlerPc to Frame(stack = caught, locals = nextFrame.locals))
+                }
             }
         }
 

@@ -414,6 +414,25 @@ class FramesTest {
         }
 
         @Test
+        fun `give a handler the locals from after a guarded constructor call as well`() {
+            // given the object parked in slot 0, initialised by the only guarded instruction
+            val frames = derived {
+                +new(clazz("java/lang/Object"))
+                +astore(0)
+                +aload(0)
+                val guarded = invokespecial(clazz("java/lang/Object"), "<init>", "()V")
+                val end = +`return`
+                val caught = +`return` // 5
+                `catch`(guarded, to = end, handler = caught, type = null)
+            }
+
+            // then slot 0 is uninitialised before the call and the class after it, which only top covers
+            assertThat(frames).containsExactly(
+                FullFrame(5, listOf(TopVariableInfo), listOf(obj("java/lang/Throwable"))),
+            )
+        }
+
+        @Test
         fun `give a handler a local the whole range agrees on`() {
             // given
             val frames = derived {

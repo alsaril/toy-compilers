@@ -60,7 +60,9 @@ local slot, as the JVM's own verifier does (JVMS 4.10.1).
   called, and nothing else takes it.
 - **A handler entry** holds the exception alone on the stack, typed as the class its row
   catches — `java/lang/Throwable` for a catch-all — and the locals every instruction in its
-  range starts with. Rows that share a handler meet there like any other paths.
+  range starts with. A guarded constructor call contributes the locals it leaves as well,
+  since it initializes every copy of its object and the JVM checks the handler against that
+  state too. Rows that share a handler meet there like any other paths.
 - **Where paths meet**, the stacks have to be equally deep, and each value merges: equal
   types stay, `null` and a class give the class, and two classes give what the
   `ClassHierarchy` names; anything else is refused. The locals merge the same way, except
