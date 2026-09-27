@@ -26,7 +26,7 @@ fun StackMapFrame.patchOffset(newOffset: Int) = when (this) {
     is SameLocals1StackItemFrame -> sameLocals1StackItem(offsetDelta = newOffset, stack)
 }
 
-fun FullFrame.patchUnitialized(i2loc: Map<Int, Int>) = copy(
+fun FullFrame.patchUninitialized(i2loc: Map<Int, Int>) = copy(
     locals = locals.patchOffsets(i2loc),
     stack = stack.patchOffsets(i2loc),
 )

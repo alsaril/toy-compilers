@@ -59,7 +59,7 @@ object BytecodeSerializer {
         var prev = -1
         val patchedFrames = frames.map { frame ->
             val loc = loc(frame.offsetDelta, "a frame")
-            frame.patchUnitialized(i2loc)
+            frame.patchUninitialized(i2loc)
                 .patchOffset(loc - prev - 1)
                 .also { prev = loc }
         }

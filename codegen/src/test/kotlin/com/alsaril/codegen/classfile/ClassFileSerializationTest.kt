@@ -22,7 +22,7 @@ import com.alsaril.codegen.classfile.attributes.SimpleVerificationTypeInfo.Unini
 import com.alsaril.codegen.classfile.attributes.StackMapTableAttribute
 import com.alsaril.codegen.classfile.attributes.UninitializedVariableInfo
 import com.alsaril.codegen.classfile.attributes.patchOffset
-import com.alsaril.codegen.classfile.attributes.patchUnitialized
+import com.alsaril.codegen.classfile.attributes.patchUninitialized
 import com.alsaril.codegen.classfile.attributes.sameFrame
 import com.alsaril.codegen.classfile.attributes.sameLocals1StackItem
 import com.alsaril.codegen.constantpool.ConstantIntegerInfo
@@ -342,7 +342,7 @@ class ClassFileSerializationTest {
             )
 
             // when those instructions are laid out at bytes 4 and 7
-            val patched = frame.patchUnitialized(mapOf(1 to 4, 2 to 7))
+            val patched = frame.patchUninitialized(mapOf(1 to 4, 2 to 7))
 
             // then every copy moves, in both halves, and nothing else changes
             assertThat(patched).isEqualTo(
