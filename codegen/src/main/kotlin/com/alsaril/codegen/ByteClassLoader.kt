@@ -11,7 +11,10 @@ class ByteClassLoader(deps: List<ClassDef> = emptyList()) : ClassLoader() {
         return define(name, code)
     }
 
-    private fun define(name: String, code: ByteArray) = defineClass(name, code, 0, code.size)
+    private fun define(name: String, code: ByteArray): Class<*> {
+        ClassDump.dump(name, code)
+        return defineClass(name, code, 0, code.size)
+    }
 
     private fun binaryName(name: String) = name.replace('/', '.')
 }
