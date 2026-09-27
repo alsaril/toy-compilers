@@ -1021,4 +1021,29 @@ class GeneratedClassTest {
         assertThat(g.invoke(null, 1)).isEqualTo(1)
         assertThat(g.invoke(null, 0)).isEqualTo("s")
     }
+
+    @Test
+    fun `hands a handler the exception as the class it catches`() {
+        // given f() throwing an UncheckedIOException and returning its IOException cause from the
+        // handler, through getCause as UncheckedIOException declares it - a Throwable would not do
+        val unchecked = "java/io/UncheckedIOException"
+        val (name, bytes) = classFile("GenCaughtType", "java/lang/Object")
+            .method("f", "()Ljava/lang/Object;", PUBLIC, STATIC) {
+                val guarded = +new(clazz(unchecked))
+                +dup
+                +ldc(string("boom"))
+                constructDefault(clazz("java/io/IOException"))
+                invokespecial(clazz(unchecked), "<init>", "(Ljava/lang/String;Ljava/io/IOException;)V")
+                +athrow
+
+                val caught = invokevirtual(clazz(unchecked), "getCause", "()Ljava/io/IOException;")
+                `catch`(guarded, to = caught, handler = caught, type = clazz(unchecked))
+                +areturn
+            }
+            .build()
+
+        // then
+        assertThat(loadClass(name, bytes).getDeclaredMethod("f").invoke(null))
+            .isInstanceOf(java.io.IOException::class.java)
+    }
 }

@@ -116,7 +116,7 @@ class AnalysisTest {
     fun `refuses a handler that starts past the last instruction`() {
         // a handler entry is a root of its own, so it is read before the walk can reach it
         val body = builder().apply { +`return` }.build()
-            .copy(exceptionHandlers = listOf(ExceptionHandler(0, 1, 9, catchType = 0)))
+            .copy(exceptionHandlers = listOf(ExceptionHandler(0, 1, 9, catchType = null)))
 
         assertThatIllegalArgumentException()
             .isThrownBy { classFile("Analysed", "java/lang/Object").method("f", "()V", body, STATIC) }

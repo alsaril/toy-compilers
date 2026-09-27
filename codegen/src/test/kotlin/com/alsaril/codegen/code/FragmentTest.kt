@@ -1,5 +1,6 @@
 package com.alsaril.codegen.code
 
+import com.alsaril.codegen.constantpool.ClassPointer
 import com.alsaril.codegen.bytesOf
 import com.alsaril.codegen.classfile.attributes.ExceptionHandler
 import org.assertj.core.api.Assertions.assertThat
@@ -100,7 +101,7 @@ class FragmentTest {
         @Test
         fun `hands back a lone fragment's handlers untouched`() {
             // given
-            val handler = ExceptionHandler(1, 2, 2, catchType = 3)
+            val handler = ExceptionHandler(1, 2, 2, catchType = ClassPointer(3, "E"))
             val only = guarded(3, handler)
 
             // then
@@ -111,13 +112,13 @@ class FragmentTest {
         fun `leaves the handlers of the first fragment where they are`() {
             // given
             val joined = listOf(
-                guarded(4, ExceptionHandler(0, 2, 3, catchType = 0)),
+                guarded(4, ExceptionHandler(0, 2, 3, catchType = null)),
                 guarded(1),
             ).join()
 
             // then
             assertThat(joined.exceptionHandlers)
-                .containsExactly(ExceptionHandler(0, 2, 3, catchType = 0))
+                .containsExactly(ExceptionHandler(0, 2, 3, catchType = null))
         }
 
         @Test
@@ -125,28 +126,28 @@ class FragmentTest {
             // given a handler covering the whole of a fragment that lands at index 5
             val joined = listOf(
                 guarded(5),
-                guarded(4, ExceptionHandler(0, 2, 3, catchType = 7)),
+                guarded(4, ExceptionHandler(0, 2, 3, catchType = ClassPointer(7, "E"))),
             ).join()
 
             // then the range and the handler move together, and the caught type does not
             assertThat(joined.exceptionHandlers)
-                .containsExactly(ExceptionHandler(5, 7, 8, catchType = 7))
+                .containsExactly(ExceptionHandler(5, 7, 8, catchType = ClassPointer(7, "E")))
         }
 
         @Test
         fun `collects the handlers of every fragment in order`() {
             // given
             val joined = listOf(
-                guarded(2, ExceptionHandler(0, 1, 1, catchType = 0)),
-                guarded(2, ExceptionHandler(0, 1, 1, catchType = 0)),
-                guarded(2, ExceptionHandler(0, 1, 1, catchType = 0)),
+                guarded(2, ExceptionHandler(0, 1, 1, catchType = null)),
+                guarded(2, ExceptionHandler(0, 1, 1, catchType = null)),
+                guarded(2, ExceptionHandler(0, 1, 1, catchType = null)),
             ).join()
 
             // then the order the jvm searches them in survives the join
             assertThat(joined.exceptionHandlers).containsExactly(
-                ExceptionHandler(0, 1, 1, catchType = 0),
-                ExceptionHandler(2, 3, 3, catchType = 0),
-                ExceptionHandler(4, 5, 5, catchType = 0),
+                ExceptionHandler(0, 1, 1, catchType = null),
+                ExceptionHandler(2, 3, 3, catchType = null),
+                ExceptionHandler(4, 5, 5, catchType = null),
             )
         }
 
@@ -157,15 +158,15 @@ class FragmentTest {
                 guarded(1),
                 guarded(
                     4,
-                    ExceptionHandler(0, 1, 2, catchType = 0),
-                    ExceptionHandler(1, 2, 3, catchType = 0),
+                    ExceptionHandler(0, 1, 2, catchType = null),
+                    ExceptionHandler(1, 2, 3, catchType = null),
                 ),
             ).join()
 
             // then
             assertThat(joined.exceptionHandlers).containsExactly(
-                ExceptionHandler(1, 2, 3, catchType = 0),
-                ExceptionHandler(2, 3, 4, catchType = 0),
+                ExceptionHandler(1, 2, 3, catchType = null),
+                ExceptionHandler(2, 3, 4, catchType = null),
             )
         }
 
@@ -175,14 +176,14 @@ class FragmentTest {
             val body = Fragment(
                 List(3) { nop },
                 emptyMap(),
-                listOf(ExceptionHandler(0, 1, 1, catchType = 0)),
+                listOf(ExceptionHandler(0, 1, 1, catchType = null)),
                 size = 3,
             )
             val joined = listOf(fragment(2), body).join()
 
             // then the handler counts from zero
             assertThat(joined.exceptionHandlers)
-                .containsExactly(ExceptionHandler(2, 3, 3, catchType = 0))
+                .containsExactly(ExceptionHandler(2, 3, 3, catchType = null))
         }
     }
 }

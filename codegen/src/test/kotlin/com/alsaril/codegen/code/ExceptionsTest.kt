@@ -1,5 +1,6 @@
 package com.alsaril.codegen.code
 
+import com.alsaril.codegen.constantpool.ClassPointer
 import com.alsaril.codegen.classfile.attributes.ExceptionHandler
 import com.alsaril.codegen.constantpool.ConstantClassInfo
 import com.alsaril.codegen.constantpool.ConstantUtf8Info
@@ -34,7 +35,7 @@ class ExceptionsTest {
         }
 
         // then the range covers the two protected nops and stops before the handler
-        assertThat(recorded).containsExactly(ExceptionHandler(1, 3, 3, catchType = 0))
+        assertThat(recorded).containsExactly(ExceptionHandler(1, 3, 3, catchType = null))
     }
 
     @Test
@@ -47,7 +48,7 @@ class ExceptionsTest {
             `catch`(from, caught, caught, type = null)
         }
 
-        assertThat(recorded).containsExactly(ExceptionHandler(0, 1, 1, catchType = 0))
+        assertThat(recorded).containsExactly(ExceptionHandler(0, 1, 1, catchType = null))
     }
 
     @Test
@@ -70,8 +71,9 @@ class ExceptionsTest {
             `catch`(from, caught, caught, clazz("java/lang/Throwable"))
         }.build().exceptionHandlers
 
-        // then the class is registered once and the handler refers to it by index
-        assertThat(recorded).containsExactly(ExceptionHandler(0, 1, 1, catchType = 2))
+        // then the class is registered once, and the handler keeps its pointer: the index it is
+        // written as, and the name the analyzer types the caught exception with
+        assertThat(recorded).containsExactly(ExceptionHandler(0, 1, 1, catchType = ClassPointer(2, "java/lang/Throwable")))
         assertThat(cp.build().entries).containsExactly(
             ConstantUtf8Info("java/lang/Throwable"),
             ConstantClassInfo(nameIndex = 1),
@@ -90,7 +92,7 @@ class ExceptionsTest {
         }
 
         // then the range still ends where it was closed
-        assertThat(recorded).containsExactly(ExceptionHandler(0, 1, 3, catchType = 0))
+        assertThat(recorded).containsExactly(ExceptionHandler(0, 1, 3, catchType = null))
     }
 
     @Test
@@ -102,7 +104,7 @@ class ExceptionsTest {
             `catch`(from, to, handler = from, type = null)
         }
 
-        assertThat(recorded).containsExactly(ExceptionHandler(0, 1, 0, catchType = 0))
+        assertThat(recorded).containsExactly(ExceptionHandler(0, 1, 0, catchType = null))
     }
 
     @Test
@@ -119,8 +121,8 @@ class ExceptionsTest {
 
         // then the inner one comes first, which is the order the jvm searches them in
         assertThat(recorded).containsExactly(
-            ExceptionHandler(1, 2, 2, catchType = 0),
-            ExceptionHandler(0, 2, 3, catchType = 0),
+            ExceptionHandler(1, 2, 2, catchType = null),
+            ExceptionHandler(0, 2, 3, catchType = null),
         )
     }
 
@@ -138,8 +140,8 @@ class ExceptionsTest {
 
         // then
         assertThat(recorded).containsExactly(
-            ExceptionHandler(0, 1, 3, catchType = 0),
-            ExceptionHandler(2, 3, 3, catchType = 0),
+            ExceptionHandler(0, 1, 3, catchType = null),
+            ExceptionHandler(2, 3, 3, catchType = null),
         )
     }
 
@@ -153,7 +155,7 @@ class ExceptionsTest {
         }
 
         // then the range is one instruction wide, whatever that instruction encodes to
-        assertThat(recorded).containsExactly(ExceptionHandler(0, 1, 1, catchType = 0))
+        assertThat(recorded).containsExactly(ExceptionHandler(0, 1, 1, catchType = null))
     }
 
     @Test
@@ -165,7 +167,7 @@ class ExceptionsTest {
             `catch`(from, to = end(), handler = from, type = null)
         }
 
-        assertThat(recorded).containsExactly(ExceptionHandler(0, 2, 0, catchType = 0))
+        assertThat(recorded).containsExactly(ExceptionHandler(0, 2, 0, catchType = null))
     }
 
     @Test
@@ -178,7 +180,7 @@ class ExceptionsTest {
         }.build()
 
         // then the end lands on code_length rather than on an instruction
-        assertThat(handlersOf(fragment)).containsExactly(ExceptionHandler(0, 4, 0, catchType = 0))
+        assertThat(handlersOf(fragment)).containsExactly(ExceptionHandler(0, 4, 0, catchType = null))
     }
 
     @Test
@@ -199,6 +201,6 @@ class ExceptionsTest {
         }.build()
 
         // then the indices become the offsets the class file names
-        assertThat(handlersOf(fragment)).containsExactly(ExceptionHandler(0, 3, 3, catchType = 0))
+        assertThat(handlersOf(fragment)).containsExactly(ExceptionHandler(0, 3, 3, catchType = null))
     }
 }

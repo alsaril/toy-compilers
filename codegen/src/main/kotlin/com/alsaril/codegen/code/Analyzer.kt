@@ -1,5 +1,6 @@
 package com.alsaril.codegen.code
 
+import com.alsaril.codegen.classfile.attributes.ExceptionHandler
 import com.alsaril.codegen.classfile.attributes.FullFrame
 import com.alsaril.codegen.classfile.attributes.ObjectVariableInfo
 import com.alsaril.codegen.classfile.attributes.SimpleVerificationTypeInfo.*
@@ -41,14 +42,14 @@ internal class Analyzer(
         val deque = ArrayDeque<Pair<Int, Frame>>()
         val framesIndexes = sortedSetOf<Int>()
         var maxLocals = 0
-        val i2h = mutableMapOf<Int, MutableSet<Int>>()
+        val i2h = mutableMapOf<Int, MutableList<ExceptionHandler>>()
         fragment.exceptionHandlers.forEach { handler ->
             require(handler.handlerPc in frames.indices) {
                 "a handler starts at ${handler.handlerPc}, which is past the last instruction"
             }
             framesIndexes.add(handler.handlerPc)
             (handler.startPc..<handler.endPc).forEach {
-                i2h.computeIfAbsent(it) { mutableSetOf() }.add(handler.handlerPc)
+                i2h.computeIfAbsent(it) { mutableListOf() }.add(handler)
             }
         }
 
@@ -83,8 +84,7 @@ internal class Analyzer(
                     locals = staticLocals(frame.locals, instruction, pc),
                 )
             }
-            // counted on the way out as well as in: a store's slot may be merged away before
-            // any instruction is entered with it, but the method still has to have room for it
+
             maxLocals = maxOf(maxLocals, frame.locals.size, nextFrame.locals.size)
 
             if (instruction is JumpInstruction) {
@@ -99,15 +99,9 @@ internal class Analyzer(
                 throw IllegalStateException("$instruction at $pc continues to $it, which is past the last instruction")
             }
 
-            i2h[pc]?.let { handlers ->
-                handlers.forEach {
-                    deque.addLast(
-                        it to Frame(
-                            stack = listOf(ReferenceType("java/lang/Throwable")),
-                            locals = enterFrame.locals
-                        )
-                    )
-                }
+            i2h[pc]?.forEach { handler ->
+                val caught = handler.catchType?.name ?: "java/lang/Throwable"
+                deque.addLast(handler.handlerPc to Frame(stack = listOf(ReferenceType(caught)), locals = enterFrame.locals))
             }
         }
 

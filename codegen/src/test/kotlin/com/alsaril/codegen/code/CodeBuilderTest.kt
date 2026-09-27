@@ -166,7 +166,7 @@ class CodeBuilderTest {
 
             // then the row moves with the code it guards
             assertThat(builder().apply { repeat(4) { +nop }; fragment(piece) }.build().exceptionHandlers)
-                .containsExactly(ExceptionHandler(4, 5, 5, catchType = 0))
+                .containsExactly(ExceptionHandler(4, 5, 5, catchType = null))
         }
 
         @Test
@@ -181,8 +181,8 @@ class CodeBuilderTest {
             // then
             assertThat(builder().apply { +nop; fragment(piece) }.build().exceptionHandlers)
                 .containsExactly(
-                    ExceptionHandler(1, 2, 2, catchType = 0),
-                    ExceptionHandler(3, 4, 4, catchType = 0),
+                    ExceptionHandler(1, 2, 2, catchType = null),
+                    ExceptionHandler(3, 4, 4, catchType = null),
                 )
         }
 

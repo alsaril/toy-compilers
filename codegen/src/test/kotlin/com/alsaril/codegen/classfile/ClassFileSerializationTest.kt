@@ -1,5 +1,6 @@
 package com.alsaril.codegen.classfile
 
+import com.alsaril.codegen.constantpool.ClassPointer
 import com.alsaril.codegen.ClassWriter
 import com.alsaril.codegen.bytesOf
 import com.alsaril.codegen.classfile.attributes.AppendFrame
@@ -97,8 +98,8 @@ class ClassFileSerializationTest {
                 maxLocals = 0,
                 code = bytesOf(0xB1),
                 exceptionHandlers = listOf(
-                    ExceptionHandler(startPc = 0, endPc = 1, handlerPc = 1, catchType = 0),
-                    ExceptionHandler(startPc = 2, endPc = 3, handlerPc = 4, catchType = 5),
+                    ExceptionHandler(startPc = 0, endPc = 1, handlerPc = 1, catchType = null),
+                    ExceptionHandler(startPc = 2, endPc = 3, handlerPc = 4, catchType = ClassPointer(5, "E")),
                 ),
                 attributes = emptyList(),
             )
@@ -413,13 +414,13 @@ class ClassFileSerializationTest {
 
         @Test
         fun `writes the range, the handler and the caught type as four indexes`() {
-            assertThat(ExceptionHandler(1, 258, 3, 4).serialized())
+            assertThat(ExceptionHandler(1, 258, 3, ClassPointer(4, "E")).serialized())
                 .containsExactly(*bytesOf(0x00, 0x01, 0x01, 0x02, 0x00, 0x03, 0x00, 0x04))
         }
 
         @Test
         fun `writes a catch all as a zero type`() {
-            assertThat(ExceptionHandler(0, 1, 1, catchType = 0).serialized())
+            assertThat(ExceptionHandler(0, 1, 1, catchType = null).serialized())
                 .endsWith(*bytesOf(0x00, 0x00))
         }
 
@@ -427,7 +428,7 @@ class ClassFileSerializationTest {
         fun `rejects a location past a u2`() {
             // the range itself is well formed, so the width is what is left to reject
             assertThatIllegalArgumentException()
-                .isThrownBy { ExceptionHandler(0x10000, 0x10001, 0, 0).serialized() }
+                .isThrownBy { ExceptionHandler(0x10000, 0x10001, 0, null).serialized() }
                 .withMessageContaining("does not fit a u2")
         }
 
@@ -435,7 +436,7 @@ class ClassFileSerializationTest {
         fun `rejects a range covering no instruction`() {
             // a location the jvm would refuse at load time, which no u2 check can see
             assertThatIllegalArgumentException()
-                .isThrownBy { ExceptionHandler(4, 4, 8, 0) }
+                .isThrownBy { ExceptionHandler(4, 4, 8, null) }
                 .withMessageContaining("[4, 4) covers no instruction")
         }
     }

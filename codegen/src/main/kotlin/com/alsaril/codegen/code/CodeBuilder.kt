@@ -59,7 +59,7 @@ class CodeBuilder(
 
     fun `catch`(from: Label, to: Label, handler: Label, type: ClassPointer?) {
         exceptionHandlers.add(
-            ExceptionHandler(indexOf(from), indexOf(to), indexOf(handler), type?.index ?: 0)
+            ExceptionHandler(indexOf(from), indexOf(to), indexOf(handler), type)
         )
     }
 

@@ -58,8 +58,9 @@ local slot, as the JVM's own verifier does (JVMS 4.10.1).
   the locals, into the class — or into this class, for the parent constructor called on
   `this`. Until then the object can be copied, kept in a local and have its constructor
   called, and nothing else takes it.
-- **A handler entry** holds the throwable alone on the stack, typed `java/lang/Throwable`
-  whatever the handler catches, and the locals every instruction in its range starts with.
+- **A handler entry** holds the exception alone on the stack, typed as the class its row
+  catches — `java/lang/Throwable` for a catch-all — and the locals every instruction in its
+  range starts with. Rows that share a handler meet there like any other paths.
 - **Where paths meet**, the stacks have to be equally deep, and each value merges: equal
   types stay, `null` and a class give the class, and two classes give what the
   `ClassHierarchy` names; anything else is refused. The locals merge the same way, except

@@ -102,6 +102,50 @@ class FramesTest {
             // then
             assertThat(frames).containsExactly(FullFrame(2, emptyList(), listOf(obj("java/lang/Throwable"))))
         }
+
+        @Test
+        fun `puts the class a row catches on its handler's stack`() {
+            // given
+            val frames = derived {
+                val guarded = +aconst_null
+                +athrow
+                val caught = +astore(0) // 2
+                `catch`(guarded, to = caught, handler = caught, type = clazz("java/lang/IllegalStateException"))
+                +`return`
+            }
+
+            // then
+            assertThat(frames).containsExactly(FullFrame(2, emptyList(), listOf(obj("java/lang/IllegalStateException"))))
+        }
+
+        // two rows sending one range to one handler, catching different classes, as a multi-catch does
+        private fun CodeBuilder.catchEither() {
+            val guarded = +aconst_null
+            +athrow
+            val caught = +astore(0) // 2
+            `catch`(guarded, to = caught, handler = caught, type = clazz("java/lang/IllegalStateException"))
+            `catch`(guarded, to = caught, handler = caught, type = clazz("java/lang/IllegalArgumentException"))
+            +`return`
+        }
+
+        @Test
+        fun `meets the classes two rows catch at one handler as the hierarchy names`() {
+            // given a hierarchy that knows both are runtime exceptions
+            val hierarchy = object : ClassHierarchy {
+                override fun isAssignable(from: String, to: String) = true
+                override fun commonSuperclass(a: String, b: String) = "java/lang/RuntimeException"
+            }
+
+            // then
+            assertThat(derived(hierarchy = hierarchy) { catchEither() })
+                .containsExactly(FullFrame(2, emptyList(), listOf(obj("java/lang/RuntimeException"))))
+        }
+
+        @Test
+        fun `meets the classes two rows catch at one handler as Object when the hierarchy knows neither`() {
+            assertThat(derived { catchEither() })
+                .containsExactly(FullFrame(2, emptyList(), listOf(obj("java/lang/Object"))))
+        }
     }
 
     @Nested
