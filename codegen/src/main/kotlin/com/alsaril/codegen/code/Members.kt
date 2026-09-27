@@ -18,14 +18,14 @@ fun CodeBuilder.field(classPointer: ClassPointer, name: String, descriptor: Stri
 private fun CodeBuilder.extendSelf(args: List<Type>, dest: String) =
     listOf(ReferenceType(dest)) + args.map(Type::verificationType)
 
-fun CodeBuilder.invokevirtual(classPointer: ClassPointer, name: String, descriptor: String) {
+fun CodeBuilder.invokevirtual(classPointer: ClassPointer, name: String, descriptor: String): Label {
     val ref = cp.putRef(classPointer.index, name, descriptor, METHOD)
     val parsed = parseFunctionDescriptor(descriptor)
     val m = MethodDescriptor(ref, extendSelf(parsed.args, classPointer.name), parsed.returnType.verificationType, null)
-    +invokevirtual(m)
+    return +invokevirtual(m)
 }
 
-fun CodeBuilder.invokespecial(classPointer: ClassPointer, name: String, descriptor: String) {
+fun CodeBuilder.invokespecial(classPointer: ClassPointer, name: String, descriptor: String): Label {
     val ref = cp.putRef(classPointer.index, name, descriptor, METHOD)
     val parsed = parseFunctionDescriptor(descriptor)
     val m = MethodDescriptor(
@@ -34,21 +34,21 @@ fun CodeBuilder.invokespecial(classPointer: ClassPointer, name: String, descript
         parsed.returnType.verificationType,
         if (name == "<init>") ReferenceType(classPointer.name) else null
     )
-    +invokespecial(m)
+    return +invokespecial(m)
 }
 
-fun CodeBuilder.invokestatic(classPointer: ClassPointer, name: String, descriptor: String) {
+fun CodeBuilder.invokestatic(classPointer: ClassPointer, name: String, descriptor: String): Label {
     val ref = cp.putRef(classPointer.index, name, descriptor, METHOD)
     val parsed = parseFunctionDescriptor(descriptor)
     val m = MethodDescriptor(ref, parsed.args.map(Type::verificationType), parsed.returnType.verificationType, null)
-    +invokestatic(m)
+    return +invokestatic(m)
 }
 
-fun CodeBuilder.invokeinterface(classPointer: ClassPointer, name: String, descriptor: String) {
+fun CodeBuilder.invokeinterface(classPointer: ClassPointer, name: String, descriptor: String): Label {
     val ref = cp.putRef(classPointer.index, name, descriptor, INTERFACE_METHOD)
     val parsed = parseFunctionDescriptor(descriptor)
     val m = MethodDescriptor(ref, extendSelf(parsed.args, classPointer.name), parsed.returnType.verificationType, null)
-    +invokeinterface(m)
+    return +invokeinterface(m)
 }
 
 fun CodeBuilder.constructDefault(classPointer: ClassPointer) {

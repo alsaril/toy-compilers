@@ -257,7 +257,11 @@ object Analyzer {
             requireDepth(enterFrame.stack, 1, instruction, pc)
             val top = enterFrame.stack.last()
             if (top.slots == 1) {
-                enterFrame.copy(stack = enterFrame.stack.toMutableList().apply { add(top); add(top) })
+                requireDepth(enterFrame.stack, 2, instruction, pc)
+                val second = enterFrame.stack[enterFrame.stack.size - 2]
+                require(second.slots == 1) { "$instruction at $pc copies two one slot values, but finds $second under $top" }
+                enterFrame.copy(
+                    stack = enterFrame.stack.toMutableList().apply { add(second); add(top) })
             } else {
                 enterFrame.copy(stack = enterFrame.stack.toMutableList().apply { add(top) })
             }

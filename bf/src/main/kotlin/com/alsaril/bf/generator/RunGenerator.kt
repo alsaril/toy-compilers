@@ -49,12 +49,12 @@ object RunGenerator {
             +aload(4)
             +aload(5)
 
-            val guarded = +invokestatic(smethod(self(), name, descriptor))
+            val guarded = invokestatic(self(), name, descriptor)
             +aconst_null
 
             val caught = +aload(2)
             `catch`(guarded, to = caught, handler = caught, type = null)
-            +invokevirtual(method(clazz("java/io/OutputStream"), "flush", "()V"))
+            invokevirtual(clazz("java/io/OutputStream"), "flush", "()V")
 
             +dup
             val exit = +ifnull
@@ -145,7 +145,7 @@ object RunGenerator {
     private fun CodeBuilder.guard() {
         +dup
         +iload(memsizeIndex)
-        +invokestatic(smethod(self(), "guard", "(II)V"))
+        invokestatic(self(), "guard", "(II)V")
     }
 
     private fun ClassFileBuilder.emitMove(times: Int, dir: Boolean) = emitFragment {
@@ -181,7 +181,7 @@ object RunGenerator {
 
     private fun ClassFileBuilder.emitRead() = emitFragment {
         +aload(inIndex)
-        +invokevirtual(method(clazz("java/io/InputStream"), "read", "()I"))
+        invokevirtual(clazz("java/io/InputStream"), "read", "()I")
         +istore(readIndex)
 
         // eof fix -1 -> 0
@@ -209,7 +209,7 @@ object RunGenerator {
         +iaload
         guard()
         +baload
-        +invokevirtual(method(clazz("java/io/OutputStream"), "write", "(I)V"))
+        invokevirtual(clazz("java/io/OutputStream"), "write", "(I)V")
     }
 
     private fun ClassFileBuilder.emitLoop(body: Fragment) = emitFragment {
@@ -249,7 +249,7 @@ object RunGenerator {
         +iload(memsizeIndex)
         +aload(arrayIndex)
         +aload(stateIndex)
-        +invokestatic(smethod(self(), name, descriptor))
+        invokestatic(self(), name, descriptor)
     }
 
     private fun ClassFileBuilder.wrapMethodBody(body: Fragment) = emitFragment {
