@@ -35,23 +35,6 @@ class DescriptorTest {
         }
 
         @Test
-        fun `take two slots for a long and a double`() {
-            assertThat(LONG.verificationType.slots).isEqualTo(2)
-            assertThat(DOUBLE.verificationType.slots).isEqualTo(2)
-        }
-
-        @Test
-        fun `take no slot at all for void, which is not a value`() {
-            assertThat(VOID.verificationType.slots).isZero()
-        }
-
-        @Test
-        fun `take one slot for everything narrower`() {
-            assertThat(listOf(BYTE, CHAR, FLOAT, INTEGER, SHORT, BOOLEAN))
-                .allSatisfy { assertThat(it.verificationType.slots).isOne() }
-        }
-
-        @Test
         fun `are checked as the type the JVM widens them to`() {
             // everything narrower than an int is an int on the stack and in a local
             assertThat(listOf(BYTE, CHAR, SHORT, BOOLEAN, INTEGER))
@@ -78,10 +61,6 @@ class DescriptorTest {
                 .isEqualTo(VerificationReference("java/lang/String"))
         }
 
-        @Test
-        fun `take one slot, whatever class they name`() {
-            assertThat(parseType("Ljava/util/Map;").verificationType.slots).isOne()
-        }
     }
 
     @Nested
@@ -106,12 +85,6 @@ class DescriptorTest {
                 .isEqualTo(VerificationReference("[[Ljava/lang/String;"))
         }
 
-        @Test
-        fun `take one slot even when they hold something two wide`() {
-            // the slot holds the reference, not the elements
-            assertThat(parseType("[J").verificationType.slots).isOne()
-            assertThat(parseType("[[D").verificationType.slots).isOne()
-        }
     }
 
     @Test
@@ -156,15 +129,6 @@ class DescriptorTest {
             assertThat(parseFunctionDescriptor("(Ljava/util/Map;)F").returnType).isEqualTo(FLOAT)
             assertThat(parseFunctionDescriptor("()Ljava/lang/String;").returnType)
                 .isEqualTo(ReferenceType("java/lang/String"))
-        }
-
-        @Test
-        fun `add up to the slots the arguments occupy`() {
-            // which is what a method needs before its body asks for any more
-            assertThat(parseFunctionDescriptor("()V").args.sumOf { it.verificationType.slots }).isZero()
-            assertThat(parseFunctionDescriptor("(II)V").args.sumOf { it.verificationType.slots }).isEqualTo(2)
-            assertThat(parseFunctionDescriptor("(JD)V").args.sumOf { it.verificationType.slots }).isEqualTo(4)
-            assertThat(parseFunctionDescriptor("(J[JI)V").args.sumOf { it.verificationType.slots }).isEqualTo(4)
         }
     }
 

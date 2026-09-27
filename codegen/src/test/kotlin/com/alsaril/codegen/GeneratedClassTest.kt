@@ -260,7 +260,7 @@ class GeneratedClassTest {
     }
 
     @Test
-    fun `lands a branch on the offset its frame sits at`() {
+    fun `lands a branch on the instruction it was linked to`() {
         // given a body that jumps over the throw, so returning at all says the offset held
         val (name, bytes) = classFile("GenBranch", "java/lang/Object")
             .iface("java/lang/Runnable")
@@ -915,5 +915,75 @@ class GeneratedClassTest {
 
         // then
         assertThat(loadClass(name, bytes).getDeclaredMethod("f").invoke(null)).isEqualTo(1)
+    }
+
+    @Test
+    fun `calls a private method and the parent's version of a method through invokespecial`() {
+        // given a class overriding toString, calling past its override and into its private method
+        val (name, bytes) = classFile("GenSpecial", "java/lang/Object")
+            .withConstructor()
+            .method("secret", "()I", PRIVATE) { +iconst(42); +ireturn }
+            .method("viaPrivate", "()I", PUBLIC) {
+                +aload(0)
+                invokespecial(self(), "secret", "()I")
+                +ireturn
+            }
+            .method("toString", "()Ljava/lang/String;", PUBLIC) { +ldc(string("overridden")); +areturn }
+            .method("viaParent", "()Ljava/lang/String;", PUBLIC) {
+                +aload(0)
+                invokespecial(parent(), "toString", "()Ljava/lang/String;")
+                +areturn
+            }
+            .build()
+        val clazz = loadClass(name, bytes)
+        val instance = clazz.getDeclaredConstructor().newInstance()
+
+        // then neither call was taken for a constructor, and each reached the method it named
+        assertThat(clazz.getDeclaredMethod("viaPrivate").invoke(instance)).isEqualTo(42)
+        assertThat(instance.toString()).isEqualTo("overridden")
+        assertThat(clazz.getDeclaredMethod("viaParent").invoke(instance) as String).startsWith("GenSpecial@")
+    }
+
+    @Test
+    fun `keeps an object in a local until its constructor runs`() {
+        // given an Object parked in slot 0 before it is initialised, and returned from there after
+        val (name, bytes) = classFile("GenParkedNew", "java/lang/Object")
+            .method("f", "()Ljava/lang/Object;", PUBLIC, STATIC) {
+                +new(clazz("java/lang/Object"))
+                +astore(0)
+                +aload(0)
+                invokespecial(clazz("java/lang/Object"), "<init>", "()V")
+                +aload(0)
+                +areturn
+            }
+            .build()
+
+        // then the constructor initialised the copy in the local too
+        assertThat(loadClass(name, bytes).getDeclaredMethod("f").invoke(null)).isNotNull()
+    }
+
+    @Test
+    fun `keeps the locals after a stored long where a branch target says they are`() {
+        // given a long stored to slots 1 and 2, with the int in slot 0 read at a branch target
+        val (name, bytes) = classFile("GenStoredLong", "java/lang/Object")
+            .method("f", "(I)I", PUBLIC, STATIC) {
+                +lconst(1)
+                +lstore(1)
+
+                +iload(0)
+                val jump = +ifeq
+                +iconst(5)
+                +istore(0)
+
+                val target = +iload(0)
+                link(jump, target)
+                +ireturn
+            }
+            .build()
+        val method = loadClass(name, bytes).getDeclaredMethod("f", Int::class.javaPrimitiveType)
+
+        // then
+        assertThat(method.invoke(null, 0)).isEqualTo(0)
+        assertThat(method.invoke(null, 3)).isEqualTo(5)
     }
 }

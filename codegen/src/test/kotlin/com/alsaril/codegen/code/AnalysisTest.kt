@@ -165,6 +165,33 @@ class AnalysisTest {
     }
 
     @Test
+    fun `refuses a reference read from a local nothing wrote`() {
+        assertThatIllegalArgumentException()
+            .isThrownBy { method { +aload(2); +`return` } }
+            .withMessageContaining("at 0 reads local 2, but only 0 local slots are defined")
+    }
+
+    @Test
+    fun `refuses to store a number as a long`() {
+        assertThatIllegalArgumentException()
+            .isThrownBy { method { +iconst(1); +lstore(0); +`return` } }
+            .withMessageContaining("at 1 expects LONG on the stack, but finds INTEGER")
+    }
+
+    @Test
+    fun `refuses a number where a class is declared`() {
+        assertThatIllegalArgumentException()
+            .isThrownBy {
+                method("()I") {
+                    +iconst(1)
+                    invokestatic(clazz("java/util/Objects"), "hashCode", "(Ljava/lang/Object;)I")
+                    +ireturn
+                }
+            }
+            .withMessageContaining("expects ReferenceType(descriptor=java/lang/Object) on the stack, but finds INTEGER")
+    }
+
+    @Test
     fun `refuses to store a number as a reference`() {
         assertThatIllegalArgumentException()
             .isThrownBy { method { +iconst(1); +astore(0); +`return` } }
@@ -194,6 +221,28 @@ class AnalysisTest {
     }
 
     @Test
+    fun `refuses dup_x1 with a two slot value on top`() {
+        assertThatIllegalArgumentException()
+            .isThrownBy { method { +iconst(0); +lconst(0); +dup_x1; +`return` } }
+            .withMessageContaining("dup_x1 at 2 works on two one slot values, but finds INTEGER and LONG")
+    }
+
+    @Test
+    fun `refuses dup_x2 with a two slot value on top`() {
+        assertThatIllegalArgumentException()
+            .isThrownBy { method { +iconst(0); +lconst(0); +dup_x2; +`return` } }
+            .withMessageContaining("dup_x2 at 2 copies a one slot value, but finds LONG")
+    }
+
+    @Test
+    fun `refuses dup_x2 reaching half way into a two slot value`() {
+        // under two ints it has to reach a third one slot value, not the top half of a long
+        assertThatIllegalArgumentException()
+            .isThrownBy { method { +lconst(0); +iconst(0); +iconst(0); +dup_x2; +`return` } }
+            .withMessageContaining("dup_x2 at 3 reaches under INTEGER, so it needs a one slot value there, but finds LONG")
+    }
+
+    @Test
     fun `refuses dup_x2 with only two one slot values under it`() {
         // under two one slot values it needs a third, where a two slot one would do alone
         assertThatIllegalArgumentException()
@@ -217,6 +266,22 @@ class AnalysisTest {
             }
             .withMessageContaining("return at 5 is reached with a stack of")
             .withMessageContaining("on one path and")
+    }
+
+    @Test
+    fun `refuses a reference and a number meeting where two paths join`() {
+        assertThatIllegalStateException()
+            .isThrownBy {
+                method("(I)V") {
+                    +iload(0)
+                    val otherwise = +ifeq
+                    +ldc(string("s"))
+                    val done = +goto
+                    link(otherwise, +iconst(1))
+                    link(done, +`return`)
+                }
+            }
+            .withMessageContaining("return at 5 is reached with a stack of")
     }
 
     @Test

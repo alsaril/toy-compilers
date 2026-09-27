@@ -246,6 +246,14 @@ class ClassFileBuilderTest {
         }
 
         @Test
+        fun `leaves nothing behind for a call that returns void`() {
+            assertThat(stack("()V", STATIC) {
+                invokestatic(clazz("java/lang/System"), "gc", "()V")
+                +`return`
+            }).isZero()
+        }
+
+        @Test
         fun `counts a long constant as two slots`() {
             assertThat(stack("()V", STATIC) { +lconst(0); +lconst(1); +`return` }).isEqualTo(4)
         }
@@ -364,6 +372,11 @@ class ClassFileBuilderTest {
         @Test
         fun `counts a local written past a long argument from the slot after both of its halves`() {
             assertThat(locals("(J)V", STATIC) { +iconst(0); +istore(2); +`return` }).isEqualTo(3)
+        }
+
+        @Test
+        fun `counts a stored long as the two slots it takes`() {
+            assertThat(locals("()V", STATIC) { +lconst(0); +lstore(3); +`return` }).isEqualTo(5)
         }
 
         @Test

@@ -43,7 +43,7 @@ internal class Analyzer(
 
         val frames = Array<Frame?>(instructions.size) { null }
         val deque = ArrayDeque<Pair<Int, Frame>>()
-        val framesIndexes = mutableListOf<Int>()
+        val framesIndexes = sortedSetOf<Int>()
         val i2h = mutableMapOf<Int, MutableSet<Int>>()
         fragment.exceptionHandlers.forEach { handler ->
             require(handler.handlerPc in frames.indices) {

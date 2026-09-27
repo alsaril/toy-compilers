@@ -103,6 +103,11 @@ data class istore(override val index: Int) : LocalSlotInstruction(0x3b, 0x36) {
     override fun localEffects() = listOf(Write(index, INTEGER))
 }
 
+data class lstore(override val index: Int) : LocalSlotInstruction(0x3f, 0x37) {
+    override fun stackEffects() = listOf(Pop(LONG))
+    override fun localEffects() = listOf(Write(index, LONG))
+}
+
 data class fstore(override val index: Int) : LocalSlotInstruction(0x43, 0x38) {
     override fun stackEffects() = listOf(Pop(FLOAT))
     override fun localEffects() = listOf(Write(index, FLOAT))

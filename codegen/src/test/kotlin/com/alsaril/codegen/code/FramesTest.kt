@@ -29,15 +29,14 @@ class FramesTest {
 
     private fun obj(name: String) = ObjectVariableInfo(cp.putClass(name))
 
-    // one frame per target in code order; a target reached twice is named twice until the
-    // serializer folds the repeats, which is checked with the layout below
+    // the analyzer names each target once and in code order, however many jumps reach it
     private fun derived(
         descriptor: String = "()V",
         static: Boolean = true,
         constructor: Boolean = false,
         hierarchy: ClassHierarchy = LenientHierarchy,
         body: CodeBuilder.() -> Unit,
-    ) = analysis(cp, descriptor, static, constructor, hierarchy, body).third.distinct().sortedBy { it.offsetDelta }
+    ) = analysis(cp, descriptor, static, constructor, hierarchy, body).third
 
     @Nested
     inner class Placement {
@@ -167,6 +166,49 @@ class FramesTest {
             // second half - an extra top would move every later local one slot up
             assertThat(derived("(JDI)V") { jumpOver(); +`return` }).containsExactly(
                 FullFrame(3, listOf(LongVariableInfo, DoubleVariableInfo, IntegerVariableInfo), emptyList()),
+            )
+        }
+
+        @Test
+        fun `write a stored long as one entry covering both of its slots`() {
+            assertThat(derived("(I)V") { +lconst(1); +lstore(1); jumpOver(); +`return` })
+                .containsExactly(FullFrame(5, listOf(IntegerVariableInfo, LongVariableInfo), emptyList()))
+        }
+
+        @Test
+        fun `forget a long when a store overwrites either of its halves`() {
+            // a long cut in half is neither half a long, so its first slot is left as top
+            assertThat(derived("(J)V") { +iconst(1); +istore(0); jumpOver(); +`return` })
+                .containsExactly(FullFrame(5, listOf(IntegerVariableInfo, TopVariableInfo), emptyList()))
+            assertThat(derived("(J)V") { +iconst(1); +istore(1); jumpOver(); +`return` })
+                .containsExactly(FullFrame(5, listOf(TopVariableInfo, IntegerVariableInfo), emptyList()))
+            assertThat(derived("(J)V") { +aconst_null; +astore(1); jumpOver(); +`return` })
+                .containsExactly(FullFrame(5, listOf(TopVariableInfo, NullVariableInfo), emptyList()))
+        }
+
+        @Test
+        fun `forget a long when another long is stored across its second half`() {
+            assertThat(derived("(J)V") { +lconst(1); +lstore(1); jumpOver(); +`return` })
+                .containsExactly(FullFrame(5, listOf(TopVariableInfo, LongVariableInfo), emptyList()))
+        }
+
+        @Test
+        fun `keep an object fresh from new in a local until its constructor runs`() {
+            // given the object parked in slot 0 across one jump before its constructor and one after
+            val frames = derived {
+                +new(clazz("java/lang/Object"))
+                +astore(0)
+                jumpOver()
+                +aload(0) // 5
+                invokespecial(clazz("java/lang/Object"), "<init>", "()V")
+                jumpOver()
+                +`return` // 10
+            }
+
+            // then the local is initialised in place, like every copy on the stack
+            assertThat(frames).containsExactly(
+                FullFrame(5, listOf(UninitializedVariableInfo(0)), emptyList()),
+                FullFrame(10, listOf(obj("java/lang/Object")), emptyList()),
             )
         }
 
@@ -355,6 +397,18 @@ class FramesTest {
                 FullFrame(4, listOf(IntegerVariableInfo, obj("java/lang/String")), emptyList()),
                 FullFrame(5, listOf(IntegerVariableInfo, obj("java/lang/String")), listOf(obj("java/lang/String"))),
             )
+        }
+
+        @Test
+        fun `meets a reference and null as the reference, whichever arrives first`() {
+            // given the reference on the path that gets there first this time
+            val frames = derived("(ILjava/lang/String;)Ljava/lang/Object;") {
+                choose({ +aload(1) }, { +aconst_null })
+            }
+
+            // then
+            assertThat(frames.last())
+                .isEqualTo(FullFrame(5, listOf(IntegerVariableInfo, obj("java/lang/String")), listOf(obj("java/lang/String"))))
         }
 
         @Test

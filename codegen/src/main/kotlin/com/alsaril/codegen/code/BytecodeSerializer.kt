@@ -8,10 +8,15 @@ import java.io.ByteArrayOutputStream
 import java.io.DataOutputStream
 
 object BytecodeSerializer {
-    fun ClassFileBuilder.serialize(fragment: Fragment, descriptor: String, constructor: Boolean, static: Boolean): CodeAttribute {
-        val (maxStack, maxLocals, autoFrames) =
+    fun ClassFileBuilder.serialize(
+        fragment: Fragment,
+        descriptor: String,
+        constructor: Boolean,
+        static: Boolean,
+    ): CodeAttribute {
+        val (maxStack, maxLocals, frames) =
             Analyzer(cp, thisName, hierarchy).analyze(fragment, descriptor, constructor, static)
-        val (bytecode, frames, exceptionHandlers) = emit(fragment, autoFrames)
+        val (bytecode, stackMapFrames, exceptionHandlers) = emit(fragment, frames)
 
         return CodeAttribute(
             cp.putUtf8("Code"),
@@ -19,13 +24,13 @@ object BytecodeSerializer {
             maxLocals,
             bytecode,
             exceptionHandlers,
-            listOf(StackMapTableAttribute(cp.putUtf8("StackMapTable"), frames)),
+            listOf(StackMapTableAttribute(cp.putUtf8("StackMapTable"), stackMapFrames)),
         )
     }
 
     internal fun emit(
         fragment: Fragment,
-        autoFrames: List<FullFrame>
+        frames: List<FullFrame>,
     ): Triple<ByteArray, List<StackMapFrame>, List<ExceptionHandler>> {
         val output = ByteArrayOutputStream()
         val writer = DosWriter(DataOutputStream(output))
@@ -52,18 +57,12 @@ object BytecodeSerializer {
         }
 
         var prev = -1
-        val frames = autoFrames
-            .groupBy { frame -> loc(frame.offsetDelta, "a frame") }
-            .toSortedMap()
-            .map { (loc, atLoc) ->
-                val frame = atLoc.first()
-                require(atLoc.all { it == frame }) {
-                    "frames at offset $loc disagree, so the offset cannot be named once: ${atLoc.distinct()}"
-                }
-                frame.patchUnitialized(i2loc)
-                    .patchOffset(loc - prev - 1)
-                    .also { prev = loc }
-            }
+        val patchedFrames = frames.map { frame ->
+            val loc = loc(frame.offsetDelta, "a frame")
+            frame.patchUnitialized(i2loc)
+                .patchOffset(loc - prev - 1)
+                .also { prev = loc }
+        }
 
         val exceptionHandlers = fragment.exceptionHandlers.map {
             it.copy(
@@ -74,7 +73,7 @@ object BytecodeSerializer {
             )
         }
 
-        return Triple(code, frames, exceptionHandlers)
+        return Triple(code, patchedFrames, exceptionHandlers)
     }
 
     internal fun ByteArray.s2At(pos: Int, value: Int) {

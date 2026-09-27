@@ -154,6 +154,8 @@ class InstructionTest {
             assertThat(bytecode { +aload(3) }).containsExactly(*bytesOf(0x2D))
             assertThat(bytecode { +istore(0) }).containsExactly(*bytesOf(0x3B))
             assertThat(bytecode { +istore(3) }).containsExactly(*bytesOf(0x3E))
+            assertThat(bytecode { +lstore(0) }).containsExactly(*bytesOf(0x3F))
+            assertThat(bytecode { +lstore(3) }).containsExactly(*bytesOf(0x42))
             assertThat(bytecode { +fstore(0) }).containsExactly(*bytesOf(0x43))
             assertThat(bytecode { +fstore(3) }).containsExactly(*bytesOf(0x46))
             assertThat(bytecode { +astore(0) }).containsExactly(*bytesOf(0x4B))
@@ -166,6 +168,7 @@ class InstructionTest {
             assertThat(bytecode { +fload(4) }).containsExactly(*bytesOf(0x17, 0x04))
             assertThat(bytecode { +aload(4) }).containsExactly(*bytesOf(0x19, 0x04))
             assertThat(bytecode { +istore(4) }).containsExactly(*bytesOf(0x36, 0x04))
+            assertThat(bytecode { +lstore(4) }).containsExactly(*bytesOf(0x37, 0x04))
             assertThat(bytecode { +fstore(4) }).containsExactly(*bytesOf(0x38, 0x04))
             assertThat(bytecode { +astore(4) }).containsExactly(*bytesOf(0x3A, 0x04))
         }
@@ -182,6 +185,7 @@ class InstructionTest {
             assertThat(bytecode { +fload(256) }).containsExactly(*bytesOf(0xC4, 0x17, 0x01, 0x00))
             assertThat(bytecode { +aload(256) }).containsExactly(*bytesOf(0xC4, 0x19, 0x01, 0x00))
             assertThat(bytecode { +istore(256) }).containsExactly(*bytesOf(0xC4, 0x36, 0x01, 0x00))
+            assertThat(bytecode { +lstore(256) }).containsExactly(*bytesOf(0xC4, 0x37, 0x01, 0x00))
             assertThat(bytecode { +fstore(256) }).containsExactly(*bytesOf(0xC4, 0x38, 0x01, 0x00))
             assertThat(bytecode { +astore(256) }).containsExactly(*bytesOf(0xC4, 0x3A, 0x01, 0x00))
         }
@@ -384,6 +388,10 @@ class InstructionTest {
         @Test
         fun `take arithmetic operands of their own type`() {
             assertThat(iadd.stackEffects()).containsExactly(Pop(INTEGER), Pop(INTEGER), Push(INTEGER))
+            assertThat(isub.stackEffects()).containsExactly(Pop(INTEGER), Pop(INTEGER), Push(INTEGER))
+            assertThat(fadd.stackEffects()).containsExactly(Pop(FLOAT), Pop(FLOAT), Push(FLOAT))
+            assertThat(fsub.stackEffects()).containsExactly(Pop(FLOAT), Pop(FLOAT), Push(FLOAT))
+            assertThat(fmul.stackEffects()).containsExactly(Pop(FLOAT), Pop(FLOAT), Push(FLOAT))
             assertThat(fdiv.stackEffects()).containsExactly(Pop(FLOAT), Pop(FLOAT), Push(FLOAT))
             assertThat(fneg.stackEffects()).containsExactly(Pop(FLOAT), Push(FLOAT))
         }
@@ -467,6 +475,8 @@ class InstructionTest {
             assertThat(fload(2).localEffects()).containsExactly(Read(2, FLOAT))
             assertThat(istore(1).localEffects()).containsExactly(Write(1, INTEGER))
             assertThat(fstore(1).localEffects()).containsExactly(Write(1, FLOAT))
+            assertThat(lstore(1).localEffects()).containsExactly(Write(1, LONG))
+            assertThat(lstore(1).stackEffects()).containsExactly(Pop(LONG))
             assertThat(iinc(3, 1).localEffects()).containsExactly(Read(3, INTEGER), Write(3, INTEGER))
         }
 
