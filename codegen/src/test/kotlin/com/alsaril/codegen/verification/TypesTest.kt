@@ -24,7 +24,7 @@ class TypesTest {
 
     @Test
     fun `take one slot for everything else`() {
-        assertThat(listOf(TOP, INTEGER, FLOAT, NULL, UNINITIALIZED_THIS, AnyReference))
+        assertThat(listOf(TOP, INTEGER, FLOAT, NULL, UNINITIALIZED_THIS))
             .allSatisfy { assertThat(it.slots).isOne() }
         // a reference is one slot whatever it points at, an array of longs included
         assertThat(ReferenceType("java/lang/String").slots).isOne()
@@ -37,7 +37,6 @@ class TypesTest {
         assertThat(ReferenceType("java/lang/String").isAssignableToReference).isTrue()
         assertThat(ReferenceType("[I").isAssignableToReference).isTrue()
         assertThat(NULL.isAssignableToReference).isTrue()
-        assertThat(AnyReference.isAssignableToReference).isTrue()
     }
 
     @Test

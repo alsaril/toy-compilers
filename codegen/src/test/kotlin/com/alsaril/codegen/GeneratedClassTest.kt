@@ -1046,4 +1046,52 @@ class GeneratedClassTest {
         assertThat(loadClass(name, bytes).getDeclaredMethod("f").invoke(null))
             .isInstanceOf(java.io.IOException::class.java)
     }
+
+    @Test
+    fun `reads and writes a boolean array through the byte array instructions`() {
+        // given a hierarchy that takes nothing but an exact match, so a boolean[] gets past the
+        // analyzer only because baload and bastore accept it as well as a byte[]
+        val strict = object : ClassHierarchy {
+            override fun isAssignable(from: String, to: String) = from == to
+            override fun commonSuperclass(a: String, b: String) = a
+        }
+        val (name, bytes) = classFile("GenBooleanArray", "java/lang/Object", strict)
+            .method("f", "()I", PUBLIC, STATIC) {
+                +iconst(1)
+                +newarray(PrimitiveType.BOOLEAN)
+                +dup
+                +iconst(0)
+                +iconst(1)
+                +bastore
+                +iconst(0)
+                +baload
+                +ireturn
+            }
+            .build()
+
+        // then
+        assertThat(loadClass(name, bytes).getDeclaredMethod("f").invoke(null)).isEqualTo(1)
+    }
+
+    @Test
+    fun `guards a constructor call on an object kept in a local`() {
+        // given the object parked in slot 0 before its constructor runs, and a handler covering
+        // the call alone - the JVM checks the handler against the locals after the call too,
+        // when slot 0 holds the initialised object
+        val (name, bytes) = classFile("GenGuardedInit", "java/lang/Object")
+            .method("f", "()V", PUBLIC, STATIC) {
+                +new(clazz("java/lang/Object"))
+                +astore(0)
+                +aload(0)
+                val guarded = invokespecial(clazz("java/lang/Object"), "<init>", "()V")
+                val end = +`return`
+
+                val caught = +`return`
+                `catch`(guarded, to = end, handler = caught, type = null)
+            }
+            .build()
+
+        // then
+        assertThatNoException().isThrownBy { loadClass(name, bytes).getDeclaredMethod("f").invoke(null) }
+    }
 }

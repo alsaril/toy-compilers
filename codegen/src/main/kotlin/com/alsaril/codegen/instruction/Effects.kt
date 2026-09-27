@@ -1,13 +1,16 @@
 package com.alsaril.codegen.instruction
 
+import com.alsaril.codegen.verification.Expected
+import com.alsaril.codegen.verification.OfType
 import com.alsaril.codegen.verification.VerificationType
 
-sealed interface StackEffect {
-    val type: VerificationType
+sealed interface StackEffect
+
+data class Pop(val expected: Expected) : StackEffect {
+    constructor(type: VerificationType) : this(OfType(type))
 }
 
-data class Pop(override val type: VerificationType) : StackEffect
-data class Push(override val type: VerificationType) : StackEffect
+data class Push(val type: VerificationType) : StackEffect
 
 sealed interface LocalEffect {
     val index: Int

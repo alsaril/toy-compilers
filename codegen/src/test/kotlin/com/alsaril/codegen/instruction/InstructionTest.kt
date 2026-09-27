@@ -8,6 +8,8 @@ import com.alsaril.codegen.code.*
 import com.alsaril.codegen.classfile.PrimitiveType as ElementType
 import com.alsaril.codegen.constantpool.DataPointer
 import com.alsaril.codegen.verification.AnyReference
+import com.alsaril.codegen.verification.OfType
+import com.alsaril.codegen.verification.OneOf
 import com.alsaril.codegen.verification.PrimitiveType.FLOAT
 import com.alsaril.codegen.verification.PrimitiveType.INTEGER
 import com.alsaril.codegen.verification.PrimitiveType.LONG
@@ -377,6 +379,9 @@ class InstructionTest {
     @Nested
     inner class Effects {
 
+        // baload and bastore serve both, as JVMS has them
+        private val byteOrBooleanArray = OneOf(ReferenceType("[B"), ReferenceType("[Z"))
+
         @Test
         fun `push the type a constant carries`() {
             assertThat(aconst_null.stackEffects()).containsExactly(Push(NULL))
@@ -403,7 +408,7 @@ class InstructionTest {
             assertThat(iaload.stackEffects())
                 .containsExactly(Pop(ReferenceType("[I")), Pop(INTEGER), Push(INTEGER))
             assertThat(baload.stackEffects())
-                .containsExactly(Pop(ReferenceType("[B")), Pop(INTEGER), Push(INTEGER))
+                .containsExactly(Pop(byteOrBooleanArray), Pop(INTEGER), Push(INTEGER))
         }
 
         @Test
@@ -411,7 +416,12 @@ class InstructionTest {
             assertThat(iastore.stackEffects())
                 .containsExactly(Pop(ReferenceType("[I")), Pop(INTEGER), Pop(INTEGER))
             assertThat(bastore.stackEffects())
-                .containsExactly(Pop(ReferenceType("[B")), Pop(INTEGER), Pop(INTEGER))
+                .containsExactly(Pop(byteOrBooleanArray), Pop(INTEGER), Pop(INTEGER))
+        }
+
+        @Test
+        fun `take a pop of a type as the expectation of that type`() {
+            assertThat(Pop(INTEGER)).isEqualTo(Pop(OfType(INTEGER)))
         }
 
         @Test

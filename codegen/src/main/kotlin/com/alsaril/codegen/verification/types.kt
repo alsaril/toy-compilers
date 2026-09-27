@@ -25,8 +25,3 @@ data class Uninitialized(val offset: Int) : VerificationType {
     override val slots = 1
     override val isAssignableToReference = false
 }
-
-data object AnyReference : VerificationType {
-    override val slots = 1
-    override val isAssignableToReference = true
-}

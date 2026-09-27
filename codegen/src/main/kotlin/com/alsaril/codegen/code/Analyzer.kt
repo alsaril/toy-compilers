@@ -137,18 +137,17 @@ internal class Analyzer(
         return null
     }
 
-    private fun isAssignable(actual: VerificationType, expected: VerificationType) = when {
-        actual == expected -> true
-        expected == AnyReference -> actual.isAssignableToReference
-        expected is ReferenceType -> actual == NULL ||
-                actual is ReferenceType && hierarchy.isAssignable(actual.descriptor, expected.descriptor)
+    private fun isAssignable(actual: VerificationType, expected: Expected): Boolean = when (expected) {
+        is OfType -> actual == expected.type || expected.type is ReferenceType && (actual == NULL ||
+                actual is ReferenceType && hierarchy.isAssignable(actual.descriptor, expected.type.descriptor))
 
-        else -> false
+        AnyReference -> actual.isAssignableToReference
+        is OneOf -> expected.types.any { isAssignable(actual, OfType(it)) }
     }
 
     private fun requireLocal(locals: Locals, read: Read, instruction: Instruction, pc: Int) {
         val held = locals.read(read.index, instruction, pc)
-        require(isAssignable(held, read.type)) {
+        require(isAssignable(held, OfType(read.type))) {
             "$instruction at $pc reads local ${read.index} as ${read.type}, but it holds $held"
         }
     }
@@ -160,7 +159,7 @@ internal class Analyzer(
         require(stack.size >= pops) { "$instruction at $pc pops $pops from a stack ${stack.size} deep" }
 
     private fun MutableList<VerificationType>.pop(
-        expected: VerificationType,
+        expected: Expected,
         instruction: Instruction,
         pc: Int,
     ): VerificationType {
@@ -188,7 +187,7 @@ internal class Analyzer(
         val pops = effects.filterIsInstance<Pop>()
         requireDepth(enterStack, pops.size, instruction, pc)
         val stack = enterStack.toMutableList()
-        pops.asReversed().forEach { stack.pop(it.type, instruction, pc) }
+        pops.asReversed().forEach { stack.pop(it.expected, instruction, pc) }
         effects.filterIsInstance<Push>().forEach { if (it.type != VOID) stack.add(it.type) }
         return stack
     }
@@ -275,7 +274,7 @@ internal class Analyzer(
         is invokespecial if instruction.constructorFor != null -> {
             requireDepth(enterFrame.stack, instruction.args.size, instruction, pc) // the receiver and the arguments
             val stack = enterFrame.stack.toMutableList()
-            instruction.args.drop(1).asReversed().forEach { stack.pop(it, instruction, pc) } // the last argument is on top
+            instruction.args.drop(1).asReversed().forEach { stack.pop(OfType(it), instruction, pc) } // the last argument is on top
             val top = stack.removeLast()
             require(top == UNINITIALIZED_THIS || top is Uninitialized) {
                 "$instruction at $pc expects uninitializedThis or an object fresh from new under its arguments, " +
@@ -314,6 +313,6 @@ internal class Analyzer(
         UNINITIALIZED_THIS -> UninitializedThis
         is ReferenceType -> ObjectVariableInfo(cp.putClass(descriptor))
         is Uninitialized -> UninitializedVariableInfo(offset)
-        VOID, AnyReference -> throw IllegalStateException("$this describes no value, so no frame can hold it")
+        VOID -> throw IllegalStateException("$this describes no value, so no frame can hold it")
     }
 }

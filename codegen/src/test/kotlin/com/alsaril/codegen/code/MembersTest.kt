@@ -12,7 +12,6 @@ import com.alsaril.codegen.constantpool.ConstantUtf8Info
 import com.alsaril.codegen.constantpool.FieldDescriptor
 import com.alsaril.codegen.constantpool.UpdatableConstantPool
 import com.alsaril.codegen.instruction.*
-import com.alsaril.codegen.verification.AnyReference
 import com.alsaril.codegen.verification.PrimitiveType.*
 import com.alsaril.codegen.verification.ReferenceType
 import org.assertj.core.api.Assertions.assertThat
@@ -230,23 +229,23 @@ class MembersTest {
 
         @Test
         fun `writes getstatic with the field index`() {
-            assertThat(bytecode { +getstatic(FieldDescriptor(3, AnyReference, INTEGER)) })
+            assertThat(bytecode { +getstatic(FieldDescriptor(3, a, INTEGER)) })
                 .containsExactly(*bytesOf(0xB2, 0x00, 0x03))
         }
 
         @Test
         fun `writes getfield with the field index`() {
-            assertThat(bytecode { +getfield(FieldDescriptor(3, AnyReference, INTEGER)) })
+            assertThat(bytecode { +getfield(FieldDescriptor(3, a, INTEGER)) })
                 .containsExactly(*bytesOf(0xB4, 0x00, 0x03))
-            assertThat(bytecode { +getfield(FieldDescriptor(0x0102, AnyReference, LONG)) })
+            assertThat(bytecode { +getfield(FieldDescriptor(0x0102, a, LONG)) })
                 .containsExactly(*bytesOf(0xB4, 0x01, 0x02))
         }
 
         @Test
         fun `writes putfield with the field index`() {
-            assertThat(bytecode { +putfield(FieldDescriptor(3, AnyReference, INTEGER)) })
+            assertThat(bytecode { +putfield(FieldDescriptor(3, a, INTEGER)) })
                 .containsExactly(*bytesOf(0xB5, 0x00, 0x03))
-            assertThat(bytecode { +putfield(FieldDescriptor(0x0102, AnyReference, LONG)) })
+            assertThat(bytecode { +putfield(FieldDescriptor(0x0102, a, LONG)) })
                 .containsExactly(*bytesOf(0xB5, 0x01, 0x02))
         }
 

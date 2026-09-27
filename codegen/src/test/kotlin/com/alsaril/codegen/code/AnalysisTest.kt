@@ -2,6 +2,7 @@ package com.alsaril.codegen.code
 
 import com.alsaril.codegen.code.ClassFileBuilder.Companion.classFile
 import com.alsaril.codegen.classfile.AccessFlag.STATIC
+import com.alsaril.codegen.classfile.PrimitiveType as ElementType
 import com.alsaril.codegen.classfile.attributes.ExceptionHandler
 import org.assertj.core.api.Assertions.assertThatExceptionOfType
 import org.assertj.core.api.Assertions.assertThatIllegalArgumentException
@@ -266,6 +267,28 @@ class AnalysisTest {
             }
             .withMessageContaining("return at 5 is reached with a stack of")
             .withMessageContaining("on one path and")
+    }
+
+    @Test
+    fun `refuses an array baload does not serve, given a hierarchy that says so`() {
+        // given a hierarchy that takes nothing but an exact match
+        val strict = object : ClassHierarchy {
+            override fun isAssignable(from: String, to: String) = from == to
+            override fun commonSuperclass(a: String, b: String) = a
+        }
+
+        // then an int[] is neither the byte[] nor the boolean[] it reads
+        assertThatIllegalArgumentException()
+            .isThrownBy {
+                method("()I", strict) {
+                    +iconst(1)
+                    +newarray(ElementType.INTEGER)
+                    +iconst(0)
+                    +baload
+                    +ireturn
+                }
+            }
+            .withMessageContaining("baload at 3 expects one of [B, [Z on the stack, but finds ReferenceType(descriptor=[I)")
     }
 
     @Test

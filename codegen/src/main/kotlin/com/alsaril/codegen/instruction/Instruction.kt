@@ -9,6 +9,7 @@ import com.alsaril.codegen.constantpool.DataPointer
 import com.alsaril.codegen.constantpool.FieldDescriptor
 import com.alsaril.codegen.constantpool.MethodDescriptor
 import com.alsaril.codegen.verification.AnyReference
+import com.alsaril.codegen.verification.OneOf
 import com.alsaril.codegen.verification.PrimitiveType.*
 import com.alsaril.codegen.verification.ReferenceType
 import com.alsaril.codegen.verification.VerificationType
@@ -97,8 +98,10 @@ data object iaload : NoArgInstruction(0x2e) {
     override fun stackEffects() = listOf(Pop(ReferenceType("[I")), Pop(INTEGER), Push(INTEGER))
 }
 
+private val byteOrBooleanArray = OneOf(ReferenceType("[B"), ReferenceType("[Z"))
+
 data object baload : NoArgInstruction(0x33) {
-    override fun stackEffects() = listOf(Pop(ReferenceType("[B")), Pop(INTEGER), Push(INTEGER))
+    override fun stackEffects() = listOf(Pop(byteOrBooleanArray), Pop(INTEGER), Push(INTEGER))
 }
 
 data class istore(override val index: Int) : LocalSlotInstruction(0x3b, 0x36) {
@@ -123,7 +126,7 @@ data object iastore : NoArgInstruction(0x4f) {
 }
 
 data object bastore : NoArgInstruction(0x54) {
-    override fun stackEffects() = listOf(Pop(ReferenceType("[B")), Pop(INTEGER), Pop(INTEGER))
+    override fun stackEffects() = listOf(Pop(byteOrBooleanArray), Pop(INTEGER), Pop(INTEGER))
 }
 
 data object iadd : NoArgInstruction(0x60) {

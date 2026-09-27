@@ -26,7 +26,7 @@ Six packages, and the dependencies run one way — `code` on top, then `instruct
 | `instruction` | the opcodes, their encodings, and their effects on the stack and the locals |
 | `classfile` | the static JVMS records: `ClassFile`, `FieldInfo`, `MethodInfo`, `AccessFlag`, descriptors, and `attributes/` |
 | `constantpool` | the pool, and the typed indices into it (`ClassPointer`, `MethodDescriptor`, `FieldDescriptor`, `DataPointer`) |
-| `verification` | the verification types of JVMS 4.10.1.2, which effects, descriptors and pool references are all stated in |
+| `verification` | the verification types of JVMS 4.10.1.2, which values on the stack and in the locals have, and the expectations an instruction states for its operands |
 | *(root)* | `ClassWriter`, `Writable` and `DosWriter`, which every package writes through; `ByteClassLoader`, `Compiler` |
 
 A body is built as a **list of instructions**, not as bytes. Nothing has an address until
@@ -164,12 +164,19 @@ being a keyword.
   result.
 - **`Instruction.kt`** — the opcodes, and the sealed interface the files above refine.
 
-Effects are stated in the verification types of JVMS 4.10.1.2, which live in the
-`verification` package below everything else: `INTEGER`, `FLOAT`, `LONG`, `DOUBLE`, `NULL`,
-`TOP`, `UNINITIALIZED_THIS` and `VOID`, `ReferenceType` for a class or an array (named as the
-constant pool names it, `java/lang/String` or `[I`), `Uninitialized` for an object `new` made
-whose constructor has not run, and `AnyReference` for an operand that may be any object or
-null. Each knows how many slots it takes and whether it may be handed on as a reference.
+Effects are stated in the `verification` package, below everything else. A value has one of
+the verification types of JVMS 4.10.1.2: `INTEGER`, `FLOAT`, `LONG`, `DOUBLE`, `NULL`, `TOP`,
+`UNINITIALIZED_THIS` and `VOID`, `ReferenceType` for a class or an array (named as the
+constant pool names it, `java/lang/String` or `[I`), and `Uninitialized` for an object `new`
+made whose constructor has not run. Each knows how many slots it takes and whether it may be
+handed on as a reference.
+
+A `Pop` states what it accepts as an `Expected`, which is not always a single type:
+`OfType` for a value of one type — for a class, also null or a class the hierarchy lets stand
+for it — `AnyReference` for any object or null, and `OneOf` for an operand that may be any of
+a few, as `baload` and `bastore` take a `byte[]` or a `boolean[]` alike. `Pop(INTEGER)` is
+short for `Pop(OfType(INTEGER))`. Only values have a verification type, so a frame never
+holds an expectation.
 
 A few instructions have no effect they could state on their own: `aload`, `astore`, `new`
 and the four `dup` forms move or copy whatever type the frame holds. They are marked
@@ -213,8 +220,8 @@ where a byte offset would have had to be recomputed, and a jump patched.
 
 **What is covered:**
 
-- `int` — constants, locals, `iinc`, arithmetic, loads and stores into `int[]` and `byte[]`,
-  comparisons with zero and with each other, returns;
+- `int` — constants, locals, `iinc`, arithmetic, loads and stores into `int[]`, `byte[]` and
+  `boolean[]`, comparisons with zero and with each other, returns;
 - `float` — constants, locals, arithmetic, negation, returns;
 - `long` — the constants 0 and 1, and stores to a local;
 - references — `aconst_null`, locals, `new`, `newarray`, `checkcast`, `instanceof`,
