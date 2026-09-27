@@ -372,7 +372,7 @@ class InstructionTest {
 
     /**
      * What each instruction does to the stack and the locals, which is all the analyzer knows
-     * about it. Pops are listed top first, so the value an instruction takes first leads.
+     * about it. Pops are listed in the order their operands were pushed, as JVMS lists them.
      */
     @Nested
     inner class Effects {
@@ -399,19 +399,19 @@ class InstructionTest {
         }
 
         @Test
-        fun `take the index before the array it reads`() {
+        fun `take the array and the index they read`() {
             assertThat(iaload.stackEffects())
-                .containsExactly(Pop(INTEGER), Pop(ReferenceType("[I")), Push(INTEGER))
+                .containsExactly(Pop(ReferenceType("[I")), Pop(INTEGER), Push(INTEGER))
             assertThat(baload.stackEffects())
-                .containsExactly(Pop(INTEGER), Pop(ReferenceType("[B")), Push(INTEGER))
+                .containsExactly(Pop(ReferenceType("[B")), Pop(INTEGER), Push(INTEGER))
         }
 
         @Test
-        fun `take the value and the index before the array they write`() {
+        fun `take the array, the index and the value they write`() {
             assertThat(iastore.stackEffects())
-                .containsExactly(Pop(INTEGER), Pop(INTEGER), Pop(ReferenceType("[I")))
+                .containsExactly(Pop(ReferenceType("[I")), Pop(INTEGER), Pop(INTEGER))
             assertThat(bastore.stackEffects())
-                .containsExactly(Pop(INTEGER), Pop(INTEGER), Pop(ReferenceType("[B")))
+                .containsExactly(Pop(ReferenceType("[B")), Pop(INTEGER), Pop(INTEGER))
         }
 
         @Test
@@ -423,21 +423,21 @@ class InstructionTest {
         }
 
         @Test
-        fun `take the value before the object a field store writes`() {
+        fun `take the object and the value a field store writes`() {
             val owner = ReferenceType("A")
 
-            assertThat(putfield(3, owner, LONG).stackEffects()).containsExactly(Pop(LONG), Pop(owner))
+            assertThat(putfield(3, owner, LONG).stackEffects()).containsExactly(Pop(owner), Pop(LONG))
             assertThat(getfield(3, owner, LONG).stackEffects()).containsExactly(Pop(owner), Push(LONG))
             assertThat(getstatic(3, LONG).stackEffects()).containsExactly(Push(LONG))
         }
 
         @Test
-        fun `take a call's arguments last to first, then push what it returns`() {
+        fun `take a call's receiver and arguments, then push what it returns`() {
             // given a receiver of class A and two arguments
             val args = listOf(ReferenceType("A"), INTEGER, FLOAT)
 
             // then every call shape takes the same operands in the same order
-            val expected = arrayOf(Pop(FLOAT), Pop(INTEGER), Pop(ReferenceType("A")), Push(LONG))
+            val expected = arrayOf(Pop(ReferenceType("A")), Pop(INTEGER), Pop(FLOAT), Push(LONG))
             assertThat(invokevirtual(1, args, LONG).stackEffects()).containsExactly(*expected)
             assertThat(invokeinterface(1, args, LONG).stackEffects()).containsExactly(*expected)
             assertThat(invokespecial(1, args, LONG, null).stackEffects()).containsExactly(*expected)

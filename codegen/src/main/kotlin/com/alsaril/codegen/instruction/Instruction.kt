@@ -94,11 +94,11 @@ data class fload(override val index: Int) : LocalSlotInstruction(0x22, 0x17) {
 data class aload(override val index: Int) : LocalSlotInstruction(0x2a, 0x19), DynamicInstruction
 
 data object iaload : NoArgInstruction(0x2e) {
-    override fun stackEffects() = listOf(Pop(INTEGER), Pop(ReferenceType("[I")), Push(INTEGER))
+    override fun stackEffects() = listOf(Pop(ReferenceType("[I")), Pop(INTEGER), Push(INTEGER))
 }
 
 data object baload : NoArgInstruction(0x33) {
-    override fun stackEffects() = listOf(Pop(INTEGER), Pop(ReferenceType("[B")), Push(INTEGER))
+    override fun stackEffects() = listOf(Pop(ReferenceType("[B")), Pop(INTEGER), Push(INTEGER))
 }
 
 data class istore(override val index: Int) : LocalSlotInstruction(0x3b, 0x36) {
@@ -119,11 +119,11 @@ data class fstore(override val index: Int) : LocalSlotInstruction(0x43, 0x38) {
 data class astore(override val index: Int) : LocalSlotInstruction(0x4b, 0x3a), DynamicInstruction
 
 data object iastore : NoArgInstruction(0x4f) {
-    override fun stackEffects() = listOf(Pop(INTEGER), Pop(INTEGER), Pop(ReferenceType("[I")))
+    override fun stackEffects() = listOf(Pop(ReferenceType("[I")), Pop(INTEGER), Pop(INTEGER))
 }
 
 data object bastore : NoArgInstruction(0x54) {
-    override fun stackEffects() = listOf(Pop(INTEGER), Pop(INTEGER), Pop(ReferenceType("[B")))
+    override fun stackEffects() = listOf(Pop(ReferenceType("[B")), Pop(INTEGER), Pop(INTEGER))
 }
 
 data object iadd : NoArgInstruction(0x60) {
@@ -256,48 +256,44 @@ data class putfield(val index: Int, val ownerType: VerificationType, val type: V
     TwoBytesArgInstruction(0xb5, index) {
     constructor(field: FieldDescriptor) : this(field.index, field.ownerType, field.type)
 
-    override fun stackEffects() = listOf(Pop(type), Pop(ownerType))
+    override fun stackEffects() = listOf(Pop(ownerType), Pop(type))
 }
 
-data class invokevirtual(val index: Int, val args: List<VerificationType>, val returnType: VerificationType) :
-    TwoBytesArgInstruction(0xb6, index) {
+data class invokevirtual(
+    val index: Int,
+    override val args: List<VerificationType>,
+    override val returnType: VerificationType,
+) : TwoBytesArgInstruction(0xb6, index), Invocation {
     constructor(method: MethodDescriptor) : this(method.index, method.args, method.returnType)
-
-    override fun stackEffects() =
-        (args.asReversed().asSequence().map { Pop(it) } + sequenceOf(Push(returnType))).toList()
 }
 
 data class invokespecial(
     val index: Int,
-    val args: List<VerificationType>,
-    val returnType: VerificationType,
-    val constructorFor: VerificationType?
-) :
-    TwoBytesArgInstruction(0xb7, index) {
+    override val args: List<VerificationType>,
+    override val returnType: VerificationType,
+    val constructorFor: VerificationType?,
+) : TwoBytesArgInstruction(0xb7, index), Invocation {
     constructor(method: MethodDescriptor) : this(method.index, method.args, method.returnType, method.constructorFor)
-
-    override fun stackEffects() =
-        (args.asReversed().asSequence().map { Pop(it) } + sequenceOf(Push(returnType))).toList()
 }
 
-data class invokestatic(val index: Int, val args: List<VerificationType>, val returnType: VerificationType) :
-    TwoBytesArgInstruction(0xb8, index) {
+data class invokestatic(
+    val index: Int,
+    override val args: List<VerificationType>,
+    override val returnType: VerificationType,
+) : TwoBytesArgInstruction(0xb8, index), Invocation {
     constructor(method: MethodDescriptor) : this(method.index, method.args, method.returnType)
-
-    override fun stackEffects() =
-        (args.asReversed().asSequence().map { Pop(it) } + sequenceOf(Push(returnType))).toList()
 }
 
-data class invokeinterface(val index: Int, val args: List<VerificationType>, val returnType: VerificationType) :
-    Instruction {
+data class invokeinterface(
+    val index: Int,
+    override val args: List<VerificationType>,
+    override val returnType: VerificationType,
+) : Invocation {
     constructor(method: MethodDescriptor) : this(method.index, method.args, method.returnType)
 
     init {
         require(index in 0..0xffff) { "$index does not fit a u2" }
     }
-
-    override fun stackEffects() =
-        (args.asReversed().asSequence().map { Pop(it) } + sequenceOf(Push(returnType))).toList()
 
     override fun ClassWriter.write() {
         u1(0xb9)

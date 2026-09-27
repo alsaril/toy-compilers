@@ -16,3 +16,10 @@ sealed interface LocalEffect {
 
 data class Read(override val index: Int, override val type: VerificationType): LocalEffect
 data class Write(override val index: Int, override val type: VerificationType): LocalEffect
+
+sealed interface Invocation : Instruction {
+    val args: List<VerificationType>
+    val returnType: VerificationType
+
+    override fun stackEffects(): List<StackEffect> = args.map { Pop(it) } + Push(returnType)
+}

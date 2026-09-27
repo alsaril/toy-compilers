@@ -191,14 +191,11 @@ internal class Analyzer(
         pc: Int,
     ): List<VerificationType> {
         val effects = instruction.stackEffects()
-        requireDepth(enterStack, effects.count { it is Pop }, instruction, pc) // pops always come before the push
+        val pops = effects.filterIsInstance<Pop>()
+        requireDepth(enterStack, pops.size, instruction, pc)
         val stack = enterStack.toMutableList()
-        effects.forEach {
-            when (it) {
-                is Pop -> stack.pop(it.type, instruction, pc)
-                is Push -> if (it.type != VOID) stack.add(it.type)
-            }
-        }
+        pops.asReversed().forEach { stack.pop(it.type, instruction, pc) }
+        effects.filterIsInstance<Push>().forEach { if (it.type != VOID) stack.add(it.type) }
         return stack
     }
 
@@ -282,15 +279,9 @@ internal class Analyzer(
         }
 
         is invokespecial if instruction.constructorFor != null -> {
-            val effects = instruction.stackEffects()
-            requireDepth(enterFrame.stack, effects.size - 1, instruction, pc) // the arguments and the receiver
+            requireDepth(enterFrame.stack, instruction.args.size, instruction, pc) // the receiver and the arguments
             val stack = enterFrame.stack.toMutableList()
-            effects.asSequence().take(effects.size - 2).forEach {
-                when (it) {
-                    is Pop -> stack.pop(it.type, instruction, pc)
-                    is Push -> throw IllegalStateException("$instruction at $pc pushes before taking its arguments")
-                }
-            }
+            instruction.args.drop(1).asReversed().forEach { stack.pop(it, instruction, pc) } // the last argument is on top
             val top = stack.removeLast()
             require(top == UNINITIALIZED_THIS || top is Uninitialized) {
                 "$instruction at $pc expects uninitializedThis or an object fresh from new under its arguments, " +

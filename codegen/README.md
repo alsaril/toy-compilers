@@ -156,9 +156,11 @@ being a keyword.
   in `init`; `LocalSlotInstruction` checks its slot as it writes, its `index` being
   abstract and so out of reach of the base class's `init`.
 - **`Effects.kt`** — `Pop` and `Push` for the operand stack, `Read` and `Write` for a local
-  slot, each naming the verification type involved. Pops are listed top first, the order
-  the instruction takes its operands in; a call pops its arguments last to first, then its
-  receiver.
+  slot, each naming the verification type involved. Pops are listed in the order their
+  operands were pushed, as JVMS writes `..., value1, value2 ->`, and the analyzer takes them
+  off from the last. The four invoke instructions share `Invocation`, which states a call's
+  effect once from its argument and return types: the receiver and the arguments, then the
+  result.
 - **`Instruction.kt`** — the opcodes, and the sealed interface the files above refine.
 
 Effects are stated in the verification types of JVMS 4.10.1.2, which live in the
