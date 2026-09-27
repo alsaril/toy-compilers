@@ -2,7 +2,6 @@ package com.alsaril.codegen.code
 
 import com.alsaril.codegen.DosWriter
 import com.alsaril.codegen.classfile.attributes.*
-import com.alsaril.codegen.code.Analyzer.analyze
 import com.alsaril.codegen.instruction.JumpInstruction
 import com.alsaril.codegen.write
 import java.io.ByteArrayOutputStream
@@ -10,7 +9,8 @@ import java.io.DataOutputStream
 
 object BytecodeSerializer {
     fun ClassFileBuilder.serialize(fragment: Fragment, descriptor: String, constructor: Boolean, static: Boolean): CodeAttribute {
-        val (maxStack, maxLocals, autoFrames) = analyze(fragment, descriptor, constructor, static)
+        val (maxStack, maxLocals, autoFrames) =
+            Analyzer(cp, thisName, hierarchy).analyze(fragment, descriptor, constructor, static)
         val (bytecode, frames, exceptionHandlers) = emit(fragment, autoFrames)
 
         return CodeAttribute(

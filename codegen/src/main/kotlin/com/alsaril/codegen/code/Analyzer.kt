@@ -10,10 +10,14 @@ import com.alsaril.codegen.instruction.*
 import com.alsaril.codegen.instruction.PrimitiveType.*
 import java.util.*
 
-object Analyzer {
+internal class Analyzer(
+    private val cp: UpdatableConstantPool,
+    private val thisName: String,
+    private val hierarchy: ClassHierarchy,
+) {
     private data class Frame(val stack: List<VerificationType>, val locals: List<VerificationType>)
 
-    private fun ClassFileBuilder.frameFrom(descriptor: String, constructor: Boolean, static: Boolean): Frame {
+    private fun frameFrom(descriptor: String, constructor: Boolean, static: Boolean): Frame {
         val locals = mutableListOf<VerificationType>()
         if (!static) {
             locals.add(if (constructor) UNINITIALIZED_THIS else ReferenceType(thisName))
@@ -27,7 +31,7 @@ object Analyzer {
         return Frame(stack = emptyList(), locals = locals)
     }
 
-    fun ClassFileBuilder.analyze(
+    fun analyze(
         fragment: Fragment,
         descriptor: String,
         constructor: Boolean,
@@ -112,8 +116,9 @@ object Analyzer {
 
         val maxStack = frames.asSequence().maxOfOrNull { it!!.stack.sumOf(VerificationType::slots) }!!
         val maxLocals = frames.asSequence().maxOfOrNull { it!!.locals.size }!!
-        val stackMapFrames =
-            framesIndexes.map { FullFrame(it, frames[it]!!.locals.toInfo(cp), frames[it]!!.stack.toInfo(cp)) }
+        val stackMapFrames = framesIndexes.map {
+            FullFrame(it, frames[it]!!.locals.toInfo(), frames[it]!!.stack.toInfo())
+        }
 
         return Triple(maxStack, maxLocals, stackMapFrames)
     }
@@ -137,14 +142,26 @@ object Analyzer {
         if (t1 == t2) return t1
         if (t1 == NULL && t2.isAssignableToReference) return t2
         if (t2 == NULL && t1.isAssignableToReference) return t1
+        if (t1 is ReferenceType && t2 is ReferenceType) {
+            return ReferenceType(hierarchy.commonSuperclass(t1.descriptor, t2.descriptor))
+        }
         return null
+    }
+
+    private fun isAssignable(actual: VerificationType, expected: VerificationType) = when {
+        actual == expected -> true
+        expected == AnyReference -> actual.isAssignableToReference
+        expected is ReferenceType -> actual == NULL ||
+                actual is ReferenceType && hierarchy.isAssignable(actual.descriptor, expected.descriptor)
+
+        else -> false
     }
 
     private fun requireLocal(locals: List<VerificationType>, read: Read, instruction: Instruction, pc: Int) {
         require(read.index + read.type.slots <= locals.size) {
             "$instruction at $pc reads local ${read.index}, but only ${locals.size} local slots are defined"
         }
-        require(locals[read.index] == read.type) {
+        require(isAssignable(locals[read.index], read.type)) {
             "$instruction at $pc reads local ${read.index} as ${read.type}, but it holds ${locals[read.index]}"
         }
     }
@@ -158,10 +175,10 @@ object Analyzer {
     private fun MutableList<VerificationType>.pop(
         expected: VerificationType,
         instruction: Instruction,
-        pc: Int
+        pc: Int,
     ): VerificationType {
         val actual = removeLast()
-        require(actual == expected || expected == AnyReference && actual.isAssignableToReference) {
+        require(isAssignable(actual, expected)) {
             "$instruction at $pc expects $expected on the stack, but finds $actual"
         }
         return actual
@@ -215,7 +232,7 @@ object Analyzer {
         return stack
     }
 
-    private fun ClassFileBuilder.dynamicFrame(
+    private fun dynamicFrame(
         enterFrame: Frame,
         instruction: Instruction,
         pc: Int,
@@ -346,7 +363,7 @@ object Analyzer {
         }
     }
 
-    private fun List<VerificationType>.toInfo(cp: UpdatableConstantPool) = map {
+    private fun List<VerificationType>.toInfo() = map {
         when (it) {
             TOP -> TopVariableInfo
             INTEGER -> IntegerVariableInfo
