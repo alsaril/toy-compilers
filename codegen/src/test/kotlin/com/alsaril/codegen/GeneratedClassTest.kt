@@ -986,4 +986,39 @@ class GeneratedClassTest {
         assertThat(method.invoke(null, 0)).isEqualTo(0)
         assertThat(method.invoke(null, 3)).isEqualTo(5)
     }
+
+    @Test
+    fun `reads a local each path left a different reference in`() {
+        // given f(x) and g(x) storing to slot 1 on both arms and returning it after they meet:
+        // null or a String in f, an Integer or a String in g
+        fun ClassFileBuilder.storeEither(name: String, a: CodeBuilder.() -> Unit) =
+            method(name, "(I)Ljava/lang/Object;", PUBLIC, STATIC) {
+                +iload(0)
+                val otherwise = +ifeq
+                a()
+                +astore(1)
+                val done = +goto
+
+                link(otherwise, +ldc(string("s")))
+                +astore(1)
+                link(done, +aload(1))
+                +areturn
+            }
+        val (name, bytes) = classFile("GenMergedLocal", "java/lang/Object")
+            .storeEither("f") { +aconst_null }
+            .storeEither("g") {
+                +iconst(1)
+                invokestatic(clazz("java/lang/Integer"), "valueOf", "(I)Ljava/lang/Integer;")
+            }
+            .build()
+        val clazz = loadClass(name, bytes)
+        val f = clazz.getDeclaredMethod("f", Int::class.javaPrimitiveType)
+        val g = clazz.getDeclaredMethod("g", Int::class.javaPrimitiveType)
+
+        // then the slot was still a reference where it was read
+        assertThat(f.invoke(null, 1)).isNull()
+        assertThat(f.invoke(null, 0)).isEqualTo("s")
+        assertThat(g.invoke(null, 1)).isEqualTo(1)
+        assertThat(g.invoke(null, 0)).isEqualTo("s")
+    }
 }

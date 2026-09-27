@@ -4,7 +4,6 @@ import com.alsaril.codegen.classfile.attributes.FullFrame
 import com.alsaril.codegen.classfile.attributes.ObjectVariableInfo
 import com.alsaril.codegen.classfile.attributes.SimpleVerificationTypeInfo.*
 import com.alsaril.codegen.classfile.attributes.UninitializedVariableInfo
-import com.alsaril.codegen.classfile.attributes.VerificationTypeInfo
 import com.alsaril.codegen.classfile.parseFunctionDescriptor
 import com.alsaril.codegen.constantpool.UpdatableConstantPool
 import com.alsaril.codegen.instruction.*
@@ -16,20 +15,16 @@ internal class Analyzer(
     private val thisName: String,
     private val hierarchy: ClassHierarchy,
 ) {
-    private data class Frame(val stack: List<VerificationType>, val locals: List<VerificationType>)
+    private data class Frame(val stack: List<VerificationType>, val locals: Locals)
 
     private fun frameFrom(descriptor: String, constructor: Boolean, static: Boolean): Frame {
-        val locals = mutableListOf<VerificationType>()
-        if (!static) {
-            locals.add(if (constructor) UNINITIALIZED_THIS else ReferenceType(thisName))
+        val self = when {
+            static -> emptyList()
+            constructor -> listOf(UNINITIALIZED_THIS)
+            else -> listOf(ReferenceType(thisName))
         }
-        parseFunctionDescriptor(descriptor).args.forEach {
-            locals.add(it.verificationType)
-            if (it.verificationType.slots == 2) {
-                locals.add(TOP)
-            }
-        }
-        return Frame(stack = emptyList(), locals = locals)
+        val args = parseFunctionDescriptor(descriptor).args.map { it.verificationType }
+        return Frame(stack = emptyList(), locals = Locals.of(self + args))
     }
 
     fun analyze(
@@ -44,6 +39,7 @@ internal class Analyzer(
         val frames = Array<Frame?>(instructions.size) { null }
         val deque = ArrayDeque<Pair<Int, Frame>>()
         val framesIndexes = sortedSetOf<Int>()
+        var maxLocals = 0
         val i2h = mutableMapOf<Int, MutableSet<Int>>()
         fragment.exceptionHandlers.forEach { handler ->
             require(handler.handlerPc in frames.indices) {
@@ -86,6 +82,9 @@ internal class Analyzer(
                     locals = staticLocals(frame.locals, instruction, pc),
                 )
             }
+            // counted on the way out as well as in: a store's slot may be merged away before
+            // any instruction is entered with it, but the method still has to have room for it
+            maxLocals = maxOf(maxLocals, frame.locals.size, nextFrame.locals.size)
 
             if (instruction is JumpInstruction) {
                 framesIndexes.add(fragment.jumps[pc]!!)
@@ -114,9 +113,8 @@ internal class Analyzer(
         frames.forEachIndexed { pc, frame -> require(frame != null) { "instruction $pc is unreachable" } }
 
         val maxStack = frames.asSequence().maxOfOrNull { it!!.stack.sumOf(VerificationType::slots) }!!
-        val maxLocals = frames.asSequence().maxOfOrNull { it!!.locals.size }!!
         val stackMapFrames = framesIndexes.map {
-            FullFrame(it, frames[it]!!.locals.localsInfo(), frames[it]!!.stack.map { type -> type.toInfo() })
+            FullFrame(it, frames[it]!!.locals.entries { type -> type.toInfo() }, frames[it]!!.stack.map { type -> type.toInfo() })
         }
 
         return Triple(maxStack, maxLocals, stackMapFrames)
@@ -131,10 +129,7 @@ internal class Analyzer(
             val s = merge(s1, s2) ?: return null
             stack.add(s)
         }
-        val locals = (frame1.locals.asSequence() zip frame2.locals.asSequence()).map { (l1, l2) ->
-            if (l1 == l2) l1 else TOP
-        }.toList()
-        return Frame(stack = stack, locals = locals)
+        return Frame(stack = stack, locals = frame1.locals.merge(frame2.locals) { l1, l2 -> merge(l1, l2) })
     }
 
     private fun merge(t1: VerificationType, t2: VerificationType): VerificationType? {
@@ -156,12 +151,10 @@ internal class Analyzer(
         else -> false
     }
 
-    private fun requireLocal(locals: List<VerificationType>, read: Read, instruction: Instruction, pc: Int) {
-        require(read.index + read.type.slots <= locals.size) {
-            "$instruction at $pc reads local ${read.index}, but only ${locals.size} local slots are defined"
-        }
-        require(isAssignable(locals[read.index], read.type)) {
-            "$instruction at $pc reads local ${read.index} as ${read.type}, but it holds ${locals[read.index]}"
+    private fun requireLocal(locals: Locals, read: Read, instruction: Instruction, pc: Int) {
+        val held = locals.read(read.index, instruction, pc)
+        require(isAssignable(held, read.type)) {
+            "$instruction at $pc reads local ${read.index} as ${read.type}, but it holds $held"
         }
     }
 
@@ -183,36 +176,13 @@ internal class Analyzer(
         return actual
     }
 
-    fun staticLocals(
-        enterLocals: List<VerificationType>,
-        instruction: Instruction,
-        pc: Int,
-    ): List<VerificationType> {
-        val effects = instruction.localEffects()
-        val readOnly = effects.all { it is Read }
-        if (readOnly) {
-            effects.forEach { requireLocal(enterLocals, it as Read, instruction, pc) }
-            return enterLocals
-        }
-        val locals = enterLocals.toMutableList()
-        effects.forEach {
-            when (it) {
-                is Read -> requireLocal(enterLocals, it, instruction, pc)
-
-                is Write -> {
-                    while (it.index + it.type.slots > locals.size) {
-                        locals.add(TOP)
-                    }
-                    if (it.index > 0 && locals[it.index - 1].slots == 2) locals[it.index - 1] = TOP
-                    locals[it.index] = it.type
-                    if (it.type.slots == 2) {
-                        locals[it.index + 1] = TOP
-                    }
-                }
+    private fun staticLocals(enterLocals: Locals, instruction: Instruction, pc: Int): Locals =
+        instruction.localEffects().fold(enterLocals) { locals, effect ->
+            when (effect) {
+                is Read -> locals.also { requireLocal(it, effect, instruction, pc) }
+                is Write -> locals.write(effect.index, effect.type)
             }
         }
-        return locals
-    }
 
     private fun staticStack(
         enterStack: List<VerificationType>,
@@ -237,11 +207,7 @@ internal class Analyzer(
         pc: Int,
     ): Frame = when (instruction) {
         is aload -> {
-            require(instruction.index < enterFrame.locals.size) {
-                "$instruction at $pc reads local ${instruction.index}, " +
-                        "but only ${enterFrame.locals.size} local slots are defined"
-            }
-            val type = enterFrame.locals[instruction.index]
+            val type = enterFrame.locals.read(instruction.index, instruction, pc)
             require(type.fitsReferenceSlot) {
                 "$instruction at $pc expects a reference in local ${instruction.index}, but it holds $type"
             }
@@ -253,13 +219,7 @@ internal class Analyzer(
             val stack = enterFrame.stack.toMutableList()
             val top = stack.removeLast()
             require(top.fitsReferenceSlot) { "$instruction at $pc stores a reference, but finds $top" }
-            val locals = enterFrame.locals.toMutableList()
-            while (instruction.index >= locals.size) {
-                locals.add(TOP)
-            }
-            if (instruction.index > 0 && locals[instruction.index - 1].slots == 2) locals[instruction.index - 1] = TOP
-            locals[instruction.index] = top
-            Frame(stack = stack, locals = locals)
+            Frame(stack = stack, locals = enterFrame.locals.write(instruction.index, top))
         }
 
         dup -> {
@@ -341,11 +301,7 @@ internal class Analyzer(
             stack.forEachIndexed { index, type ->
                 if (type == top) stack[index] = replacement
             }
-            val locals = enterFrame.locals.toMutableList()
-            locals.forEachIndexed { index, type ->
-                if (type == top) locals[index] = replacement
-            }
-            Frame(stack = stack, locals = locals)
+            Frame(stack = stack, locals = enterFrame.locals.initialise(top, replacement))
         }
 
         else -> throw IllegalStateException("$instruction at $pc has no frame rule of its own")
@@ -360,16 +316,6 @@ internal class Analyzer(
             `return`, areturn, ireturn, freturn, athrow -> emptyList()
             else -> listOf(pc + 1)
         }
-    }
-
-    private fun List<VerificationType>.localsInfo(): List<VerificationTypeInfo> {
-        val info = mutableListOf<VerificationTypeInfo>()
-        var slot = 0
-        while (slot < size) {
-            info.add(this[slot].toInfo())
-            slot += this[slot].slots
-        }
-        return info
     }
 
     private fun VerificationType.toInfo() = when (this) {

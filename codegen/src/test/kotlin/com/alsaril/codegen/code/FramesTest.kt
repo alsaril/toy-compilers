@@ -256,6 +256,64 @@ class FramesTest {
             assertThat(frames).containsExactly(FullFrame(6, listOf(TopVariableInfo), emptyList()))
         }
 
+        // slot 1 given a value by each arm of `x == 0 ? a : b`, the arms meeting at a return
+        private fun CodeBuilder.storeEither(a: CodeBuilder.() -> Unit, b: CodeBuilder.() -> Unit) {
+            +iload(0)
+            val otherwise = +ifeq
+            a()
+            val done = +goto
+            link(otherwise, end())
+            b()
+            link(done, +`return`)
+        }
+
+        private val integer: CodeBuilder.() -> Unit = {
+            +iconst(1)
+            invokestatic(clazz("java/lang/Integer"), "valueOf", "(I)Ljava/lang/Integer;")
+            +astore(1)
+        }
+
+        @Test
+        fun `meet null and a reference in a local as the reference`() {
+            // given
+            val frames = derived("(I)V") {
+                storeEither({ +aconst_null; +astore(1) }, { +ldc(string("s")); +astore(1) })
+            }
+
+            // then
+            assertThat(frames).containsExactly(
+                FullFrame(5, listOf(IntegerVariableInfo), emptyList()),
+                FullFrame(7, listOf(IntegerVariableInfo, obj("java/lang/String")), emptyList()),
+            )
+        }
+
+        @Test
+        fun `meet two classes in a local at the one the hierarchy names`() {
+            // given a hierarchy that knows what an Integer and a String have in common
+            val hierarchy = object : ClassHierarchy {
+                override fun isAssignable(from: String, to: String) = true
+                override fun commonSuperclass(a: String, b: String) = "java/io/Serializable"
+            }
+            val body: CodeBuilder.() -> Unit = { storeEither(integer, { +ldc(string("s")); +astore(1) }) }
+
+            // then as Object when the hierarchy knows neither class, and as what it names when it does
+            assertThat(derived("(I)V", body = body).last())
+                .isEqualTo(FullFrame(8, listOf(IntegerVariableInfo, obj("java/lang/Object")), emptyList()))
+            assertThat(derived("(I)V", hierarchy = hierarchy, body = body).last())
+                .isEqualTo(FullFrame(8, listOf(IntegerVariableInfo, obj("java/io/Serializable")), emptyList()))
+        }
+
+        @Test
+        fun `widen a local to top where a reference meets a number`() {
+            // given an int on one arm and a String on the other, which is no error until it is read
+            val frames = derived("(I)V") {
+                storeEither({ +iconst(1); +istore(1) }, { +ldc(string("s")); +astore(1) })
+            }
+
+            // then
+            assertThat(frames.last()).isEqualTo(FullFrame(7, listOf(IntegerVariableInfo, TopVariableInfo), emptyList()))
+        }
+
         @Test
         fun `drop a local that only one path defines`() {
             // given slot 0 written on the fall through only

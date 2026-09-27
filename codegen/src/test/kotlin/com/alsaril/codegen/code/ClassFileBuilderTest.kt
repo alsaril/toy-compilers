@@ -375,6 +375,20 @@ class ClassFileBuilderTest {
         }
 
         @Test
+        fun `counts a slot written on one path only, even where the paths meet without it`() {
+            // the store to slot 5 is the last thing its arm does, and the merge after it drops
+            // the slot the other arm never wrote, so no instruction is entered with it defined
+            assertThat(locals("(I)I", STATIC) {
+                +iload(0)
+                val skip = +ifeq
+                +iconst(1)
+                +istore(5)
+                link(skip, +iconst(7))
+                +ireturn
+            }).isEqualTo(6)
+        }
+
+        @Test
         fun `counts a stored long as the two slots it takes`() {
             assertThat(locals("()V", STATIC) { +lconst(0); +lstore(3); +`return` }).isEqualTo(5)
         }
