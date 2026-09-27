@@ -15,34 +15,39 @@ fun CodeBuilder.field(classPointer: ClassPointer, name: String, descriptor: Stri
     return FieldDescriptor(ref, ReferenceType(classPointer.name), parseType(descriptor).verificationType)
 }
 
-private fun CodeBuilder.extendSelf(args: List<Type>) =
-    listOf(ReferenceType(thisClass)) + args.map(Type::verificationType)
+private fun CodeBuilder.extendSelf(args: List<Type>, dest: String) =
+    listOf(ReferenceType(dest)) + args.map(Type::verificationType)
 
 fun CodeBuilder.invokevirtual(classPointer: ClassPointer, name: String, descriptor: String) {
     val ref = cp.putRef(classPointer.index, name, descriptor, METHOD)
     val parsed = parseFunctionDescriptor(descriptor)
-    val m = MethodDescriptor(ref, extendSelf(parsed.args), parsed.returnType.verificationType)
+    val m = MethodDescriptor(ref, extendSelf(parsed.args, classPointer.name), parsed.returnType.verificationType, null)
     +invokevirtual(m)
 }
 
 fun CodeBuilder.invokespecial(classPointer: ClassPointer, name: String, descriptor: String) {
     val ref = cp.putRef(classPointer.index, name, descriptor, METHOD)
     val parsed = parseFunctionDescriptor(descriptor)
-    val m = MethodDescriptor(ref, extendSelf(parsed.args), parsed.returnType.verificationType)
+    val m = MethodDescriptor(
+        ref,
+        extendSelf(parsed.args, classPointer.name),
+        parsed.returnType.verificationType,
+        if (name == "<init>") ReferenceType(classPointer.name) else null
+    )
     +invokespecial(m)
 }
 
 fun CodeBuilder.invokestatic(classPointer: ClassPointer, name: String, descriptor: String) {
-    val ref = cp.putRef(classPointer.index, name, descriptor, INTERFACE_METHOD)
+    val ref = cp.putRef(classPointer.index, name, descriptor, METHOD)
     val parsed = parseFunctionDescriptor(descriptor)
-    val m = MethodDescriptor(ref, parsed.args.map(Type::verificationType), parsed.returnType.verificationType)
+    val m = MethodDescriptor(ref, parsed.args.map(Type::verificationType), parsed.returnType.verificationType, null)
     +invokestatic(m)
 }
 
 fun CodeBuilder.invokeinterface(classPointer: ClassPointer, name: String, descriptor: String) {
-    val ref = cp.putRef(classPointer.index, name, descriptor, METHOD)
+    val ref = cp.putRef(classPointer.index, name, descriptor, INTERFACE_METHOD)
     val parsed = parseFunctionDescriptor(descriptor)
-    val m = MethodDescriptor(ref, extendSelf(parsed.args), parsed.returnType.verificationType)
+    val m = MethodDescriptor(ref, extendSelf(parsed.args, classPointer.name), parsed.returnType.verificationType, null)
     +invokeinterface(m)
 }
 

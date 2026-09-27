@@ -226,8 +226,7 @@ class ClassFileBuilderTest {
             // receiver plus a long is three deep at the store, and nothing is left after it
             assertThat(stack("()V", PUBLIC) {
                 +aload(0)
-                +iconst(0)
-                +iconst(0)
+                +lconst(0)
                 +putfield(field(self(), "x", "J"))
                 +`return`
             }).isEqualTo(3)

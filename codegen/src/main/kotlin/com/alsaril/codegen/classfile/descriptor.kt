@@ -34,7 +34,7 @@ data class ArrayType(val elem: Type) : Type {
 
 data class ReferenceType(val clazz: String) : Type {
     override val descriptor = "L$clazz;"
-    override val verificationType = com.alsaril.codegen.instruction.ReferenceType(descriptor)
+    override val verificationType = com.alsaril.codegen.instruction.ReferenceType(clazz)
 }
 
 data class FunctionDescriptor(val args: List<Type>, val returnType: Type)

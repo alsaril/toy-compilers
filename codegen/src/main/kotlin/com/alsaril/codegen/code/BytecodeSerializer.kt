@@ -9,8 +9,8 @@ import java.io.ByteArrayOutputStream
 import java.io.DataOutputStream
 
 object BytecodeSerializer {
-    fun ClassFileBuilder.serialize(fragment: Fragment, descriptor: String, static: Boolean): CodeAttribute {
-        val (maxStack, maxLocals, autoFrames) = analyze(fragment, descriptor, static)
+    fun ClassFileBuilder.serialize(fragment: Fragment, descriptor: String, constructor: Boolean, static: Boolean): CodeAttribute {
+        val (maxStack, maxLocals, autoFrames) = analyze(fragment, descriptor, constructor, static)
         val (bytecode, frames, exceptionHandlers) = emit(fragment, autoFrames)
 
         return CodeAttribute(
@@ -25,7 +25,7 @@ object BytecodeSerializer {
 
     internal fun emit(
         fragment: Fragment,
-        autoFrames: List<StackMapFrame>
+        autoFrames: List<FullFrame>
     ): Triple<ByteArray, List<StackMapFrame>, List<ExceptionHandler>> {
         val output = ByteArrayOutputStream()
         val writer = DosWriter(DataOutputStream(output))
@@ -60,7 +60,9 @@ object BytecodeSerializer {
                 require(atLoc.all { it == frame }) {
                     "frames at offset $loc disagree, so the offset cannot be named once: ${atLoc.distinct()}"
                 }
-                frame.patchOffset(loc - prev - 1).also { prev = loc }
+                frame.patchUnitialized(i2loc)
+                    .patchOffset(loc - prev - 1)
+                    .also { prev = loc }
             }
 
         val exceptionHandlers = fragment.exceptionHandlers.map {

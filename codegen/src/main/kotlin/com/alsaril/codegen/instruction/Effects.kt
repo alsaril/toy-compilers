@@ -7,10 +7,10 @@ sealed interface StackEffect {
 data class Pop(override val type: VerificationType) : StackEffect
 data class Push(override val type: VerificationType) : StackEffect
 
-internal interface TouchesLocal : Instruction {
+sealed interface LocalEffect {
     val index: Int
-
-    val slots: Int get() = 1
-
-    override fun locals() = index + slots
+    val type: VerificationType
 }
+
+data class Read(override val index: Int, override val type: VerificationType): LocalEffect
+data class Write(override val index: Int, override val type: VerificationType): LocalEffect

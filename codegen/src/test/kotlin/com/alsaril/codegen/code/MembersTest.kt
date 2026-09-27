@@ -26,10 +26,10 @@ class MembersTest {
     private fun CodeBuilder.emitted(emit: CodeBuilder.() -> Unit): MethodDescriptor {
         emit()
         return when (val call = build().instructions.last()) {
-            is invokevirtual -> MethodDescriptor(call.index, call.args, call.returnType)
-            is invokespecial -> MethodDescriptor(call.index, call.args, call.returnType)
-            is invokestatic -> MethodDescriptor(call.index, call.args, call.returnType)
-            is invokeinterface -> MethodDescriptor(call.index, call.args, call.returnType)
+            is invokevirtual -> MethodDescriptor(call.index, call.args, call.returnType, null)
+            is invokespecial -> MethodDescriptor(call.index, call.args, call.returnType, call.constructorFor)
+            is invokestatic -> MethodDescriptor(call.index, call.args, call.returnType, null)
+            is invokeinterface -> MethodDescriptor(call.index, call.args, call.returnType, null)
             else -> error("$call is not a call")
         }
     }
@@ -210,17 +210,17 @@ class MembersTest {
 
         @Test
         fun `writes the invoke family with the ref index`() {
-            assertThat(bytecode { +invokevirtual(MethodDescriptor(0x0102, emptyList(), VerificationPrimitive.TOP)) })
+            assertThat(bytecode { +invokevirtual(MethodDescriptor(0x0102, emptyList(), VerificationPrimitive.TOP, null)) })
                 .containsExactly(*bytesOf(0xB6, 0x01, 0x02))
-            assertThat(bytecode { +invokespecial(MethodDescriptor(1, emptyList(), VerificationPrimitive.TOP)) })
+            assertThat(bytecode { +invokespecial(MethodDescriptor(1, emptyList(), VerificationPrimitive.TOP, null)) })
                 .containsExactly(*bytesOf(0xB7, 0x00, 0x01))
-            assertThat(bytecode { +invokestatic(MethodDescriptor(1, emptyList(), VerificationPrimitive.TOP)) })
+            assertThat(bytecode { +invokestatic(MethodDescriptor(1, emptyList(), VerificationPrimitive.TOP, null)) })
                 .containsExactly(*bytesOf(0xB8, 0x00, 0x01))
         }
 
         @Test
         fun `writes invokeinterface with its argument count and trailing zero`() {
-            assertThat(bytecode { +invokeinterface(MethodDescriptor(1, listOf(AnyReference, VerificationPrimitive.INTEGER), VerificationPrimitive.TOP)) })
+            assertThat(bytecode { +invokeinterface(MethodDescriptor(1, listOf(AnyReference, VerificationPrimitive.INTEGER), VerificationPrimitive.TOP, null)) })
                 .containsExactly(*bytesOf(0xB9, 0x00, 0x01, 0x02, 0x00))
         }
 

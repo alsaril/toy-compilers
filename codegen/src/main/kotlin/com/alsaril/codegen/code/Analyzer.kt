@@ -3,59 +3,84 @@ package com.alsaril.codegen.code
 import com.alsaril.codegen.classfile.attributes.FullFrame
 import com.alsaril.codegen.classfile.attributes.ObjectVariableInfo
 import com.alsaril.codegen.classfile.attributes.SimpleVerificationTypeInfo.*
-import com.alsaril.codegen.classfile.attributes.StackMapFrame
 import com.alsaril.codegen.classfile.attributes.UninitializedVariableInfo
 import com.alsaril.codegen.classfile.parseFunctionDescriptor
+import com.alsaril.codegen.constantpool.UpdatableConstantPool
 import com.alsaril.codegen.instruction.*
+import com.alsaril.codegen.instruction.PrimitiveType.*
 import java.util.*
 
 object Analyzer {
-    private data class Frame(val locals: List<VerificationType>, val stack: List<VerificationType>)
+    private data class Frame(val stack: List<VerificationType>, val locals: List<VerificationType>)
 
-    private fun ClassFileBuilder.frameFrom(descriptor: String, static: Boolean): Frame {
+    private fun ClassFileBuilder.frameFrom(descriptor: String, constructor: Boolean, static: Boolean): Frame {
         val locals = mutableListOf<VerificationType>()
         if (!static) {
-            locals.add(ReferenceType(thisName))
+            locals.add(if (constructor) UNINITIALIZED_THIS else ReferenceType(thisName))
         }
         parseFunctionDescriptor(descriptor).args.forEach {
             locals.add(it.verificationType)
+            if (it.verificationType.slots == 2) {
+                locals.add(TOP)
+            }
         }
-        return Frame(locals, emptyList())
+        return Frame(stack = emptyList(), locals = locals)
     }
 
     fun ClassFileBuilder.analyze(
         fragment: Fragment,
         descriptor: String,
+        constructor: Boolean,
         static: Boolean,
-    ): Triple<Int, Int, List<StackMapFrame>> {
+    ): Triple<Int, Int, List<FullFrame>> {
         val instructions = fragment.instructions
         require(instructions.isNotEmpty()) { "a method body must hold at least one instruction" }
 
         val frames = Array<Frame?>(instructions.size) { null }
         val deque = ArrayDeque<Pair<Int, Frame>>()
         val framesIndexes = mutableListOf<Int>()
-        deque.addLast(0 to frameFrom(descriptor, static)) // entry
-        fragment.exceptionHandlers.forEach { // handlers, entered with the throwable alone
-            require(it.handlerPc in frames.indices) {
-                "a handler starts at ${it.handlerPc}, which is past the last instruction"
+        val i2h = mutableMapOf<Int, MutableSet<Int>>()
+        fragment.exceptionHandlers.forEach { handler ->
+            require(handler.handlerPc in frames.indices) {
+                "a handler starts at ${handler.handlerPc}, which is past the last instruction"
             }
-            deque.addLast(it.handlerPc to Frame(emptyList(), listOf(ReferenceType("java/lang/Throwable"))))
-            framesIndexes.add(it.handlerPc)
+            framesIndexes.add(handler.handlerPc)
+            (handler.startPc..<handler.endPc).forEach {
+                i2h.computeIfAbsent(it) { mutableSetOf() }.add(handler.handlerPc)
+            }
         }
 
+        deque.addLast(0 to frameFrom(descriptor, constructor, static)) // entry
         while (deque.isNotEmpty()) {
             val (pc, enterFrame) = deque.removeFirst()
-            if (frames[pc] == null) {
-                frames[pc] = enterFrame
+            val frame = if (frames[pc] == null) {
+                enterFrame
             } else if (frames[pc] != enterFrame) {
-                throw IllegalStateException()
+                val known = frames[pc]!!
+                check(known.stack.size == enterFrame.stack.size) {
+                    "${instructions[pc]} at $pc is reached with a stack ${known.stack.size} deep " +
+                            "on one path and ${enterFrame.stack.size} deep on another"
+                }
+                val newFrame = checkNotNull(merge(enterFrame, known)) {
+                    "${instructions[pc]} at $pc is reached with a stack of ${known.stack} " +
+                            "on one path and ${enterFrame.stack} on another"
+                }
+                if (newFrame == known) continue
+                newFrame
             } else continue
 
+            frames[pc] = frame
             val instruction = instructions[pc]
 
             val nextPcs: List<Int> = nextPcs(instruction, pc, fragment.jumps)
-            val nextStack: List<VerificationType> = nextStack(enterFrame.stack, instruction)
-            val nextLocals: List<VerificationType> = nextLocals(enterFrame.locals, instruction)
+            val nextFrame = if (instruction is DynamicInstruction ||
+                instruction is invokespecial && instruction.constructorFor != null
+            ) dynamicFrame(frame, instruction, pc) else {
+                Frame(
+                    stack = staticStack(frame.stack, instruction, pc),
+                    locals = staticLocals(frame.locals, instruction, pc),
+                )
+            }
 
             if (instruction is JumpInstruction) {
                 nextPcs.asSequence().filter { it != pc + 1 }.forEach {
@@ -63,50 +88,247 @@ object Analyzer {
                 }
             }
 
-            val nextFrame = Frame(nextLocals, nextStack)
             nextPcs.forEach {
                 if (it in frames.indices) {
                     deque.addLast(it to nextFrame)
+                    return@forEach
                 }
                 throw IllegalStateException("$instruction at $pc continues to $it, which is past the last instruction")
+            }
+
+            i2h[pc]?.let { handlers ->
+                handlers.forEach {
+                    deque.addLast(
+                        it to Frame(
+                            stack = listOf(ReferenceType("java/lang/Throwable")),
+                            locals = enterFrame.locals
+                        )
+                    )
+                }
             }
         }
 
         frames.forEachIndexed { pc, frame -> require(frame != null) { "instruction $pc is unreachable" } }
 
-        val maxStack = frames.asSequence().maxOfOrNull { it!!.stack.size }!!
+        val maxStack = frames.asSequence().maxOfOrNull { it!!.stack.sumOf(VerificationType::slots) }!!
         val maxLocals = frames.asSequence().maxOfOrNull { it!!.locals.size }!!
         val stackMapFrames =
-            framesIndexes.map { FullFrame(it, frames[it]!!.locals.toInfo(), frames[it]!!.stack.toInfo()) }
+            framesIndexes.map { FullFrame(it, frames[it]!!.locals.toInfo(cp), frames[it]!!.stack.toInfo(cp)) }
 
         return Triple(maxStack, maxLocals, stackMapFrames)
     }
 
-    fun nextLocals(
-        locals: List<VerificationType>,
-        instruction: Instruction
-    ): List<VerificationType> {
-        TODO()
+    private fun merge(frame1: Frame, frame2: Frame): Frame? {
+        require(frame1.stack.size == frame2.stack.size) {
+            "stacks ${frame1.stack.size} and ${frame2.stack.size} deep cannot be merged"
+        }
+        val stack = mutableListOf<VerificationType>()
+        (frame1.stack.asSequence() zip frame2.stack.asSequence()).forEach { (s1, s2) ->
+            val s = merge(s1, s2) ?: return null
+            stack.add(s)
+        }
+        val locals = (frame1.locals.asSequence() zip frame2.locals.asSequence()).map { (l1, l2) ->
+            if (l1 == l2) l1 else TOP
+        }.toList()
+        return Frame(stack = stack, locals = locals)
     }
 
-    private fun nextStack(
+    private fun merge(t1: VerificationType, t2: VerificationType): VerificationType? {
+        if (t1 == t2) return t1
+        if (t1 == NULL && t2.isAssignableToReference) return t2
+        if (t2 == NULL && t1.isAssignableToReference) return t1
+        return null
+    }
+
+    private fun requireLocal(locals: List<VerificationType>, read: Read, instruction: Instruction, pc: Int) {
+        require(read.index + read.type.slots <= locals.size) {
+            "$instruction at $pc reads local ${read.index}, but only ${locals.size} local slots are defined"
+        }
+        require(locals[read.index] == read.type) {
+            "$instruction at $pc reads local ${read.index} as ${read.type}, but it holds ${locals[read.index]}"
+        }
+    }
+
+    private val VerificationType.fitsReferenceSlot
+        get() = isAssignableToReference || this == UNINITIALIZED_THIS || this is Uninitialized
+
+    private fun requireDepth(stack: List<VerificationType>, pops: Int, instruction: Instruction, pc: Int) =
+        require(stack.size >= pops) { "$instruction at $pc pops $pops from a stack ${stack.size} deep" }
+
+    private fun MutableList<VerificationType>.pop(
+        expected: VerificationType,
+        instruction: Instruction,
+        pc: Int
+    ): VerificationType {
+        val actual = removeLast()
+        require(actual == expected || expected == AnyReference && actual.isAssignableToReference) {
+            "$instruction at $pc expects $expected on the stack, but finds $actual"
+        }
+        return actual
+    }
+
+    fun staticLocals(
+        enterLocals: List<VerificationType>,
+        instruction: Instruction,
+        pc: Int,
+    ): List<VerificationType> {
+        val effects = instruction.localEffects()
+        val readOnly = effects.all { it is Read }
+        if (readOnly) {
+            effects.forEach { requireLocal(enterLocals, it as Read, instruction, pc) }
+            return enterLocals
+        }
+        val locals = enterLocals.toMutableList()
+        effects.forEach {
+            when (it) {
+                is Read -> requireLocal(enterLocals, it, instruction, pc)
+
+                is Write -> {
+                    while (it.index + it.type.slots > locals.size) {
+                        locals.add(TOP)
+                    }
+                    if (it.index > 0 && locals[it.index - 1].slots == 2) locals[it.index - 1] = TOP
+                    locals[it.index] = it.type
+                    if (it.type.slots == 2) {
+                        locals[it.index + 1] = TOP
+                    }
+                }
+            }
+        }
+        return locals
+    }
+
+    private fun staticStack(
         enterStack: List<VerificationType>,
         instruction: Instruction,
+        pc: Int,
     ): List<VerificationType> {
         val effects = instruction.stackEffects()
+        requireDepth(enterStack, effects.count { it is Pop }, instruction, pc) // pops always come before the push
         val stack = enterStack.toMutableList()
         effects.forEach {
             when (it) {
-                is Pop -> {
-                    require(stack.isNotEmpty())
-                    require(stack.last() == it.type)
-                    stack.removeLast()
-                }
-
-                is Push -> stack.add(it.type)
+                is Pop -> stack.pop(it.type, instruction, pc)
+                is Push -> if (it.type != VOID) stack.add(it.type)
             }
         }
         return stack
+    }
+
+    private fun ClassFileBuilder.dynamicFrame(
+        enterFrame: Frame,
+        instruction: Instruction,
+        pc: Int,
+    ): Frame = when (instruction) {
+        is aload -> {
+            require(instruction.index < enterFrame.locals.size) {
+                "$instruction at $pc reads local ${instruction.index}, " +
+                        "but only ${enterFrame.locals.size} local slots are defined"
+            }
+            val type = enterFrame.locals[instruction.index]
+            require(type.fitsReferenceSlot) {
+                "$instruction at $pc expects a reference in local ${instruction.index}, but it holds $type"
+            }
+            enterFrame.copy(stack = enterFrame.stack.toMutableList().apply { add(type) })
+        }
+
+        is astore -> {
+            requireDepth(enterFrame.stack, 1, instruction, pc)
+            val stack = enterFrame.stack.toMutableList()
+            val top = stack.removeLast()
+            require(top.fitsReferenceSlot) { "$instruction at $pc stores a reference, but finds $top" }
+            val locals = enterFrame.locals.toMutableList()
+            while (instruction.index >= locals.size) {
+                locals.add(TOP)
+            }
+            if (instruction.index > 0 && locals[instruction.index - 1].slots == 2) locals[instruction.index - 1] = TOP
+            locals[instruction.index] = top
+            Frame(stack = stack, locals = locals)
+        }
+
+        dup -> {
+            requireDepth(enterFrame.stack, 1, instruction, pc)
+            val top = enterFrame.stack.last()
+            require(top.slots == 1) { "$instruction at $pc copies a one slot value, but finds $top" }
+            enterFrame.copy(stack = enterFrame.stack.toMutableList().apply { add(top) })
+        }
+
+        dup2 -> {
+            requireDepth(enterFrame.stack, 1, instruction, pc)
+            val top = enterFrame.stack.last()
+            if (top.slots == 1) {
+                enterFrame.copy(stack = enterFrame.stack.toMutableList().apply { add(top); add(top) })
+            } else {
+                enterFrame.copy(stack = enterFrame.stack.toMutableList().apply { add(top) })
+            }
+        }
+
+        dup_x1 -> {
+            requireDepth(enterFrame.stack, 2, instruction, pc)
+            val stack = enterFrame.stack.toMutableList()
+            val a = stack.removeLast()
+            val b = stack.removeLast()
+            require(a.slots == 1 && b.slots == 1) {
+                "$instruction at $pc works on two one slot values, but finds $b and $a"
+            }
+            stack.add(a); stack.add(b); stack.add(a)
+            enterFrame.copy(stack = stack)
+        }
+
+        dup_x2 -> {
+            requireDepth(enterFrame.stack, 2, instruction, pc)
+            val stack = enterFrame.stack.toMutableList()
+            val a = stack.removeLast()
+            require(a.slots == 1) { "$instruction at $pc copies a one slot value, but finds $a" }
+            val b = stack.removeLast()
+            if (b.slots == 2) {
+                stack.add(a); stack.add(b); stack.add(a)
+            } else {
+                requireDepth(enterFrame.stack, 3, instruction, pc) // a one slot value under the top needs another
+                val c = stack.removeLast()
+                require(c.slots == 1) {
+                    "$instruction at $pc reaches under $b, so it needs a one slot value there, but finds $c"
+                }
+                stack.add(a); stack.add(c); stack.add(b); stack.add(a)
+            }
+            enterFrame.copy(stack = stack)
+        }
+
+        is new -> {
+            val stack = enterFrame.stack.toMutableList()
+            stack.add(Uninitialized(pc))
+            enterFrame.copy(stack = stack)
+        }
+
+        is invokespecial if instruction.constructorFor != null -> {
+            val effects = instruction.stackEffects()
+            requireDepth(enterFrame.stack, effects.size - 1, instruction, pc) // the arguments and the receiver
+            val stack = enterFrame.stack.toMutableList()
+            effects.asSequence().take(effects.size - 2).forEach {
+                when (it) {
+                    is Pop -> stack.pop(it.type, instruction, pc)
+                    is Push -> throw IllegalStateException("$instruction at $pc pushes before taking its arguments")
+                }
+            }
+            val top = stack.removeLast()
+            require(top == UNINITIALIZED_THIS || top is Uninitialized) {
+                "$instruction at $pc expects uninitializedThis or an object fresh from new under its arguments, " +
+                        "but finds $top"
+            }
+
+            val replacement = if (top == UNINITIALIZED_THIS) ReferenceType(thisName) else instruction.constructorFor
+
+            stack.forEachIndexed { index, type ->
+                if (type == top) stack[index] = replacement
+            }
+            val locals = enterFrame.locals.toMutableList()
+            locals.forEachIndexed { index, type ->
+                if (type == top) locals[index] = replacement
+            }
+            Frame(stack = stack, locals = locals)
+        }
+
+        else -> throw IllegalStateException("$instruction at $pc has no frame rule of its own")
     }
 
     private fun nextPcs(instruction: Instruction, pc: Int, jumps: Map<Int, Int>): List<Int> {
@@ -120,18 +342,18 @@ object Analyzer {
         }
     }
 
-    private fun List<VerificationType>.toInfo() = map {
+    private fun List<VerificationType>.toInfo(cp: UpdatableConstantPool) = map {
         when (it) {
-            PrimitiveType.TOP -> TopVariableInfo
-            PrimitiveType.INTEGER -> IntegerVariableInfo
-            PrimitiveType.FLOAT -> FloatVariableInfo
-            PrimitiveType.DOUBLE -> DoubleVariableInfo
-            PrimitiveType.LONG -> LongVariableInfo
-            PrimitiveType.NULL -> NullVariableInfo
-            PrimitiveType.UNINITIALIZED_THIS -> UninitializedThis
-            is ReferenceType -> ObjectVariableInfo(it.descriptorIndex!!)
+            TOP -> TopVariableInfo
+            INTEGER -> IntegerVariableInfo
+            FLOAT -> FloatVariableInfo
+            DOUBLE -> DoubleVariableInfo
+            LONG -> LongVariableInfo
+            NULL -> NullVariableInfo
+            UNINITIALIZED_THIS -> UninitializedThis
+            is ReferenceType -> ObjectVariableInfo(cp.putClass(it.descriptor))
             is Uninitialized -> UninitializedVariableInfo(it.offset)
-            PrimitiveType.VOID, AnyReference -> throw IllegalStateException()
+            VOID, AnyReference -> throw IllegalStateException("$it describes no value, so no frame can hold it")
         }
     }
 }

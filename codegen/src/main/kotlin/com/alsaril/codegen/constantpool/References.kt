@@ -4,7 +4,7 @@ import com.alsaril.codegen.instruction.VerificationType
 
 data class ClassPointer(val index: Int, val name: String)
 
-data class MethodDescriptor(val index: Int, val args: List<VerificationType>, val returnType: VerificationType)
+data class MethodDescriptor(val index: Int, val args: List<VerificationType>, val returnType: VerificationType, val constructorFor: VerificationType?)
 
 data class FieldDescriptor(val index: Int, val ownerType: VerificationType, val type: VerificationType)
 

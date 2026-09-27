@@ -56,7 +56,7 @@ class ClassFileBuilder {
         fragment: Fragment,
         vararg accessFlags: AccessFlag,
     ): ClassFileBuilder {
-        val code = serialize(fragment, descriptor, accessFlags.contains(STATIC))
+        val code = serialize(fragment, descriptor, constructor = name == "<init>", static = accessFlags.contains(STATIC))
         val methodInfo = MethodInfo(
             accessFlags.fold(0) { acc, flag -> acc or flag.value },
             cp.putUtf8(name),

@@ -37,7 +37,9 @@ abstract class TwoBytesArgInstruction(val code: Int, val arg: Int) : Instruction
 abstract class LocalSlotInstruction(
     private val compact: Int,
     private val code: Int,
-) : TouchesLocal {
+) : Instruction {
+    abstract val index: Int
+
     override fun ClassWriter.write() {
         require(index in 0..0xffff) { "$index does not fit a u2" }
         when {
@@ -55,6 +57,10 @@ abstract class JumpInstruction(val code: Int) : Instruction {
     }
 }
 
-sealed interface StackInstruction : Instruction { // marker
-    override fun stackEffects() = throw IllegalStateException("should not be called")
+sealed interface DynamicInstruction : Instruction { // marker
+    override fun stackEffects() =
+        throw IllegalStateException("$this takes its stack effect from the frame it runs in, so it has no fixed one")
+
+    override fun localEffects() =
+        throw IllegalStateException("$this takes its local effect from the frame it runs in, so it has no fixed one")
 }
