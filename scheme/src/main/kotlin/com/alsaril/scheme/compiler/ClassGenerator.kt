@@ -67,14 +67,19 @@ object ClassGenerator {
         )
     }
 
-    private fun CodeBuilder.boolTemplate(args: Node, identity: Boolean) {
+    private fun collectArgs(args: Node): List<Node> {
         var i = args
-        val l = mutableListOf<Node>()
+        val result = mutableListOf<Node>()
         while (i is Cell) {
-            l.add(i.first)
+            result.add(i.first)
             i = i.second
         }
         require(i is Null)
+        return result
+    }
+
+    private fun CodeBuilder.boolTemplate(args: Node, identity: Boolean) {
+        val l = collectArgs(args)
         if (l.isEmpty()) {
             boolean(identity)
             return
@@ -119,22 +124,41 @@ object ClassGenerator {
             return true
         }
 
-        if (name == "define") {
-            require(args is Cell)
-            val key = args.first
+        if (name == "define" || name == "set!") {
+            val l = collectArgs(args)
+            require(l.size == 2)
+            val (key, def) = l
             require(key is Symbol)
-            require(args.second is Cell && args.second.second is Null)
-            val def = args.second.first
-
             +aload(1)
             +ldc(string(key.name))
             list(def, resolve = true, exec = true)
             invokeinterface(
                 clazz("com/alsaril/scheme/runtime/Context"),
-                "define",
+                if (name == "define") "define" else "set",
                 "(Ljava/lang/String;Ljava/lang/Object;)V"
             )
-            +getstatic(field(clazz("com/alsaril/scheme/runtime/Unspecified"), "INSTANCE", "Lcom/alsaril/scheme/runtime/Unspecified;"))
+            +getstatic(
+                field(
+                    clazz("com/alsaril/scheme/runtime/Unspecified"),
+                    "INSTANCE",
+                    "Lcom/alsaril/scheme/runtime/Unspecified;"
+                )
+            )
+            return true
+        }
+
+        if (name == "if") {
+            val l = collectArgs(args)
+            require(l.size == 2 || l.size == 3)
+            list(l[0], resolve = true, exec = true)
+            boolean(false)
+            val f = +if_acmpeq
+            list(l[1], resolve = true, exec = true)
+            val end = +goto
+            link(f, end())
+            if (l.size == 2) `null`() else list(l[2], resolve = true, exec = true)
+            link(end, end())
+
             return true
         }
 

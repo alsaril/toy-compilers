@@ -22,6 +22,7 @@ object Printer {
             }
             sb.append(")").toString()
         }
+        is Nil -> "()"
 
         else -> throw IllegalArgumentException(value.toString())
     }

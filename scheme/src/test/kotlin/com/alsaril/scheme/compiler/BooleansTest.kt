@@ -1,4 +1,4 @@
-package com.alsaril.scheme
+package com.alsaril.scheme.compiler
 
 import com.alsaril.scheme.compiler.SchemeCompiler.compile
 import com.alsaril.scheme.runtime.GlobalEnvironment
@@ -9,7 +9,7 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.CsvSource
 
-class CompilerTest {
+class BooleansTest {
     @ParameterizedTest
     @CsvSource(
         "#t, #t",
@@ -102,7 +102,7 @@ class CompilerTest {
 
         // then
         assertThat(compile("x").run(env).let(::print)).isEqualTo("1")
-        assertThatThrownBy { compile("(and #t #t (1 2))").run(env)}
+        assertThatThrownBy { compile("(and #t #t (1 2))").run(env) }
     }
 
     @Test
@@ -116,6 +116,6 @@ class CompilerTest {
 
         // then
         assertThat(compile("x").run(env).let(::print)).isEqualTo("1")
-        assertThatThrownBy { compile("(or #f #f (1 2))").run(env)}
+        assertThatThrownBy { compile("(or #f #f (1 2))").run(env) }
     }
 }

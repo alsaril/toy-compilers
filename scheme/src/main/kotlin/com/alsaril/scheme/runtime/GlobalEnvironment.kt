@@ -42,9 +42,17 @@ class GlobalEnvironment : Context {
         map["="] = f2num { a, b -> a == b }
         map["<"] = f2num { a, b -> a < b }
         map[">"] = f2num { a, b -> a > b }
+        map["<="] = f2num { a, b -> a <= b }
+        map[">="] = f2num { a, b -> a >= b }
+        map["+"] = f2num { a, b -> a + b }
     }
 
     override fun define(name: String, value: Any) {
+        map[name] = value
+    }
+
+    override fun set(name: String, value: Any) {
+        require(map.containsKey(name))
         map[name] = value
     }
 
