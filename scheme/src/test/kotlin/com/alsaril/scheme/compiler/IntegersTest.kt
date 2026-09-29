@@ -32,6 +32,9 @@ class IntegersTest {
         "(number? -1), #t",
         "(number? 1), #t",
         "(number? #t), #f",
+        "(number? (- 2 3)), #t",
+        "(number? '(/ 2 -1)), #f",
+        "(number? '()), #f",
         quoteCharacter = '$'
     )
     fun `number predicate`(input: String, expected: String) {
@@ -182,6 +185,38 @@ class IntegersTest {
         quoteCharacter = '$'
     )
     fun `rejects malformed maxmin`(input: String) {
+        // given
+        val env = GlobalEnvironment()
+
+        // when / then
+        assertThatThrownBy { compile(input).run(env) }
+    }
+
+    @ParameterizedTest
+    @CsvSource(
+        "(abs 10), 10",
+        "(abs -10), 10",
+        quoteCharacter = '$'
+    )
+    fun `abs`(input: String, expected: String) {
+        // given
+        val env = GlobalEnvironment()
+
+        // when
+        val result = compile(input).run(env).let(::print)
+
+        // then
+        assertThat(result).isEqualTo(expected)
+    }
+
+    @ParameterizedTest
+    @CsvSource(
+        "(abs)",
+        "(abs #t)",
+        "(abs 1 2)",
+        quoteCharacter = '$'
+    )
+    fun `rejects malformed abs`(input: String) {
         // given
         val env = GlobalEnvironment()
 

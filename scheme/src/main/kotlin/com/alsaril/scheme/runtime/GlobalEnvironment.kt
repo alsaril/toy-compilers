@@ -1,5 +1,6 @@
 package com.alsaril.scheme.runtime
 
+import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
 
@@ -11,13 +12,6 @@ class GlobalEnvironment : Context {
         override fun call(args: Any): Any {
             require(args is Cons && args.second is Nil)
             return f(args.first)
-        }
-    }
-
-    private fun f2(f: (Any, Any) -> Any) = object : Function {
-        override fun call(args: Any): Any {
-            require(args is Cons && args.second is Cons && args.second.second is Nil)
-            return f(args.first, args.second.first)
         }
     }
 
@@ -67,6 +61,10 @@ class GlobalEnvironment : Context {
         map["/"] = arithmetic { a, b -> a / b }
         map["max"] = arithmetic { a, b -> max(a, b) }
         map["min"] = arithmetic { a, b -> min(a, b) }
+        map["abs"] = f1 {
+            require(it is Int)
+            abs(it)
+        }
     }
 
     override fun define(name: String, value: Any) {
