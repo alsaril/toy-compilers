@@ -119,14 +119,32 @@ object ClassGenerator {
             return true
         }
 
+        if (name == "define") {
+            require(args is Cell)
+            val key = args.first
+            require(key is Symbol)
+            require(args.second is Cell && args.second.second is Null)
+            val def = args.second.first
+
+            +aload(1)
+            +ldc(string(key.name))
+            list(def, resolve = true, exec = true)
+            invokeinterface(
+                clazz("com/alsaril/scheme/runtime/Context"),
+                "define",
+                "(Ljava/lang/String;Ljava/lang/Object;)V"
+            )
+            +getstatic(field(clazz("com/alsaril/scheme/runtime/Unspecified"), "INSTANCE", "Lcom/alsaril/scheme/runtime/Unspecified;"))
+            return true
+        }
+
         return false
     }
 
     private fun CodeBuilder.call(cell: Cell) {
         val (op, args) = cell
-        require(op is Symbol)
-        if (special(op.name, args)) return
-        resolveSymbol(op.name)
+        if (op is Symbol && special(op.name, args)) return
+        list(op, resolve = true, exec = true)
         +checkcast(clazz("com/alsaril/scheme/runtime/Function"))
         list(args, resolve = true, exec = false)
         invokeinterface(

@@ -44,7 +44,7 @@ class GlobalEnvironment : Context {
         map[">"] = f2num { a, b -> a > b }
     }
 
-    override fun register(name: String, value: Any) {
+    override fun define(name: String, value: Any) {
         map[name] = value
     }
 

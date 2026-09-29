@@ -4,6 +4,8 @@ import com.alsaril.scheme.compiler.SchemeCompiler.compile
 import com.alsaril.scheme.runtime.GlobalEnvironment
 import com.alsaril.scheme.runtime.Printer.print
 import org.assertj.core.api.Assertions.assertThat
+import org.assertj.core.api.Assertions.assertThatThrownBy
+import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.CsvSource
 
@@ -52,6 +54,7 @@ class CompilerTest {
         "(and 1 2 'c '(f g)), (f g)",
         "(boolean? (and #t #f #t)), #t",
         "(boolean? (and #t #t '4)), #f",
+        "(and #t #f (1 2)), #f",
         "(or), #f",
         "(or 1), 1",
         "(or (not (= 2 2)) (> 2 1)), #t",
@@ -59,6 +62,7 @@ class CompilerTest {
         "(or #f 1), 1",
         "(boolean? (or #f #f #f)), #t",
         "(boolean? (or #f #f -15)), #f",
+        "(or #f #t (1 2)), #t",
         quoteCharacter = '$'
     )
     fun `executes and or`(input: String, expected: String) {
@@ -71,5 +75,47 @@ class CompilerTest {
         // then
         assertThat(result).isEqualTo(expected)
     }
-}
 
+    @ParameterizedTest
+    @CsvSource(
+        "(not)",
+        "(not #t #t)",
+        quoteCharacter = '$'
+    )
+    fun `throws on invalid calls`(input: String) {
+        // given
+        val env = GlobalEnvironment()
+
+        // when / then
+        val program = compile(input)
+        assertThatThrownBy { program.run(env) }
+    }
+
+    @Test
+    fun `and optimizes argument evaluation`() {
+        // given
+        val env = GlobalEnvironment()
+
+        // when
+        compile("(define x 1)").run(env)
+        compile("(and #f (set! x 2))").run(env)
+
+        // then
+        assertThat(compile("x").run(env).let(::print)).isEqualTo("1")
+        assertThatThrownBy { compile("(and #t #t (1 2))").run(env)}
+    }
+
+    @Test
+    fun `or optimizes argument evaluation`() {
+        // given
+        val env = GlobalEnvironment()
+
+        // when
+        compile("(define x 1)").run(env)
+        compile("(or #t (set! x 2))").run(env)
+
+        // then
+        assertThat(compile("x").run(env).let(::print)).isEqualTo("1")
+        assertThatThrownBy { compile("(or #f #f (1 2))").run(env)}
+    }
+}
