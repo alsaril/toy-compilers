@@ -1,5 +1,8 @@
 package com.alsaril.scheme.runtime
 
+import kotlin.math.max
+import kotlin.math.min
+
 class GlobalEnvironment : Context {
     private val map = mutableMapOf<String, Any>()
     private val symbols = mutableMapOf<String, Symbol>()
@@ -41,8 +44,11 @@ class GlobalEnvironment : Context {
         (it.asSequence() zip it.asSequence().drop(1)).fold(true) {acc, (a, b) -> acc && f(a, b)}
     }
 
-    private fun arithmetic(f: (Int, Int) -> Int) = fnumvar {
-        require(it.isNotEmpty())
+    private fun arithmetic(identity: Int? = null, f: (Int, Int) -> Int) = fnumvar {
+        if (it.isEmpty()) {
+            require(identity != null)
+            return@fnumvar identity
+        }
         it.asSequence().drop(1).fold(it.first(), f)
     }
 
@@ -55,10 +61,12 @@ class GlobalEnvironment : Context {
         map[">"] = comparison { a, b -> a > b }
         map["<="] = comparison { a, b -> a <= b }
         map[">="] = comparison { a, b -> a >= b }
-        map["+"] = arithmetic { a, b -> a + b }
+        map["+"] = arithmetic(0) { a, b -> a + b }
         map["-"] = arithmetic { a, b -> a - b }
-        map["*"] = arithmetic { a, b -> a * b }
+        map["*"] = arithmetic(1) { a, b -> a * b }
         map["/"] = arithmetic { a, b -> a / b }
+        map["max"] = arithmetic { a, b -> max(a, b) }
+        map["min"] = arithmetic { a, b -> min(a, b) }
     }
 
     override fun define(name: String, value: Any) {

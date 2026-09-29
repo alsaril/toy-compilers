@@ -119,6 +119,8 @@ class IntegersTest {
         "(/ -90 -3 -5), -6",
         "(/ -91 (/ 7 -3)), 45",
         "(+ 34 (/ -56 23) (* 1 2 (- 5 10))), 22",
+        "(+), 0",
+        "(*), 1",
         quoteCharacter = '$'
     )
     fun `integer arithmetic`(input: String, expected: String) {
@@ -130,5 +132,60 @@ class IntegersTest {
 
         // then
         assertThat(result).isEqualTo(expected)
+    }
+
+    @ParameterizedTest
+    @CsvSource(
+        "(+ 1 #t)",
+        "(- 1 #t)",
+        "(* 1 #t)",
+        "(/ 1 #t)",
+        "(/)",
+        "(-)",
+        quoteCharacter = '$'
+    )
+    fun `rejects malformed arithmetic`(input: String) {
+        // given
+        val env = GlobalEnvironment()
+
+        // when / then
+        assertThatThrownBy { compile(input).run(env) }
+    }
+
+    @ParameterizedTest
+    @CsvSource(
+        "(max 3), 3",
+        "(min 3), 3",
+        "(max 1 2), 2",
+        "(min 1 2), 1",
+        "(max 1 -2 5 3 4), 5",
+        "(min 1 2 3 -4 5), -4",
+        quoteCharacter = '$'
+    )
+    fun `maxmin`(input: String, expected: String) {
+        // given
+        val env = GlobalEnvironment()
+
+        // when
+        val result = compile(input).run(env).let(::print)
+
+        // then
+        assertThat(result).isEqualTo(expected)
+    }
+
+    @ParameterizedTest
+    @CsvSource(
+        "(max)",
+        "(min)",
+        "(max #t)",
+        "(min #t)",
+        quoteCharacter = '$'
+    )
+    fun `rejects malformed maxmin`(input: String) {
+        // given
+        val env = GlobalEnvironment()
+
+        // when / then
+        assertThatThrownBy { compile(input).run(env) }
     }
 }
