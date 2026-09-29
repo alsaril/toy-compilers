@@ -48,7 +48,7 @@ object Tokenizer {
 
             run { // symbols
                 val start = i
-                while (i < str.length && str[i] != ' ' && str[i] != '+' && parseSpecial(str[i]) == null) i++
+                while (i < str.length && !str[i].isWhitespace() && str[i] != '+' && parseSpecial(str[i]) == null) i++
                 result.add(SymbolToken(str.substring(start, i)))
                 continue
             }
