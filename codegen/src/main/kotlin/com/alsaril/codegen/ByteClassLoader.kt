@@ -1,11 +1,17 @@
 package com.alsaril.codegen
 
 
-object ByteClassLoader {
+class ByteClassLoader(deps: List<ClassDef> = emptyList()) : ClassLoader() {
+    private val deps = deps.associate { (name, code) -> binaryName(name) to code }
 
-    private class SingleClassLoader : ClassLoader() {
-        fun define(name: String, code: ByteArray): Class<*> = defineClass(name, code, 0, code.size)
+    fun loadClass(name: String, code: ByteArray): Class<*> = define(binaryName(name), code)
+
+    override fun findClass(name: String): Class<*> {
+        val code = deps[name] ?: throw ClassNotFoundException(name)
+        return define(name, code)
     }
 
-    fun loadClass(name: String, code: ByteArray): Class<*> = SingleClassLoader().define(name, code)
+    private fun define(name: String, code: ByteArray) = defineClass(name, code, 0, code.size)
+
+    private fun binaryName(name: String) = name.replace('/', '.')
 }

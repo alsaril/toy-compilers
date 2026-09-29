@@ -53,6 +53,7 @@ class CompilerTest {
         .withConstructor()
         .withCount(value)
         .build()
+        .let(::ClassGraph)
 
     /** counts the characters of the source, standing in for a real frontend */
     private fun parse(source: String) = source.length
@@ -131,11 +132,73 @@ class CompilerTest {
                         .withConstructor()
                         .method("run", "()V", PUBLIC) { +`return` }
                         .build()
+                        .let(::ClassGraph)
                 },
                 Runnable::class.java,
             )
 
             assertThat(program).isInstanceOf(Runnable::class.java)
+        }
+    }
+
+    @Nested
+    inner class Graphs {
+
+        /** a dependency whose value() returns [value] */
+        private fun valueClass(name: String, value: Int) = classFile(name, "java/lang/Object")
+            .withConstructor()
+            .method("value", "()I", PUBLIC) {
+                +iconst(value)
+                +ireturn
+            }
+            .build()
+
+        /** a dependency whose value() asks [target] for its value */
+        private fun forwarding(name: String, target: String) = classFile(name, "java/lang/Object")
+            .withConstructor()
+            .method("value", "()I", PUBLIC) {
+                constructDefault(clazz(target))
+                invokevirtual(clazz(target), "value", "()I")
+                +ireturn
+            }
+            .build()
+
+        /** a root whose count() asks [target] for its value */
+        private fun user(target: String) = classFile("GenUser", "java/lang/Object")
+            .iface(counterIface)
+            .withConstructor()
+            .method("count", "()I", PUBLIC) {
+                constructDefault(clazz(target))
+                invokevirtual(clazz(target), "value", "()I")
+                +ireturn
+            }
+            .build()
+
+        @Test
+        fun `loads a dependency the root uses from its code`() {
+            // given
+            val graph = ClassGraph(user("GenValue"), listOf(valueClass("GenValue", 7)))
+
+            // when
+            val program = pipeline("", ::parse, { graph }, Counter::class.java)
+
+            // then
+            assertThat(program.count()).isEqualTo(7)
+        }
+
+        @Test
+        fun `loads a dependency only another dependency uses`() {
+            // given GenInner is reachable only through GenOuter, and is listed first
+            val graph = ClassGraph(
+                user("GenOuter"),
+                listOf(valueClass("GenInner", 7), forwarding("GenOuter", "GenInner")),
+            )
+
+            // when
+            val program = pipeline("", ::parse, { graph }, Counter::class.java)
+
+            // then
+            assertThat(program.count()).isEqualTo(7)
         }
     }
 
@@ -154,6 +217,7 @@ class CompilerTest {
                                 .withConstructor()
                                 .withCount(it)
                                 .build()
+                                .let(::ClassGraph)
                         },
                         Counter::class.java,
                     )
@@ -174,6 +238,7 @@ class CompilerTest {
                                 .withConstructor()
                                 .method("run", "()V", PUBLIC) { +`return` }
                                 .build()
+                                .let(::ClassGraph)
                         },
                         Counter::class.java,
                     )
@@ -193,6 +258,7 @@ class CompilerTest {
                                 .iface(counterIface)
                                 .withCount(it)
                                 .build()
+                                .let(::ClassGraph)
                         },
                         Counter::class.java,
                     )
@@ -257,7 +323,7 @@ class CompilerTest {
                     pipeline<Counter, Int>(
                         "",
                         ::parse,
-                        { "GenBroken" to bytesOf(0xCA, 0xFE, 0xBA, 0xBE) },
+                        { ClassGraph("GenBroken" to bytesOf(0xCA, 0xFE, 0xBA, 0xBE)) },
                         Counter::class.java,
                     )
                 }

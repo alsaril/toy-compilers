@@ -1,6 +1,5 @@
 package com.alsaril.codegen
 
-import com.alsaril.codegen.ByteClassLoader.loadClass
 import com.alsaril.codegen.code.ClassFileBuilder
 import com.alsaril.codegen.code.ClassFileBuilder.Companion.classFile
 import com.alsaril.codegen.classfile.AccessFlag.FINAL
@@ -39,7 +38,7 @@ class GeneratedClassTest {
             .build()
 
         // when
-        val instance = loadClass(name, bytes).getDeclaredConstructor().newInstance()
+        val instance = ByteClassLoader().loadClass(name, bytes).getDeclaredConstructor().newInstance()
 
         // then the interface entry and the constructor both resolved
         assertThat(instance).isInstanceOf(Runnable::class.java)
@@ -57,7 +56,7 @@ class GeneratedClassTest {
             .build()
 
         // when
-        val method = loadClass(name, bytes)
+        val method = ByteClassLoader().loadClass(name, bytes)
             .getDeclaredMethod("f", Int::class.javaPrimitiveType)
 
         // then
@@ -77,7 +76,7 @@ class GeneratedClassTest {
             .build()
 
         // when
-        val function = loadClass(name, bytes)
+        val function = ByteClassLoader().loadClass(name, bytes)
             .getDeclaredConstructor().newInstance() as IntUnaryOperator
 
         // then
@@ -97,7 +96,7 @@ class GeneratedClassTest {
             .build()
 
         // when the round trip through slot 258 is all the body does, the answer is the slot
-        val method = loadClass(name, bytes)
+        val method = ByteClassLoader().loadClass(name, bytes)
             .getDeclaredMethod("f", Int::class.javaPrimitiveType)
 
         // then
@@ -129,7 +128,7 @@ class GeneratedClassTest {
                 fragment(chooses)
             }
             .build()
-        val method = loadClass(name, bytes)
+        val method = ByteClassLoader().loadClass(name, bytes)
             .getDeclaredMethod("f", Int::class.javaPrimitiveType)
 
         // then which value comes back says the branch still reaches its own target
@@ -150,7 +149,7 @@ class GeneratedClassTest {
                 +ireturn
             }
             .build()
-        val method = loadClass(name, bytes).getDeclaredMethod("f")
+        val method = ByteClassLoader().loadClass(name, bytes).getDeclaredMethod("f")
 
         // then the verifier accepted a body three deep, so the derived depth covered it
         assertThatNoException().isThrownBy { method.invoke(null) }
@@ -179,7 +178,7 @@ class GeneratedClassTest {
         val held = Any()
 
         // when
-        val supplier = loadClass(name, bytes)
+        val supplier = ByteClassLoader().loadClass(name, bytes)
             .getDeclaredConstructor(Any::class.java)
             .newInstance(held) as Supplier<*>
 
@@ -197,7 +196,7 @@ class GeneratedClassTest {
             .build()
 
         // when
-        val clazz = loadClass(name, bytes)
+        val clazz = ByteClassLoader().loadClass(name, bytes)
 
         // then
         with(clazz.getDeclaredField("a")) {
@@ -230,7 +229,7 @@ class GeneratedClassTest {
                 +ireturn
             }
             .build()
-        val clazz = loadClass(name, bytes)
+        val clazz = ByteClassLoader().loadClass(name, bytes)
         val function = clazz.getDeclaredConstructor().newInstance() as IntUnaryOperator
 
         // when
@@ -252,7 +251,7 @@ class GeneratedClassTest {
                 +athrow
             }
             .build()
-        val instance = loadClass(name, bytes).getDeclaredConstructor()
+        val instance = ByteClassLoader().loadClass(name, bytes).getDeclaredConstructor()
             .newInstance() as Runnable
 
         // then the pool entries named the class the body meant, and new/<init> verified
@@ -276,7 +275,7 @@ class GeneratedClassTest {
                 link(jump, target)
             }
             .build()
-        val instance = loadClass(name, bytes).getDeclaredConstructor()
+        val instance = ByteClassLoader().loadClass(name, bytes).getDeclaredConstructor()
             .newInstance() as Runnable
 
         // then
@@ -301,7 +300,7 @@ class GeneratedClassTest {
                 +ireturn
             }
             .build()
-        val method = loadClass(name, bytes)
+        val method = ByteClassLoader().loadClass(name, bytes)
             .getDeclaredMethod("f", Int::class.javaPrimitiveType)
 
         // then which value comes back says which path the jump offset chose
@@ -327,7 +326,7 @@ class GeneratedClassTest {
                 +freturn
             }
             .build()
-        val method = loadClass(name, bytes)
+        val method = ByteClassLoader().loadClass(name, bytes)
             .getDeclaredMethod("f", Int::class.javaPrimitiveType)
 
         // then which value comes back says which path the jump offset chose
@@ -360,7 +359,7 @@ class GeneratedClassTest {
                 link(done, exit)
             }
             .build()
-        return loadClass(loaded, bytes)
+        return ByteClassLoader().loadClass(loaded, bytes)
     }
 
     private fun againstZero(name: String, jump: CodeBuilder.() -> Label): (Int) -> Int {
@@ -448,7 +447,7 @@ class GeneratedClassTest {
                 link(done, exit)
             }
             .build()
-        val function = loadClass(name, bytes)
+        val function = ByteClassLoader().loadClass(name, bytes)
             .getDeclaredConstructor().newInstance() as IntUnaryOperator
 
         // then -1 says the handler offsets caught the throw, and 0 says the guarded
@@ -479,7 +478,7 @@ class GeneratedClassTest {
                 `catch`(guarded, to = end(), handler = caught, type = null)
             }
             .build()
-        val method = loadClass(name, bytes)
+        val method = ByteClassLoader().loadClass(name, bytes)
             .getDeclaredMethod("f", Int::class.javaPrimitiveType)
 
         // then the verifier took end_pc == code_length, and the throw still found the handler
@@ -504,7 +503,7 @@ class GeneratedClassTest {
                 +`return`
             }
             .build()
-        val instance = loadClass(name, bytes).getDeclaredConstructor()
+        val instance = ByteClassLoader().loadClass(name, bytes).getDeclaredConstructor()
             .newInstance() as Runnable
 
         // then catch_type keeps the handler out of the way
@@ -542,7 +541,7 @@ class GeneratedClassTest {
                 link(exit, done)
             }
             .build()
-        val method = loadClass(name, bytes)
+        val method = ByteClassLoader().loadClass(name, bytes)
             .getDeclaredMethod("f", IntArray::class.java, Int::class.javaPrimitiveType)
 
         // then the handler runs when the body returns
@@ -578,7 +577,7 @@ class GeneratedClassTest {
                 +ireturn
             }
             .build()
-        val method = loadClass(name, bytes)
+        val method = ByteClassLoader().loadClass(name, bytes)
             .getDeclaredMethod("f", String::class.java, Int::class.javaPrimitiveType)
 
         // then which value comes back says which path ran, and that both verified
@@ -597,7 +596,7 @@ class GeneratedClassTest {
                 +ireturn
             }
             .build()
-        val method = loadClass(name, bytes).getDeclaredMethod("f", Any::class.java)
+        val method = ByteClassLoader().loadClass(name, bytes).getDeclaredMethod("f", Any::class.java)
 
         // then the ref resolved to the method it named, on the object handed in
         assertThat(method.invoke(null, listOf("a", "b"))).isEqualTo(2)
@@ -628,7 +627,7 @@ class GeneratedClassTest {
                 link(exit, done); link(back, head)
             }
             .build()
-        val method = loadClass(name, bytes).getDeclaredMethod("f", Int::class.javaPrimitiveType)
+        val method = ByteClassLoader().loadClass(name, bytes).getDeclaredMethod("f", Int::class.javaPrimitiveType)
 
         // then the frames past the loop agreed the slot is no longer an int
         assertThat(method.invoke(null, 0)).isEqualTo(7)
@@ -650,7 +649,7 @@ class GeneratedClassTest {
                 +ireturn
             }
             .build()
-        val method = loadClass(name, bytes)
+        val method = ByteClassLoader().loadClass(name, bytes)
             .getDeclaredMethod("f", Long::class.javaPrimitiveType, Int::class.javaPrimitiveType)
 
         // then
@@ -669,7 +668,7 @@ class GeneratedClassTest {
                 +ireturn
             }
             .build()
-        val method = loadClass(name, bytes).getDeclaredMethod("f", Int::class.javaPrimitiveType)
+        val method = ByteClassLoader().loadClass(name, bytes).getDeclaredMethod("f", Int::class.javaPrimitiveType)
 
         // then it still needs a frame there, and has one
         assertThat(method.invoke(null, 0)).isEqualTo(1)
@@ -695,7 +694,7 @@ class GeneratedClassTest {
                 +areturn
             }
             .build()
-        val method = loadClass(name, bytes).getDeclaredMethod("f", Int::class.javaPrimitiveType)
+        val method = ByteClassLoader().loadClass(name, bytes).getDeclaredMethod("f", Int::class.javaPrimitiveType)
 
         // then both paths met with the same uninitialised object on the stack
         assertThat(method.invoke(null, 1)).isEqualTo("yes")
@@ -715,7 +714,7 @@ class GeneratedClassTest {
                 +`return`
             }
             .build()
-        val constructor = loadClass(name, bytes).getDeclaredConstructor(Int::class.javaPrimitiveType)
+        val constructor = ByteClassLoader().loadClass(name, bytes).getDeclaredConstructor(Int::class.javaPrimitiveType)
 
         // then
         assertThatNoException().isThrownBy { constructor.newInstance(0) }
@@ -736,7 +735,7 @@ class GeneratedClassTest {
             .build()
 
         // then the inner constructor call was told apart from the one on this
-        assertThat(loadClass(name, bytes).getDeclaredConstructor().newInstance()).isNotNull()
+        assertThat(ByteClassLoader().loadClass(name, bytes).getDeclaredConstructor().newInstance()).isNotNull()
     }
 
     @Test
@@ -752,7 +751,7 @@ class GeneratedClassTest {
             .build()
 
         // then
-        assertThat(loadClass(name, bytes).getDeclaredMethod("f").invoke(null)).isNull()
+        assertThat(ByteClassLoader().loadClass(name, bytes).getDeclaredMethod("f").invoke(null)).isNull()
     }
 
     @Test
@@ -772,7 +771,7 @@ class GeneratedClassTest {
             .build()
 
         // then the handler frame did not count on slot 0
-        assertThat(loadClass(name, bytes).getDeclaredMethod("f").invoke(null)).isEqualTo(5)
+        assertThat(ByteClassLoader().loadClass(name, bytes).getDeclaredMethod("f").invoke(null)).isEqualTo(5)
     }
 
     @Test
@@ -790,7 +789,7 @@ class GeneratedClassTest {
                 link(done, +areturn)
             }
             .build()
-        val method = loadClass(name, bytes).getDeclaredMethod("f", Int::class.javaPrimitiveType)
+        val method = ByteClassLoader().loadClass(name, bytes).getDeclaredMethod("f", Int::class.javaPrimitiveType)
 
         // then
         assertThat(method.invoke(null, 1)).isEqualTo(1)
@@ -817,7 +816,7 @@ class GeneratedClassTest {
                 +ireturn
             }
             .build()
-        val clazz = loadClass(name, bytes)
+        val clazz = ByteClassLoader().loadClass(name, bytes)
 
         // then
         assertThat(clazz.getDeclaredMethod("hash").invoke(null)).isEqualTo("abc".hashCode())
@@ -842,7 +841,7 @@ class GeneratedClassTest {
             .compare("same", if_acmpeq)
             .compare("different", if_acmpne)
             .build()
-        val clazz = loadClass(name, bytes)
+        val clazz = ByteClassLoader().loadClass(name, bytes)
         val same = clazz.getDeclaredMethod("same", Any::class.java, Any::class.java)
         val different = clazz.getDeclaredMethod("different", Any::class.java, Any::class.java)
         val one = Any()
@@ -866,7 +865,7 @@ class GeneratedClassTest {
             .build()
 
         // then
-        assertThat(loadClass(name, bytes).getDeclaredMethod("f").invoke(null)).isEqualTo(1L)
+        assertThat(ByteClassLoader().loadClass(name, bytes).getDeclaredMethod("f").invoke(null)).isEqualTo(1L)
     }
 
     @Test
@@ -890,7 +889,7 @@ class GeneratedClassTest {
                 +areturn
             }
             .build()
-        val clazz = loadClass(name, bytes)
+        val clazz = ByteClassLoader().loadClass(name, bytes)
 
         // then
         assertThat(clazz.getDeclaredMethod("ints").invoke(null)).isEqualTo(10)
@@ -914,7 +913,7 @@ class GeneratedClassTest {
             .build()
 
         // then
-        assertThat(loadClass(name, bytes).getDeclaredMethod("f").invoke(null)).isEqualTo(1)
+        assertThat(ByteClassLoader().loadClass(name, bytes).getDeclaredMethod("f").invoke(null)).isEqualTo(1)
     }
 
     @Test
@@ -935,7 +934,7 @@ class GeneratedClassTest {
                 +areturn
             }
             .build()
-        val clazz = loadClass(name, bytes)
+        val clazz = ByteClassLoader().loadClass(name, bytes)
         val instance = clazz.getDeclaredConstructor().newInstance()
 
         // then neither call was taken for a constructor, and each reached the method it named
@@ -959,7 +958,7 @@ class GeneratedClassTest {
             .build()
 
         // then the constructor initialised the copy in the local too
-        assertThat(loadClass(name, bytes).getDeclaredMethod("f").invoke(null)).isNotNull()
+        assertThat(ByteClassLoader().loadClass(name, bytes).getDeclaredMethod("f").invoke(null)).isNotNull()
     }
 
     @Test
@@ -980,7 +979,7 @@ class GeneratedClassTest {
                 +ireturn
             }
             .build()
-        val method = loadClass(name, bytes).getDeclaredMethod("f", Int::class.javaPrimitiveType)
+        val method = ByteClassLoader().loadClass(name, bytes).getDeclaredMethod("f", Int::class.javaPrimitiveType)
 
         // then
         assertThat(method.invoke(null, 0)).isEqualTo(0)
@@ -1011,7 +1010,7 @@ class GeneratedClassTest {
                 invokestatic(clazz("java/lang/Integer"), "valueOf", "(I)Ljava/lang/Integer;")
             }
             .build()
-        val clazz = loadClass(name, bytes)
+        val clazz = ByteClassLoader().loadClass(name, bytes)
         val f = clazz.getDeclaredMethod("f", Int::class.javaPrimitiveType)
         val g = clazz.getDeclaredMethod("g", Int::class.javaPrimitiveType)
 
@@ -1043,7 +1042,7 @@ class GeneratedClassTest {
             .build()
 
         // then
-        assertThat(loadClass(name, bytes).getDeclaredMethod("f").invoke(null))
+        assertThat(ByteClassLoader().loadClass(name, bytes).getDeclaredMethod("f").invoke(null))
             .isInstanceOf(java.io.IOException::class.java)
     }
 
@@ -1070,7 +1069,7 @@ class GeneratedClassTest {
             .build()
 
         // then
-        assertThat(loadClass(name, bytes).getDeclaredMethod("f").invoke(null)).isEqualTo(1)
+        assertThat(ByteClassLoader().loadClass(name, bytes).getDeclaredMethod("f").invoke(null)).isEqualTo(1)
     }
 
     @Test
@@ -1092,6 +1091,6 @@ class GeneratedClassTest {
             .build()
 
         // then
-        assertThatNoException().isThrownBy { loadClass(name, bytes).getDeclaredMethod("f").invoke(null) }
+        assertThatNoException().isThrownBy { ByteClassLoader().loadClass(name, bytes).getDeclaredMethod("f").invoke(null) }
     }
 }

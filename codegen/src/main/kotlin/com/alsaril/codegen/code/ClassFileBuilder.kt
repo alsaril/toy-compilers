@@ -1,5 +1,6 @@
 package com.alsaril.codegen.code
 
+import com.alsaril.codegen.ClassDef
 import com.alsaril.codegen.classfile.*
 import com.alsaril.codegen.classfile.AccessFlag.STATIC
 import com.alsaril.codegen.code.BytecodeSerializer.serialize
@@ -77,7 +78,7 @@ class ClassFileBuilder {
         return newCodeBuilder().apply { codeBuilder() }.build()
     }
 
-    fun build(): Pair<String, ByteArray> {
+    fun build(): ClassDef {
         val file = ClassFile(
             cp.putClass(thisName),
             cp.putClass(parentName),
