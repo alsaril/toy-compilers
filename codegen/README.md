@@ -27,7 +27,7 @@ Six packages, and the dependencies run one way — `code` on top, then `instruct
 | `classfile` | the static JVMS records: `ClassFile`, `FieldInfo`, `MethodInfo`, `AccessFlag`, descriptors, and `attributes/` |
 | `constantpool` | the pool, and the typed indices into it (`ClassPointer`, `MethodDescriptor`, `FieldDescriptor`, `DataPointer`) |
 | `verification` | the verification types of JVMS 4.10.1.2, which values on the stack and in the locals have, and the expectations an instruction states for its operands |
-| *(root)* | `ClassWriter`, `Writable` and `DosWriter`, which every package writes through; `ByteClassLoader`, `Compiler` |
+| *(root)* | `ClassWriter`, `Writable` and `DosWriter`, which every package writes through; `ClassGraph`, `ByteClassLoader`, `Compiler` |
 
 A body is built as a **list of instructions**, not as bytes. Nothing has an address until
 `BytecodeSerializer` lays the fragment out, and that is also when `max_stack`, `max_locals`,
@@ -49,11 +49,11 @@ local slot, as the JVM's own verifier does (JVMS 4.10.1).
 
 - **The entry** holds the arguments the descriptor declares, from slot 0 — after `this`
   for an instance method, and after an uninitialised `this` in a constructor.
-- **Each instruction** applies its [effects](#instructions): pops are checked against the
-  type on the stack, reads against the type in the slot, and pushes and writes record
-  theirs. The [dynamic instructions](#instructions) have a rule each — `aload` pushes
-  whatever the slot holds, the `dup` forms copy whatever is on top, `new` pushes an
-  `Uninitialized` naming its own index.
+- **Each instruction** applies its [effects](#instructions): what it takes is checked
+  against the top of the stack, reads against the type in the slot, and what it gives and
+  what it writes are recorded. The [dynamic instructions](#instructions) have a rule each —
+  `aload` pushes whatever the slot holds, the `pop` forms drop whatever is on top, the
+  `dup` forms copy it, `new` pushes an `Uninitialized` naming its own index.
 - **A constructor call** turns every copy of the object it initialises, on the stack and in
   the locals, into the class — or into this class, for the parent constructor called on
   `this`. Until then the object can be copied, kept in a local and have its constructor
@@ -136,11 +136,11 @@ operand stack and to the local slots:
 
 ```kotlin
 data object iadd : NoArgInstruction(0x60) {
-    override fun stackEffects() = listOf(Pop(INTEGER), Pop(INTEGER), Push(INTEGER))
+    override fun stackEffect() = takes(INTEGER, INTEGER) gives INTEGER
 }
 
 data class istore(override val index: Int) : LocalSlotInstruction(0x3b, 0x36) {
-    override fun stackEffects() = listOf(Pop(INTEGER))
+    override fun stackEffect() = takes(INTEGER)
     override fun localEffects() = listOf(Write(index, INTEGER))
 }
 ```
@@ -158,12 +158,14 @@ being a keyword.
   and a wide form. `iconst`, `lconst`, `fconst`, `ldc` and `iinc` carry their range check
   in `init`; `LocalSlotInstruction` checks its slot as it writes, its `index` being
   abstract and so out of reach of the base class's `init`.
-- **`Effects.kt`** — `Pop` and `Push` for the operand stack, `Read` and `Write` for a local
-  slot, each naming the verification type involved. Pops are listed in the order their
-  operands were pushed, as JVMS writes `..., value1, value2 ->`, and the analyzer takes them
-  off from the last. The four invoke instructions share `Invocation`, which states a call's
-  effect once from its argument and return types: the receiver and the arguments, then the
-  result.
+- **`Effects.kt`** — `StackEffect` for the operand stack, `Read` and `Write` for a local
+  slot. A `StackEffect` names the top of the stack an instruction expects, `before`, and
+  what it leaves there, `after`, both listed bottom to top as JVMS writes
+  `..., value1, value2 -> ..., result`; the analyzer checks `before` from the top down.
+  `takes(...)` and `gives(...)` build one, and `takes(...) gives X` both halves;
+  `StackEffect.NONE` leaves the stack as it is. The four invoke instructions share
+  `Invocation`, which states a call's effect once from its argument and return types: the
+  receiver and the arguments, then the result, or nothing for `void`.
 - **`Instruction.kt`** — the opcodes, and the sealed interface the files above refine.
 
 Effects are stated in the `verification` package, below everything else. A value has one of
@@ -173,15 +175,16 @@ constant pool names it, `java/lang/String` or `[I`), and `Uninitialized` for an 
 made whose constructor has not run. Each knows how many slots it takes and whether it may be
 handed on as a reference.
 
-A `Pop` states what it accepts as an `Expected`, which is not always a single type:
+What an instruction takes is stated as an `Expected`, which is not always a single type:
 `OfType` for a value of one type — for a class, also null or a class the hierarchy lets stand
 for it — `AnyReference` for any object or null, and `OneOf` for an operand that may be any of
-a few, as `baload` and `bastore` take a `byte[]` or a `boolean[]` alike. `Pop(INTEGER)` is
-short for `Pop(OfType(INTEGER))`. Only values have a verification type, so a frame never
-holds an expectation.
+a few, as `baload` and `bastore` take a `byte[]` or a `boolean[]` alike. `takes(INTEGER)` is
+short for `takes(OfType(INTEGER))`; only a list mixing the two, as `baload`'s does, spells
+`OfType` out. What an instruction gives is a verification type — only values have one, so a
+frame never holds an expectation.
 
-A few instructions have no effect they could state on their own: `aload`, `astore`, `new`
-and the four `dup` forms move or copy whatever type the frame holds. They are marked
+A few instructions have no effect they could state on their own: `aload`, `astore`, `new`,
+`pop`, `pop2` and the four `dup` forms move, drop or copy whatever type the frame holds. They are marked
 `DynamicInstruction`, and the analyzer has a rule for each.
 
 `Instruction` is sealed, so its files must stay in that one package — nothing outside it
@@ -229,7 +232,7 @@ where a byte offset would have had to be recomputed, and a jump patched.
 - references — `aconst_null`, locals, `new`, `newarray`, `checkcast`, `instanceof`,
   identity and null comparisons, `areturn`, `athrow`;
 - fields and calls — `getstatic`, `getfield`, `putfield` and the invoke family;
-- the stack — `dup`, `dup_x1`, `dup_x2`, `dup2`.
+- the stack — `pop`, `pop2`, `dup`, `dup_x1`, `dup_x2`, `dup2`.
 
 A float constant that has an opcode of its own (0, 1, 2) uses it; any other goes to the pool
 as `ldc`. A long constant is `lconst`, 0 or 1. `newarray` takes the `PrimitiveType` of its
@@ -361,8 +364,20 @@ can be called more than once and emission can carry on afterwards.
 
 ## Loading
 
-`ByteClassLoader.loadClass(name, bytes)` gives each class its own loader, so the same class
-name can be defined repeatedly — one compilation per program, not per JVM.
+`ClassFileBuilder.build()` hands back a `ClassDef` — the class's name and its bytes. A
+program is a `ClassGraph`: the root class, which the caller instantiates, and the classes
+it depends on.
+
+```kotlin
+ClassGraph(root = classFile("Main", ...).build(), deps = listOf(classFile("Helper", ...).build()))
+```
+
+`ByteClassLoader` defines classes from their bytes. `loadClass(name, bytes)` defines one
+straight away; the `deps` it is constructed with are defined only when the JVM first asks
+for them — to resolve a superclass, or a class a method body names — so they may be listed
+in any order. Names are taken in the internal form a class file uses, `a/b/C`. Each loader
+is a namespace of its own, so the same class name can be defined repeatedly — one loader per
+compilation, not per JVM.
 
 `Compiler.pipeline` runs the whole chain from source text to a live object:
 
@@ -370,9 +385,10 @@ name can be defined repeatedly — one compilation per program, not per JVM.
 pipeline(source, parse, generate, Program::class.java)
 ```
 
-It parses the source into whatever IR `parse` returns, generates class bytes from it with
-`generate`, loads them, checks the class implements the interface it was given, and
-instantiates it through its no-argument constructor. Anything the program needs at run time
+It parses the source into whatever IR `parse` returns, generates a `ClassGraph` from it with
+`generate`, and gives the graph a loader of its own: the root is defined before `pipeline`
+returns, the dependencies as the JVM reaches them. It then checks the root implements the
+interface it was given, and instantiates it through its no-argument constructor. Anything the program needs at run time
 is passed to the interface's method, not to the constructor.
 
 ## Width checks
