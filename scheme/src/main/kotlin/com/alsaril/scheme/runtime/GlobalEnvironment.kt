@@ -41,6 +41,11 @@ class GlobalEnvironment : Context {
         (it.asSequence() zip it.asSequence().drop(1)).fold(true) {acc, (a, b) -> acc && f(a, b)}
     }
 
+    private fun arithmetic(f: (Int, Int) -> Int) = fnumvar {
+        require(it.isNotEmpty())
+        it.asSequence().drop(1).fold(it.first(), f)
+    }
+
     init {
         map["boolean?"] = f1 { it is Boolean }
         map["number?"] = f1 { it is Int }
@@ -50,7 +55,10 @@ class GlobalEnvironment : Context {
         map[">"] = comparison { a, b -> a > b }
         map["<="] = comparison { a, b -> a <= b }
         map[">="] = comparison { a, b -> a >= b }
-        // map["+"] = f2num { a, b -> a + b }
+        map["+"] = arithmetic { a, b -> a + b }
+        map["-"] = arithmetic { a, b -> a - b }
+        map["*"] = arithmetic { a, b -> a * b }
+        map["/"] = arithmetic { a, b -> a / b }
     }
 
     override fun define(name: String, value: Any) {
