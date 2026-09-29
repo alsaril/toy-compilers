@@ -43,4 +43,47 @@ class IntegersTest {
         // then
         assertThat(result).isEqualTo(expected)
     }
+
+    @ParameterizedTest
+    @CsvSource(
+        "(=), #t",
+        "(>), #t",
+        "(<), #t",
+        "(>=), #t",
+        "(<=), #t",
+        "(= 1 2), #f",
+        "(= 1 1), #t",
+        "(= 1 1 1), #t",
+        "(= 1 1 2), #f",
+        "(= -14 -14), #t",
+        "(> 2 1), #t",
+        "(> 1 1), #f",
+        "(> 3 2 1), #t",
+        "(> -1 -2 -3), #t",
+        "(> 3 2 3), #f",
+        "(< 1 2), #t",
+        "(< 1 1), #f",
+        "(< 1 2 3), #t",
+        "(< 1 2 1), #f",
+        "(>= 2 1), #t",
+        "(>= 1 2), #f",
+        "(>= 3 3 2), #t",
+        "(>= 3 3 4), #f",
+        "(<= 2 1), #f",
+        "(<= 1 2), #t",
+        "(<= 3 3 4), #t",
+        "(<= 3 3 2), #f",
+        quoteCharacter = '$'
+    )
+    fun `integer comparison`(input: String, expected: String) {
+        // given
+        val env = GlobalEnvironment()
+
+        // when
+        val result = compile(input).run(env).let(::print)
+
+        // then
+        assertThat(result).isEqualTo(expected)
+    }
 }
+

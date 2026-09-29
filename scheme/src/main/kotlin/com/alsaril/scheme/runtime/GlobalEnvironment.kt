@@ -18,11 +18,6 @@ class GlobalEnvironment : Context {
         }
     }
 
-    private fun f2num(f: (Int, Int) -> Any) = f2 { a, b ->
-        require(a is Int && b is Int)
-        f(a, b)
-    }
-
     private fun fvar(f: (List<Any>) -> Any) = object : Function {
         override fun call(args: Any): Any {
             val l = mutableListOf<Any>()
@@ -36,16 +31,26 @@ class GlobalEnvironment : Context {
         }
     }
 
+    @Suppress("UNCHECKED_CAST")
+    private fun fnumvar(f: (List<Int>) -> Any) = fvar {
+        require(it.all { it is Int })
+        f(it as List<Int>)
+    }
+
+    private fun comparison(f: (Int, Int) -> Boolean) = fnumvar {
+        (it.asSequence() zip it.asSequence().drop(1)).fold(true) {acc, (a, b) -> acc && f(a, b)}
+    }
+
     init {
         map["boolean?"] = f1 { it is Boolean }
         map["number?"] = f1 { it is Int }
         map["not"] = f1 { it == false }
-        map["="] = f2num { a, b -> a == b }
-        map["<"] = f2num { a, b -> a < b }
-        map[">"] = f2num { a, b -> a > b }
-        map["<="] = f2num { a, b -> a <= b }
-        map[">="] = f2num { a, b -> a >= b }
-        map["+"] = f2num { a, b -> a + b }
+        map["="] = comparison { a, b -> a == b }
+        map["<"] = comparison { a, b -> a < b }
+        map[">"] = comparison { a, b -> a > b }
+        map["<="] = comparison { a, b -> a <= b }
+        map[">="] = comparison { a, b -> a >= b }
+        // map["+"] = f2num { a, b -> a + b }
     }
 
     override fun define(name: String, value: Any) {
