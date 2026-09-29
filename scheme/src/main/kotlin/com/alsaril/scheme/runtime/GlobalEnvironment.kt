@@ -4,7 +4,7 @@ import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
 
-class GlobalEnvironment : Context {
+class GlobalEnvironment : Environment {
     private val map = mutableMapOf<String, Any>()
     private val symbols = mutableMapOf<String, Symbol>()
 
