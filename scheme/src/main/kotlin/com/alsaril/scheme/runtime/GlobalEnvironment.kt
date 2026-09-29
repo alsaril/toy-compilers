@@ -38,6 +38,7 @@ class GlobalEnvironment : Context {
 
     init {
         map["boolean?"] = f1 { it is Boolean }
+        map["number?"] = f1 { it is Int }
         map["not"] = f1 { it == false }
         map["="] = f2num { a, b -> a == b }
         map["<"] = f2num { a, b -> a < b }
