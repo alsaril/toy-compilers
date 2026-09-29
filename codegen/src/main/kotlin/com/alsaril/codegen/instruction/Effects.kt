@@ -2,15 +2,22 @@ package com.alsaril.codegen.instruction
 
 import com.alsaril.codegen.verification.Expected
 import com.alsaril.codegen.verification.OfType
+import com.alsaril.codegen.verification.PrimitiveType.VOID
 import com.alsaril.codegen.verification.VerificationType
 
-sealed interface StackEffect
-
-data class Pop(val expected: Expected) : StackEffect {
-    constructor(type: VerificationType) : this(OfType(type))
+data class StackEffect(val before: List<Expected>, val after: List<VerificationType>) {
+    companion object {
+        val NONE = StackEffect(emptyList(), emptyList())
+    }
 }
 
-data class Push(val type: VerificationType) : StackEffect
+fun takes(vararg before: VerificationType) = StackEffect(before.map(::OfType), emptyList())
+
+fun takes(vararg before: Expected) = StackEffect(before.toList(), emptyList())
+
+fun gives(vararg after: VerificationType) = StackEffect(emptyList(), after.toList())
+
+infix fun StackEffect.gives(type: VerificationType) = copy(after = listOf(type))
 
 sealed interface LocalEffect {
     val index: Int
@@ -24,5 +31,5 @@ sealed interface Invocation : Instruction {
     val args: List<VerificationType>
     val returnType: VerificationType
 
-    override fun stackEffects(): List<StackEffect> = args.map { Pop(it) } + Push(returnType)
+    override fun stackEffect() = StackEffect(args.map(::OfType), listOfNotNull(returnType.takeIf { it != VOID }))
 }

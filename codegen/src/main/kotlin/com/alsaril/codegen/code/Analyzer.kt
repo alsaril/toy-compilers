@@ -188,12 +188,11 @@ internal class Analyzer(
         instruction: Instruction,
         pc: Int,
     ): List<VerificationType> {
-        val effects = instruction.stackEffects()
-        val pops = effects.filterIsInstance<Pop>()
-        requireDepth(enterStack, pops.size, instruction, pc)
+        val effect = instruction.stackEffect()
+        requireDepth(enterStack, effect.before.size, instruction, pc)
         val stack = enterStack.toMutableList()
-        pops.asReversed().forEach { stack.pop(it.expected, instruction, pc) }
-        effects.filterIsInstance<Push>().forEach { if (it.type != VOID) stack.add(it.type) }
+        effect.before.asReversed().forEach { stack.pop(it, instruction, pc) }
+        stack.addAll(effect.after)
         return stack
     }
 

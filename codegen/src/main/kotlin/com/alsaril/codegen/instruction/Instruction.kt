@@ -9,20 +9,21 @@ import com.alsaril.codegen.constantpool.DataPointer
 import com.alsaril.codegen.constantpool.FieldDescriptor
 import com.alsaril.codegen.constantpool.MethodDescriptor
 import com.alsaril.codegen.verification.AnyReference
+import com.alsaril.codegen.verification.OfType
 import com.alsaril.codegen.verification.OneOf
 import com.alsaril.codegen.verification.PrimitiveType.*
 import com.alsaril.codegen.verification.ReferenceType
 import com.alsaril.codegen.verification.VerificationType
 
 sealed interface Instruction : Writable {
-    fun stackEffects(): List<StackEffect> = emptyList()
+    fun stackEffect(): StackEffect = StackEffect.NONE
     fun localEffects(): List<LocalEffect> = emptyList()
 }
 
 data object nop : NoArgInstruction(0x00)
 
 data object aconst_null : NoArgInstruction(0x01) {
-    override fun stackEffects() = listOf(Push(NULL))
+    override fun stackEffect() = gives(NULL)
 }
 
 data class iconst(val value: Int) : Instruction {
@@ -32,7 +33,7 @@ data class iconst(val value: Int) : Instruction {
         }
     }
 
-    override fun stackEffects() = listOf(Push(INTEGER))
+    override fun stackEffect() = gives(INTEGER)
 
     override fun ClassWriter.write() {
         when (value) {
@@ -53,7 +54,7 @@ data class lconst(val value: Int) : OneMixedArgInstruction(0x09, value) {
         require(value in 0..1) { "$value is out of range for lconst, ldc2_w should be used" }
     }
 
-    override fun stackEffects() = listOf(Push(LONG))
+    override fun stackEffect() = gives(LONG)
 }
 
 data class fconst(val value: Int) : OneMixedArgInstruction(0x0b, value) {
@@ -61,7 +62,7 @@ data class fconst(val value: Int) : OneMixedArgInstruction(0x0b, value) {
         require(value in 0..2) { "$value is out of range for fconst, ldc should be used" }
     }
 
-    override fun stackEffects() = listOf(Push(FLOAT))
+    override fun stackEffect() = gives(FLOAT)
 }
 
 data class ldc(val index: Int, val type: VerificationType) : Instruction {
@@ -71,7 +72,7 @@ data class ldc(val index: Int, val type: VerificationType) : Instruction {
         require(index in 0..0xffff) { "$index does not fit a u2" }
     }
 
-    override fun stackEffects() = listOf(Push(type))
+    override fun stackEffect() = gives(type)
 
     override fun ClassWriter.write() {
         if (index < 0x100) {
@@ -83,78 +84,78 @@ data class ldc(val index: Int, val type: VerificationType) : Instruction {
 }
 
 data class iload(override val index: Int) : LocalSlotInstruction(0x1a, 0x15) {
-    override fun stackEffects() = listOf(Push(INTEGER))
+    override fun stackEffect() = gives(INTEGER)
     override fun localEffects() = listOf(Read(index, INTEGER))
 }
 
 data class fload(override val index: Int) : LocalSlotInstruction(0x22, 0x17) {
-    override fun stackEffects() = listOf(Push(FLOAT))
+    override fun stackEffect() = gives(FLOAT)
     override fun localEffects() = listOf(Read(index, FLOAT))
 }
 
 data class aload(override val index: Int) : LocalSlotInstruction(0x2a, 0x19), DynamicInstruction
 
 data object iaload : NoArgInstruction(0x2e) {
-    override fun stackEffects() = listOf(Pop(ReferenceType("[I")), Pop(INTEGER), Push(INTEGER))
+    override fun stackEffect() = takes(ReferenceType("[I"), INTEGER) gives INTEGER
 }
 
 private val byteOrBooleanArray = OneOf(ReferenceType("[B"), ReferenceType("[Z"))
 
 data object baload : NoArgInstruction(0x33) {
-    override fun stackEffects() = listOf(Pop(byteOrBooleanArray), Pop(INTEGER), Push(INTEGER))
+    override fun stackEffect() = takes(byteOrBooleanArray, OfType(INTEGER)) gives INTEGER
 }
 
 data class istore(override val index: Int) : LocalSlotInstruction(0x3b, 0x36) {
-    override fun stackEffects() = listOf(Pop(INTEGER))
+    override fun stackEffect() = takes(INTEGER)
     override fun localEffects() = listOf(Write(index, INTEGER))
 }
 
 data class lstore(override val index: Int) : LocalSlotInstruction(0x3f, 0x37) {
-    override fun stackEffects() = listOf(Pop(LONG))
+    override fun stackEffect() = takes(LONG)
     override fun localEffects() = listOf(Write(index, LONG))
 }
 
 data class fstore(override val index: Int) : LocalSlotInstruction(0x43, 0x38) {
-    override fun stackEffects() = listOf(Pop(FLOAT))
+    override fun stackEffect() = takes(FLOAT)
     override fun localEffects() = listOf(Write(index, FLOAT))
 }
 
 data class astore(override val index: Int) : LocalSlotInstruction(0x4b, 0x3a), DynamicInstruction
 
 data object iastore : NoArgInstruction(0x4f) {
-    override fun stackEffects() = listOf(Pop(ReferenceType("[I")), Pop(INTEGER), Pop(INTEGER))
+    override fun stackEffect() = takes(ReferenceType("[I"), INTEGER, INTEGER)
 }
 
 data object bastore : NoArgInstruction(0x54) {
-    override fun stackEffects() = listOf(Pop(byteOrBooleanArray), Pop(INTEGER), Pop(INTEGER))
+    override fun stackEffect() = takes(byteOrBooleanArray, OfType(INTEGER), OfType(INTEGER))
 }
 
 data object iadd : NoArgInstruction(0x60) {
-    override fun stackEffects() = listOf(Pop(INTEGER), Pop(INTEGER), Push(INTEGER))
+    override fun stackEffect() = takes(INTEGER, INTEGER) gives INTEGER
 }
 
 data object isub : NoArgInstruction(0x64) {
-    override fun stackEffects() = listOf(Pop(INTEGER), Pop(INTEGER), Push(INTEGER))
+    override fun stackEffect() = takes(INTEGER, INTEGER) gives INTEGER
 }
 
 data object fadd : NoArgInstruction(0x62) {
-    override fun stackEffects() = listOf(Pop(FLOAT), Pop(FLOAT), Push(FLOAT))
+    override fun stackEffect() = takes(FLOAT, FLOAT) gives FLOAT
 }
 
 data object fsub : NoArgInstruction(0x66) {
-    override fun stackEffects() = listOf(Pop(FLOAT), Pop(FLOAT), Push(FLOAT))
+    override fun stackEffect() = takes(FLOAT, FLOAT) gives FLOAT
 }
 
 data object fmul : NoArgInstruction(0x6a) {
-    override fun stackEffects() = listOf(Pop(FLOAT), Pop(FLOAT), Push(FLOAT))
+    override fun stackEffect() = takes(FLOAT, FLOAT) gives FLOAT
 }
 
 data object fdiv : NoArgInstruction(0x6e) {
-    override fun stackEffects() = listOf(Pop(FLOAT), Pop(FLOAT), Push(FLOAT))
+    override fun stackEffect() = takes(FLOAT, FLOAT) gives FLOAT
 }
 
 data object fneg : NoArgInstruction(0x76) {
-    override fun stackEffects() = listOf(Pop(FLOAT), Push(FLOAT))
+    override fun stackEffect() = takes(FLOAT) gives FLOAT
 }
 
 data class iinc(val index: Int, val delta: Int) : Instruction {
@@ -183,83 +184,83 @@ data object dup_x2 : NoArgInstruction(0x5b), DynamicInstruction
 data object dup2 : NoArgInstruction(0x5c), DynamicInstruction
 
 data object ireturn : NoArgInstruction(0xac) {
-    override fun stackEffects() = listOf(Pop(INTEGER))
+    override fun stackEffect() = takes(INTEGER)
 }
 
 data object freturn : NoArgInstruction(0xae) {
-    override fun stackEffects() = listOf(Pop(FLOAT))
+    override fun stackEffect() = takes(FLOAT)
 }
 
 data object areturn : NoArgInstruction(0xb0) {
-    override fun stackEffects() = listOf(Pop(AnyReference))
+    override fun stackEffect() = takes(AnyReference)
 }
 
 data object `return` : NoArgInstruction(0xb1)
 
 data object athrow : NoArgInstruction(0xbf) {
-    override fun stackEffects() = listOf(Pop(AnyReference))
+    override fun stackEffect() = takes(AnyReference)
 }
 
 data object ifeq : JumpInstruction(0x99) {
-    override fun stackEffects() = listOf(Pop(INTEGER))
+    override fun stackEffect() = takes(INTEGER)
 }
 
 data object ifne : JumpInstruction(0x9a) {
-    override fun stackEffects() = listOf(Pop(INTEGER))
+    override fun stackEffect() = takes(INTEGER)
 }
 
 data object ifge : JumpInstruction(0x9c) {
-    override fun stackEffects() = listOf(Pop(INTEGER))
+    override fun stackEffect() = takes(INTEGER)
 }
 
 data object ifgt : JumpInstruction(0x9d) {
-    override fun stackEffects() = listOf(Pop(INTEGER))
+    override fun stackEffect() = takes(INTEGER)
 }
 
 data object if_icmplt : JumpInstruction(0xa1) {
-    override fun stackEffects() = listOf(Pop(INTEGER), Pop(INTEGER))
+    override fun stackEffect() = takes(INTEGER, INTEGER)
 }
 
 data object if_icmpge : JumpInstruction(0xa2) {
-    override fun stackEffects() = listOf(Pop(INTEGER), Pop(INTEGER))
+    override fun stackEffect() = takes(INTEGER, INTEGER)
 }
 
 data object if_acmpeq : JumpInstruction(0xa5) {
-    override fun stackEffects() = listOf(Pop(AnyReference), Pop(AnyReference))
+    override fun stackEffect() = takes(AnyReference, AnyReference)
 }
 
 data object if_acmpne : JumpInstruction(0xa6) {
-    override fun stackEffects() = listOf(Pop(AnyReference), Pop(AnyReference))
+    override fun stackEffect() = takes(AnyReference, AnyReference)
 }
 
 data object goto : JumpInstruction(0xa7)
 
 data object ifnull : JumpInstruction(0xc6) {
-    override fun stackEffects() = listOf(Pop(AnyReference))
+    override fun stackEffect() = takes(AnyReference)
 }
 
 data object ifnonnull : JumpInstruction(0xc7) {
-    override fun stackEffects() = listOf(Pop(AnyReference))
+    override fun stackEffect() = takes(AnyReference)
 }
 
 data class getstatic(val index: Int, val type: VerificationType) : TwoBytesArgInstruction(0xb2, index) {
     constructor(field: FieldDescriptor) : this(field.index, field.type)
 
-    override fun stackEffects() = listOf(Push(type))
+    override fun stackEffect() = gives(type)
 }
 
 data class getfield(val index: Int, val ownerType: VerificationType, val type: VerificationType) :
     TwoBytesArgInstruction(0xb4, index) {
     constructor(field: FieldDescriptor) : this(field.index, field.ownerType, field.type)
 
-    override fun stackEffects() = listOf(Pop(ownerType), Push(type))
+    override fun stackEffect() = takes(ownerType) gives type
 }
 
 data class putfield(val index: Int, val ownerType: VerificationType, val type: VerificationType) :
     TwoBytesArgInstruction(0xb5, index) {
     constructor(field: FieldDescriptor) : this(field.index, field.ownerType, field.type)
 
-    override fun stackEffects() = listOf(Pop(ownerType), Pop(type))
+    override fun stackEffect() = takes(ownerType, type)
 }
 
 data class invokevirtual(
@@ -327,17 +328,17 @@ data class newarray(val type: Int, val descriptor: String) : OneByteArgInstructi
         }
     }
 
-    override fun stackEffects() = listOf(Pop(INTEGER), Push(ReferenceType(descriptor)))
+    override fun stackEffect() = takes(INTEGER) gives ReferenceType(descriptor)
 }
 
 data class checkcast(val index: Int, val clazz: String) : TwoBytesArgInstruction(0xc0, index) {
     constructor(clazz: ClassPointer) : this(clazz.index, clazz.name)
 
-    override fun stackEffects() = listOf(Pop(AnyReference), Push(ReferenceType(clazz)))
+    override fun stackEffect() = takes(AnyReference) gives ReferenceType(clazz)
 }
 
 data class instanceof(val index: Int) : TwoBytesArgInstruction(0xc1, index) {
     constructor(clazz: ClassPointer) : this(clazz.index)
 
-    override fun stackEffects() = listOf(Pop(AnyReference), Push(INTEGER))
+    override fun stackEffect() = takes(AnyReference) gives INTEGER
 }

@@ -58,7 +58,7 @@ abstract class JumpInstruction(val code: Int) : Instruction {
 }
 
 sealed interface DynamicInstruction : Instruction { // marker
-    override fun stackEffects() =
+    override fun stackEffect() =
         throw IllegalStateException("$this takes its stack effect from the frame it runs in, so it has no fixed one")
 
     override fun localEffects() =

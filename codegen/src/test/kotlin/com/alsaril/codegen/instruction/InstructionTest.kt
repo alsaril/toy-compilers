@@ -384,61 +384,61 @@ class InstructionTest {
 
         @Test
         fun `push the type a constant carries`() {
-            assertThat(aconst_null.stackEffects()).containsExactly(Push(NULL))
-            assertThat(iconst(7).stackEffects()).containsExactly(Push(INTEGER))
-            assertThat(lconst(1).stackEffects()).containsExactly(Push(LONG))
-            assertThat(fconst(1).stackEffects()).containsExactly(Push(FLOAT))
-            assertThat(ldc(DataPointer(3, ReferenceType("java/lang/String"))).stackEffects())
-                .containsExactly(Push(ReferenceType("java/lang/String")))
+            assertThat(aconst_null.stackEffect()).isEqualTo(gives(NULL))
+            assertThat(iconst(7).stackEffect()).isEqualTo(gives(INTEGER))
+            assertThat(lconst(1).stackEffect()).isEqualTo(gives(LONG))
+            assertThat(fconst(1).stackEffect()).isEqualTo(gives(FLOAT))
+            assertThat(ldc(DataPointer(3, ReferenceType("java/lang/String"))).stackEffect())
+                .isEqualTo(gives(ReferenceType("java/lang/String")))
         }
 
         @Test
         fun `take arithmetic operands of their own type`() {
-            assertThat(iadd.stackEffects()).containsExactly(Pop(INTEGER), Pop(INTEGER), Push(INTEGER))
-            assertThat(isub.stackEffects()).containsExactly(Pop(INTEGER), Pop(INTEGER), Push(INTEGER))
-            assertThat(fadd.stackEffects()).containsExactly(Pop(FLOAT), Pop(FLOAT), Push(FLOAT))
-            assertThat(fsub.stackEffects()).containsExactly(Pop(FLOAT), Pop(FLOAT), Push(FLOAT))
-            assertThat(fmul.stackEffects()).containsExactly(Pop(FLOAT), Pop(FLOAT), Push(FLOAT))
-            assertThat(fdiv.stackEffects()).containsExactly(Pop(FLOAT), Pop(FLOAT), Push(FLOAT))
-            assertThat(fneg.stackEffects()).containsExactly(Pop(FLOAT), Push(FLOAT))
+            assertThat(iadd.stackEffect()).isEqualTo(takes(INTEGER, INTEGER) gives INTEGER)
+            assertThat(isub.stackEffect()).isEqualTo(takes(INTEGER, INTEGER) gives INTEGER)
+            assertThat(fadd.stackEffect()).isEqualTo(takes(FLOAT, FLOAT) gives FLOAT)
+            assertThat(fsub.stackEffect()).isEqualTo(takes(FLOAT, FLOAT) gives FLOAT)
+            assertThat(fmul.stackEffect()).isEqualTo(takes(FLOAT, FLOAT) gives FLOAT)
+            assertThat(fdiv.stackEffect()).isEqualTo(takes(FLOAT, FLOAT) gives FLOAT)
+            assertThat(fneg.stackEffect()).isEqualTo(takes(FLOAT) gives FLOAT)
         }
 
         @Test
         fun `take the array and the index they read`() {
-            assertThat(iaload.stackEffects())
-                .containsExactly(Pop(ReferenceType("[I")), Pop(INTEGER), Push(INTEGER))
-            assertThat(baload.stackEffects())
-                .containsExactly(Pop(byteOrBooleanArray), Pop(INTEGER), Push(INTEGER))
+            assertThat(iaload.stackEffect())
+                .isEqualTo(takes(ReferenceType("[I"), INTEGER) gives INTEGER)
+            assertThat(baload.stackEffect())
+                .isEqualTo(takes(byteOrBooleanArray, OfType(INTEGER)) gives INTEGER)
         }
 
         @Test
         fun `take the array, the index and the value they write`() {
-            assertThat(iastore.stackEffects())
-                .containsExactly(Pop(ReferenceType("[I")), Pop(INTEGER), Pop(INTEGER))
-            assertThat(bastore.stackEffects())
-                .containsExactly(Pop(byteOrBooleanArray), Pop(INTEGER), Pop(INTEGER))
+            assertThat(iastore.stackEffect())
+                .isEqualTo(takes(ReferenceType("[I"), INTEGER, INTEGER))
+            assertThat(bastore.stackEffect())
+                .isEqualTo(takes(byteOrBooleanArray, OfType(INTEGER), OfType(INTEGER)))
         }
 
         @Test
-        fun `take a pop of a type as the expectation of that type`() {
-            assertThat(Pop(INTEGER)).isEqualTo(Pop(OfType(INTEGER)))
+        fun `take a type as the expectation of that type`() {
+            assertThat(takes(INTEGER)).isEqualTo(takes(OfType(INTEGER)))
         }
 
         @Test
         fun `push an array of the element they are given`() {
-            assertThat(newarray(ElementType.BYTE).stackEffects())
-                .containsExactly(Pop(INTEGER), Push(ReferenceType("[B")))
-            assertThat(newarray(ElementType.LONG).stackEffects())
-                .containsExactly(Pop(INTEGER), Push(ReferenceType("[J")))
+            assertThat(newarray(ElementType.BYTE).stackEffect())
+                .isEqualTo(takes(INTEGER) gives ReferenceType("[B"))
+            assertThat(newarray(ElementType.LONG).stackEffect())
+                .isEqualTo(takes(INTEGER) gives ReferenceType("[J"))
         }
 
         @Test
         fun `take the object and the value a field store writes`() {
             val owner = ReferenceType("A")
 
-            assertThat(putfield(3, owner, LONG).stackEffects()).containsExactly(Pop(owner), Pop(LONG))
-            assertThat(getfield(3, owner, LONG).stackEffects()).containsExactly(Pop(owner), Push(LONG))
-            assertThat(getstatic(3, LONG).stackEffects()).containsExactly(Push(LONG))
+            assertThat(putfield(3, owner, LONG).stackEffect()).isEqualTo(takes(owner, LONG))
+            assertThat(getfield(3, owner, LONG).stackEffect()).isEqualTo(takes(owner) gives LONG)
+            assertThat(getstatic(3, LONG).stackEffect()).isEqualTo(gives(LONG))
         }
 
         @Test
@@ -447,38 +447,38 @@ class InstructionTest {
             val args = listOf(ReferenceType("A"), INTEGER, FLOAT)
 
             // then every call shape takes the same operands in the same order
-            val expected = arrayOf(Pop(ReferenceType("A")), Pop(INTEGER), Pop(FLOAT), Push(LONG))
-            assertThat(invokevirtual(1, args, LONG).stackEffects()).containsExactly(*expected)
-            assertThat(invokeinterface(1, args, LONG).stackEffects()).containsExactly(*expected)
-            assertThat(invokespecial(1, args, LONG, null).stackEffects()).containsExactly(*expected)
-            assertThat(invokestatic(1, args, LONG).stackEffects()).containsExactly(*expected)
+            val expected = takes(ReferenceType("A"), INTEGER, FLOAT) gives LONG
+            assertThat(invokevirtual(1, args, LONG).stackEffect()).isEqualTo(expected)
+            assertThat(invokeinterface(1, args, LONG).stackEffect()).isEqualTo(expected)
+            assertThat(invokespecial(1, args, LONG, null).stackEffect()).isEqualTo(expected)
+            assertThat(invokestatic(1, args, LONG).stackEffect()).isEqualTo(expected)
         }
 
         @Test
-        fun `push void for a call that returns nothing, which the analyzer leaves off the stack`() {
-            assertThat(invokestatic(1, emptyList(), VOID).stackEffects()).containsExactly(Push(VOID))
+        fun `push nothing for a call that returns void`() {
+            assertThat(invokestatic(1, emptyList(), VOID).stackEffect()).isEqualTo(StackEffect.NONE)
         }
 
         @Test
         fun `take what a return or a branch tests`() {
-            assertThat(ireturn.stackEffects()).containsExactly(Pop(INTEGER))
-            assertThat(freturn.stackEffects()).containsExactly(Pop(FLOAT))
-            assertThat(areturn.stackEffects()).containsExactly(Pop(AnyReference))
-            assertThat(athrow.stackEffects()).containsExactly(Pop(AnyReference))
-            assertThat(`return`.stackEffects()).isEmpty()
-            assertThat(ifeq.stackEffects()).containsExactly(Pop(INTEGER))
-            assertThat(if_icmplt.stackEffects()).containsExactly(Pop(INTEGER), Pop(INTEGER))
-            assertThat(if_acmpeq.stackEffects()).containsExactly(Pop(AnyReference), Pop(AnyReference))
-            assertThat(if_acmpne.stackEffects()).containsExactly(Pop(AnyReference), Pop(AnyReference))
-            assertThat(ifnull.stackEffects()).containsExactly(Pop(AnyReference))
-            assertThat(goto.stackEffects()).isEmpty()
+            assertThat(ireturn.stackEffect()).isEqualTo(takes(INTEGER))
+            assertThat(freturn.stackEffect()).isEqualTo(takes(FLOAT))
+            assertThat(areturn.stackEffect()).isEqualTo(takes(AnyReference))
+            assertThat(athrow.stackEffect()).isEqualTo(takes(AnyReference))
+            assertThat(`return`.stackEffect()).isEqualTo(StackEffect.NONE)
+            assertThat(ifeq.stackEffect()).isEqualTo(takes(INTEGER))
+            assertThat(if_icmplt.stackEffect()).isEqualTo(takes(INTEGER, INTEGER))
+            assertThat(if_acmpeq.stackEffect()).isEqualTo(takes(AnyReference, AnyReference))
+            assertThat(if_acmpne.stackEffect()).isEqualTo(takes(AnyReference, AnyReference))
+            assertThat(ifnull.stackEffect()).isEqualTo(takes(AnyReference))
+            assertThat(goto.stackEffect()).isEqualTo(StackEffect.NONE)
         }
 
         @Test
         fun `take any reference to cast or test, and push what that says`() {
-            assertThat(checkcast(4, "java/util/List").stackEffects())
-                .containsExactly(Pop(AnyReference), Push(ReferenceType("java/util/List")))
-            assertThat(instanceof(4).stackEffects()).containsExactly(Pop(AnyReference), Push(INTEGER))
+            assertThat(checkcast(4, "java/util/List").stackEffect())
+                .isEqualTo(takes(AnyReference) gives ReferenceType("java/util/List"))
+            assertThat(instanceof(4).stackEffect()).isEqualTo(takes(AnyReference) gives INTEGER)
         }
 
         @Test
@@ -488,7 +488,7 @@ class InstructionTest {
             assertThat(istore(1).localEffects()).containsExactly(Write(1, INTEGER))
             assertThat(fstore(1).localEffects()).containsExactly(Write(1, FLOAT))
             assertThat(lstore(1).localEffects()).containsExactly(Write(1, LONG))
-            assertThat(lstore(1).stackEffects()).containsExactly(Pop(LONG))
+            assertThat(lstore(1).stackEffect()).isEqualTo(takes(LONG))
             assertThat(iinc(3, 1).localEffects()).containsExactly(Read(3, INTEGER), Write(3, INTEGER))
         }
 
@@ -504,7 +504,7 @@ class InstructionTest {
             // the frame too, so none of them has an effect it could state on its own
             listOf(dup, dup_x1, dup_x2, dup2, aload(0), astore(0), new(4)).forEach {
                 assertThatIllegalStateException()
-                    .isThrownBy { it.stackEffects() }
+                    .isThrownBy { it.stackEffect() }
                     .withMessageContaining("takes its stack effect from the frame it runs in")
                 assertThatIllegalStateException()
                     .isThrownBy { it.localEffects() }
