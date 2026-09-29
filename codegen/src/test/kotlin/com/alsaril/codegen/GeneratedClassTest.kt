@@ -869,6 +869,47 @@ class GeneratedClassTest {
     }
 
     @Test
+    fun `drops the top with pop`() {
+        // given 1 2, with the 2 dropped
+        val (name, bytes) = classFile("GenPop", "java/lang/Object")
+            .method("f", "()I", PUBLIC, STATIC) {
+                +iconst(1)
+                +iconst(2)
+                +pop
+                +ireturn
+            }
+            .build()
+
+        // then
+        assertThat(ByteClassLoader().loadClass(name, bytes).getDeclaredMethod("f").invoke(null)).isEqualTo(1)
+    }
+
+    @Test
+    fun `drops two ints or one long with pop2`() {
+        // given 1 2 3 with 2 and 3 dropped, and 7 with a long on top of it dropped
+        val (name, bytes) = classFile("GenPop2", "java/lang/Object")
+            .method("ints", "()I", PUBLIC, STATIC) {
+                +iconst(1)
+                +iconst(2)
+                +iconst(3)
+                +pop2
+                +ireturn
+            }
+            .method("long", "()I", PUBLIC, STATIC) {
+                +iconst(7)
+                +lconst(1)
+                +pop2
+                +ireturn
+            }
+            .build()
+        val clazz = ByteClassLoader().loadClass(name, bytes)
+
+        // then
+        assertThat(clazz.getDeclaredMethod("ints").invoke(null)).isEqualTo(1)
+        assertThat(clazz.getDeclaredMethod("long").invoke(null)).isEqualTo(7)
+    }
+
+    @Test
     fun `copies two ints or one long with dup2`() {
         // given 2 + 3 + 2 + 3, and 1 + 1 as a long
         val (name, bytes) = classFile("GenDup2", "java/lang/Object")

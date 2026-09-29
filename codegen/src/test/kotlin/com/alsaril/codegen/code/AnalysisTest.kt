@@ -200,6 +200,36 @@ class AnalysisTest {
     }
 
     @Test
+    fun `refuses pop of a two slot value`() {
+        assertThatIllegalArgumentException()
+            .isThrownBy { method { +lconst(0); +pop; +`return` } }
+            .withMessageContaining("pop at 1 drops a one slot value, but finds LONG")
+    }
+
+    @Test
+    fun `refuses pop on an empty stack`() {
+        assertThatIllegalArgumentException()
+            .isThrownBy { method { +pop; +`return` } }
+            .withMessageContaining("pop at 0 pops 1 from a stack 0 deep")
+    }
+
+    @Test
+    fun `refuses pop2 of a one slot value over a two slot one`() {
+        // pop2 drops either one long or two ints, never half of each
+        assertThatIllegalArgumentException()
+            .isThrownBy { method { +lconst(0); +iconst(0); +pop2; +`return` } }
+            .withMessageContaining("pop2 at 2 drops two one slot values, but finds LONG under INTEGER")
+    }
+
+    @Test
+    fun `refuses pop2 with only one one slot value`() {
+        // a single int is half of what pop2 drops, where a long would do alone
+        assertThatIllegalArgumentException()
+            .isThrownBy { method { +iconst(0); +pop2; +`return` } }
+            .withMessageContaining("pop2 at 1 pops 2 from a stack 1 deep")
+    }
+
+    @Test
     fun `refuses dup of a two slot value`() {
         assertThatIllegalArgumentException()
             .isThrownBy { method { +lconst(0); +dup; +`return` } }

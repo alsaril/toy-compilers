@@ -175,6 +175,10 @@ data class iinc(val index: Int, val delta: Int) : Instruction {
     }
 }
 
+data object pop : NoArgInstruction(0x57), DynamicInstruction
+
+data object pop2 : NoArgInstruction(0x58), DynamicInstruction
+
 data object dup : NoArgInstruction(0x59), DynamicInstruction
 
 data object dup_x1 : NoArgInstruction(0x5a), DynamicInstruction

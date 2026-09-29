@@ -217,6 +217,26 @@ internal class Analyzer(
             Frame(stack = stack, locals = enterFrame.locals.write(instruction.index, top))
         }
 
+        pop -> {
+            requireDepth(enterFrame.stack, 1, instruction, pc)
+            val top = enterFrame.stack.last()
+            require(top.slots == 1) { "$instruction at $pc drops a one slot value, but finds $top" }
+            enterFrame.copy(stack = enterFrame.stack.dropLast(1))
+        }
+
+        pop2 -> {
+            requireDepth(enterFrame.stack, 1, instruction, pc)
+            val top = enterFrame.stack.last()
+            if (top.slots == 1) {
+                requireDepth(enterFrame.stack, 2, instruction, pc)
+                val second = enterFrame.stack[enterFrame.stack.size - 2]
+                require(second.slots == 1) { "$instruction at $pc drops two one slot values, but finds $second under $top" }
+                enterFrame.copy(stack = enterFrame.stack.dropLast(2))
+            } else {
+                enterFrame.copy(stack = enterFrame.stack.dropLast(1))
+            }
+        }
+
         dup -> {
             requireDepth(enterFrame.stack, 1, instruction, pc)
             val top = enterFrame.stack.last()

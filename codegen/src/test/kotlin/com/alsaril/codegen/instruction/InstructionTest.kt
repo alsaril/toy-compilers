@@ -26,6 +26,8 @@ class InstructionTest {
         assertThat(bytecode { +aconst_null }).containsExactly(*bytesOf(0x01))
         assertThat(bytecode { +baload }).containsExactly(*bytesOf(0x33))
         assertThat(bytecode { +bastore }).containsExactly(*bytesOf(0x54))
+        assertThat(bytecode { +pop }).containsExactly(*bytesOf(0x57))
+        assertThat(bytecode { +pop2 }).containsExactly(*bytesOf(0x58))
         assertThat(bytecode { +dup }).containsExactly(*bytesOf(0x59))
         assertThat(bytecode { +dup_x1 }).containsExactly(*bytesOf(0x5A))
         assertThat(bytecode { +dup2 }).containsExactly(*bytesOf(0x5C))
@@ -500,9 +502,7 @@ class InstructionTest {
 
         @Test
         fun `leave the effects of instructions that copy or move whatever is there to the frame`() {
-            // dup and friends copy whatever type is on top, and aload, astore and new depend on
-            // the frame too, so none of them has an effect it could state on its own
-            listOf(dup, dup_x1, dup_x2, dup2, aload(0), astore(0), new(4)).forEach {
+            listOf(pop, pop2, dup, dup_x1, dup_x2, dup2, aload(0), astore(0), new(4)).forEach {
                 assertThatIllegalStateException()
                     .isThrownBy { it.stackEffect() }
                     .withMessageContaining("takes its stack effect from the frame it runs in")

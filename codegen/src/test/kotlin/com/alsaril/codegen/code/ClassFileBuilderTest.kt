@@ -259,6 +259,23 @@ class ClassFileBuilderTest {
         }
 
         @Test
+        fun `counts the value pop drops as gone`() {
+            // one int at a time, so the stack never holds two
+            assertThat(stack("()V", STATIC) { +iconst(1); +pop; +iconst(2); +pop; +`return` }).isOne()
+        }
+
+        @Test
+        fun `counts both values pop2 drops as gone`() {
+            assertThat(stack("()V", STATIC) { +iconst(1); +iconst(2); +pop2; +iconst(3); +iconst(4); +pop2; +`return` })
+                .isEqualTo(2)
+        }
+
+        @Test
+        fun `counts the one long pop2 drops as gone`() {
+            assertThat(stack("()V", STATIC) { +lconst(0); +pop2; +lconst(1); +pop2; +`return` }).isEqualTo(2)
+        }
+
+        @Test
         fun `counts both values dup2 copies`() {
             // two ints in, both copied
             assertThat(stack("()V", STATIC) { +iconst(1); +iconst(2); +dup2; +`return` }).isEqualTo(4)
