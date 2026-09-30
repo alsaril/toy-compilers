@@ -1,8 +1,13 @@
 package com.alsaril.codegen.code
 
 import com.alsaril.codegen.ClassDef
-import com.alsaril.codegen.classfile.*
+import com.alsaril.codegen.classfile.AccessFlag
 import com.alsaril.codegen.classfile.AccessFlag.STATIC
+import com.alsaril.codegen.classfile.ClassFile
+import com.alsaril.codegen.classfile.FieldInfo
+import com.alsaril.codegen.classfile.MethodInfo
+import com.alsaril.codegen.classfile.attributes.AttributeInfo
+import com.alsaril.codegen.classfile.attributes.BootstrapMethodsAttribute
 import com.alsaril.codegen.code.BytecodeSerializer.serialize
 import com.alsaril.codegen.constantpool.UpdatableConstantPool
 import com.alsaril.codegen.toBytes
@@ -17,6 +22,8 @@ class ClassFileBuilder {
     private val ifaces = mutableListOf<String>()
     private val fields = mutableListOf<FieldInfo>()
     private val methods = mutableListOf<MethodInfo>()
+    private val attributes = mutableListOf<AttributeInfo>()
+    private val bootstrapMethods = BootstrapMethods()
 
     internal val cp = UpdatableConstantPool()
     internal val hierarchy: ClassHierarchy
@@ -70,6 +77,11 @@ class ClassFileBuilder {
         return this
     }
 
+    fun attribute(attributeInfo: AttributeInfo): ClassFileBuilder {
+        attributes.add(attributeInfo)
+        return this
+    }
+
     @OptIn(ExperimentalContracts::class)
     fun emitFragment(codeBuilder: CodeBuilder.() -> Unit): Fragment {
         contract {
@@ -79,20 +91,25 @@ class ClassFileBuilder {
     }
 
     fun build(): ClassDef {
+        val attributes = if (bootstrapMethods.isEmpty()) attributes.toList() else
+            attributes + BootstrapMethodsAttribute(cp.putUtf8("BootstrapMethods"), bootstrapMethods.methods())
         val file = ClassFile(
             cp.putClass(thisName),
             cp.putClass(parentName),
             ifaces.map { cp.putClass(it) },
-            fields,
-            methods,
+            fields.toList(),
+            methods.toList(),
+            attributes,
             cp.build(),
         )
         return thisName to toBytes { write(file) }
     }
 
-    fun newCodeBuilder() = CodeBuilder(cp, thisName, parentName)
+    fun newCodeBuilder() = CodeBuilder(cp, bootstrapMethods, thisName, parentName)
 
     companion object {
+        const val BOOTSTRAP_PREFIX = "Ljava/lang/invoke/MethodHandles\$Lookup;Ljava/lang/String;Ljava/lang/Class;"
+
         fun classFile(name: String, parent: String, hierarchy: ClassHierarchy = LenientHierarchy) =
             ClassFileBuilder(name, parent, hierarchy)
     }

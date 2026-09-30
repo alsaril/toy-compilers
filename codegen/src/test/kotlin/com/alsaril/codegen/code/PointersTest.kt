@@ -1,5 +1,6 @@
 package com.alsaril.codegen.code
 
+import com.alsaril.codegen.classfile.attributes.BootstrapMethod
 import com.alsaril.codegen.constantpool.*
 import com.alsaril.codegen.verification.PrimitiveType.FLOAT
 import com.alsaril.codegen.verification.PrimitiveType.INTEGER
@@ -139,6 +140,114 @@ class PointersTest {
 
             // then
             assertThat(builder.int(1)).isNotEqualTo(builder.float(1.0f))
+        }
+    }
+
+    @Nested
+    inner class DynamicConstants {
+
+        private val bootstrap = "(${ClassFileBuilder.BOOTSTRAP_PREFIX})I"
+
+        @Test
+        fun `registers the bootstrap handle, then the constant typed as the bootstrap method returns`() {
+            // given
+            val cp = UpdatableConstantPool()
+            val builder = builder(cp)
+            val owner = builder.clazz("B")
+
+            // when
+            val pointer = builder.constantDynamic(owner, "boot", bootstrap)
+
+            // then the method ref and a static handle to it, and the constant behind its name-and-type
+            assertThat(pointer).isEqualTo(DataPointer(11, INTEGER))
+            assertThat(cp.build().entries).containsExactly(
+                ConstantUtf8Info("B"),
+                ConstantClassInfo(nameIndex = 1),
+                ConstantUtf8Info("boot"),
+                ConstantUtf8Info(bootstrap),
+                ConstantNameAndTypeInfo(nameIndex = 3, descriptorIndex = 4),
+                ConstantMethodRefInfo(classNameIndex = 2, nameAndTypeIndex = 5),
+                ConstantMethodHandleInfo(ConstantMethodHandleInfo.ReferenceKind.INVOKE_STATIC, referenceIndex = 6),
+                ConstantUtf8Info("_"),
+                ConstantUtf8Info("I"),
+                ConstantNameAndTypeInfo(nameIndex = 8, descriptorIndex = 9),
+                ConstantDynamicInfo(bootstrapMethodIndex = 0, nameAndTypeIndex = 10),
+            )
+            assertThat(builder.bootstrapMethods.methods()).containsExactly(BootstrapMethod(7, emptyList()))
+        }
+
+        @Test
+        fun `types the constant as the class the bootstrap method returns`() {
+            // given
+            val builder = builder()
+
+            // when
+            val pointer = builder.constantDynamic(
+                builder.clazz("B"), "boot", "(${ClassFileBuilder.BOOTSTRAP_PREFIX})Ljava/lang/String;",
+            )
+
+            // then
+            assertThat(pointer.type).isEqualTo(ReferenceType("java/lang/String"))
+        }
+
+        @Test
+        fun `passes the arguments to the bootstrap method as their pool indices`() {
+            // given
+            val cp = UpdatableConstantPool()
+            val builder = builder(cp)
+            val first = builder.int(1)
+            val second = builder.string("s")
+
+            // when
+            builder.constantDynamic(builder.clazz("B"), "boot", "(${ClassFileBuilder.BOOTSTRAP_PREFIX}ILjava/lang/String;)I", first, second)
+
+            // then
+            assertThat(builder.bootstrapMethods.methods().single().bootstrapArguments)
+                .containsExactly(first.index, second.index)
+        }
+
+        @Test
+        fun `reuses one constant and one bootstrap method for a repeated constant`() {
+            // given
+            val builder = builder()
+            val owner = builder.clazz("B")
+
+            // when
+            val first = builder.constantDynamic(owner, "boot", bootstrap, builder.int(1))
+            val second = builder.constantDynamic(owner, "boot", bootstrap, builder.int(1))
+
+            // then
+            assertThat(second).isEqualTo(first)
+            assertThat(builder.bootstrapMethods.methods()).hasSize(1)
+        }
+
+        @Test
+        fun `keeps constants with different arguments apart`() {
+            // given
+            val builder = builder()
+            val owner = builder.clazz("B")
+
+            // when
+            val one = builder.constantDynamic(owner, "boot", bootstrap, builder.int(1))
+            val two = builder.constantDynamic(owner, "boot", bootstrap, builder.int(2))
+
+            // then
+            assertThat(two.index).isNotEqualTo(one.index)
+            assertThat(builder.bootstrapMethods.methods()).hasSize(2)
+        }
+
+        @Test
+        fun `takes another dynamic constant as an argument`() {
+            // given
+            val builder = builder()
+            val owner = builder.clazz("B")
+            val inner = builder.constantDynamic(owner, "inner", bootstrap)
+
+            // when
+            builder.constantDynamic(owner, "outer", "(${ClassFileBuilder.BOOTSTRAP_PREFIX}I)I", inner)
+
+            // then
+            assertThat(builder.bootstrapMethods.methods().last().bootstrapArguments).containsExactly(inner.index)
         }
     }
 }

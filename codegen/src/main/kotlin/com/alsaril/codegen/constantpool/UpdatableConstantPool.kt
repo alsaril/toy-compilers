@@ -1,5 +1,6 @@
 package com.alsaril.codegen.constantpool
 
+import com.alsaril.codegen.constantpool.ConstantMethodHandleInfo.ReferenceKind
 import com.alsaril.codegen.constantpool.UpdatableConstantPool.RefType.*
 
 class UpdatableConstantPool {
@@ -14,6 +15,9 @@ class UpdatableConstantPool {
     private val doubleCache = mutableMapOf<Double, Int>()
     private val classCache = mutableMapOf<String, Int>()
     private val nameAndTypeCache = mutableMapOf<Pair<String, String>, Int>()
+    private val methodHandleCache = mutableMapOf<Pair<ReferenceKind, Int>, Int>()
+    private val constantDynamicCache = mutableMapOf<Triple<String, String, Int>, Int>()
+    private val constantInvokeDynamicCache = mutableMapOf<Triple<String, String, Int>, Int>()
     private val refCache = mutableMapOf<RefKey, Int>()
 
     private var built = false
@@ -66,13 +70,37 @@ class UpdatableConstantPool {
         index++
     }
 
-    fun putConstantNameAndTypeInfo(name: String, descriptor: String) = nameAndTypeCache.computeIfAbsent(name to descriptor) {
-        if (built) throw IllegalStateException("built")
-        val nameIndex = putUtf8(name)
-        val descriptorIndex = putUtf8(descriptor)
-        entries.add(ConstantNameAndTypeInfo(nameIndex, descriptorIndex))
-        index++
-    }
+    fun putConstantNameAndTypeInfo(name: String, descriptor: String) =
+        nameAndTypeCache.computeIfAbsent(name to descriptor) {
+            if (built) throw IllegalStateException("built")
+            val nameIndex = putUtf8(name)
+            val descriptorIndex = putUtf8(descriptor)
+            entries.add(ConstantNameAndTypeInfo(nameIndex, descriptorIndex))
+            index++
+        }
+
+    fun putConstantMethodHandleInfo(referenceKind: ReferenceKind, referenceIndex: Int) =
+        methodHandleCache.computeIfAbsent(referenceKind to referenceIndex) {
+            if (built) throw IllegalStateException("built")
+            entries.add(ConstantMethodHandleInfo(referenceKind, referenceIndex))
+            index++
+        }
+
+    fun putConstantDynamicInfo(name: String, descriptor: String, bootstrapMethodIndex: Int) =
+        constantDynamicCache.computeIfAbsent(Triple(name, descriptor, bootstrapMethodIndex)) {
+            if (built) throw IllegalStateException("built")
+            val nameAndTypeIndex = putConstantNameAndTypeInfo(name, descriptor)
+            entries.add(ConstantDynamicInfo(bootstrapMethodIndex, nameAndTypeIndex))
+            index++
+        }
+
+    fun putConstantInvokeDynamicInfo(name: String, descriptor: String, bootstrapMethodIndex: Int) =
+        constantInvokeDynamicCache.computeIfAbsent(Triple(name, descriptor, bootstrapMethodIndex)) {
+            if (built) throw IllegalStateException("built")
+            val nameAndTypeIndex = putConstantNameAndTypeInfo(name, descriptor)
+            entries.add(ConstantInvokeDynamicInfo(bootstrapMethodIndex, nameAndTypeIndex))
+            index++
+        }
 
     enum class RefType {
         FIELD, METHOD, INTERFACE_METHOD;

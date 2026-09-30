@@ -1,6 +1,8 @@
 package com.alsaril.codegen.constantpool
 
 import com.alsaril.codegen.bytesOf
+import com.alsaril.codegen.constantpool.ConstantMethodHandleInfo.ReferenceKind
+import com.alsaril.codegen.constantpool.ConstantMethodHandleInfo.ReferenceKind.*
 import com.alsaril.codegen.serialized
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatExceptionOfType
@@ -149,6 +151,38 @@ class ConstantPoolSerializationTest {
         fun `writes an index above 255 as two big-endian bytes`() {
             assertThat(ConstantClassInfo(nameIndex = 258).serialized())
                 .containsExactly(*bytesOf(0x07, 0x01, 0x02))
+        }
+    }
+
+    @Nested
+    inner class Dynamic {
+
+        @Test
+        fun `writes a method handle as tag, reference kind and reference index`() {
+            assertThat(ConstantMethodHandleInfo(INVOKE_STATIC, referenceIndex = 258).serialized())
+                .containsExactly(*bytesOf(0x0F, 0x06, 0x01, 0x02))
+        }
+
+        @Test
+        fun `keeps the jvms values for the reference kinds`() {
+            // JVMS 5.4.3.5, REF_getField through REF_invokeInterface
+            assertThat(ReferenceKind.entries.map { it.tag }).containsExactly(1, 2, 3, 4, 5, 6, 7, 8, 9)
+            assertThat(ReferenceKind.entries).containsExactly(
+                GET_FIELD, GET_STATIC, PUT_FIELD, PUT_STATIC,
+                INVOKE_VIRTUAL, INVOKE_STATIC, INVOKE_SPECIAL, NEW_INVOKE_SPECIAL, INVOKE_INTERFACE,
+            )
+        }
+
+        @Test
+        fun `writes a dynamic constant as tag, bootstrap method index and name-and-type index`() {
+            assertThat(ConstantDynamicInfo(bootstrapMethodIndex = 3, nameAndTypeIndex = 258).serialized())
+                .containsExactly(*bytesOf(0x11, 0x00, 0x03, 0x01, 0x02))
+        }
+
+        @Test
+        fun `writes an invokedynamic as tag, bootstrap method index and name-and-type index`() {
+            assertThat(ConstantInvokeDynamicInfo(bootstrapMethodIndex = 3, nameAndTypeIndex = 258).serialized())
+                .containsExactly(*bytesOf(0x12, 0x00, 0x03, 0x01, 0x02))
         }
     }
 

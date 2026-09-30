@@ -1,5 +1,7 @@
 package com.alsaril.codegen.constantpool
 
+import com.alsaril.codegen.constantpool.ConstantMethodHandleInfo.ReferenceKind.INVOKE_STATIC
+import com.alsaril.codegen.constantpool.ConstantMethodHandleInfo.ReferenceKind.INVOKE_VIRTUAL
 import com.alsaril.codegen.constantpool.UpdatableConstantPool.RefType.FIELD
 import com.alsaril.codegen.constantpool.UpdatableConstantPool.RefType.INTERFACE_METHOD
 import com.alsaril.codegen.constantpool.UpdatableConstantPool.RefType.METHOD
@@ -496,6 +498,145 @@ class UpdatableConstantPoolTest {
     }
 
     @Nested
+    inner class PutConstantMethodHandleInfo {
+
+        @Test
+        fun `stores the reference kind and the index of the member it refers to`() {
+            // when
+            val index = pool.putConstantMethodHandleInfo(INVOKE_STATIC, 7)
+
+            // then
+            assertThat(index).isEqualTo(1)
+            assertThat(pool.build().entries).containsExactly(ConstantMethodHandleInfo(INVOKE_STATIC, 7))
+        }
+
+        @Test
+        fun `returns the existing index for a duplicate handle`() {
+            // given
+            val first = pool.putConstantMethodHandleInfo(INVOKE_STATIC, 7)
+
+            // when
+            val second = pool.putConstantMethodHandleInfo(INVOKE_STATIC, 7)
+
+            // then
+            assertThat(second).isEqualTo(first)
+            assertThat(pool.build().entries).hasSize(1)
+        }
+
+        @Test
+        fun `keeps handles of different kinds on one member apart`() {
+            // when
+            val static = pool.putConstantMethodHandleInfo(INVOKE_STATIC, 7)
+            val virtual = pool.putConstantMethodHandleInfo(INVOKE_VIRTUAL, 7)
+
+            // then
+            assertThat(virtual).isNotEqualTo(static)
+            assertThat(pool.build().entries).containsExactly(
+                ConstantMethodHandleInfo(INVOKE_STATIC, 7),
+                ConstantMethodHandleInfo(INVOKE_VIRTUAL, 7),
+            )
+        }
+    }
+
+    @Nested
+    inner class PutConstantDynamicInfo {
+
+        @Test
+        fun `stores the name-and-type first and points the dynamic entry at it`() {
+            // when
+            val index = pool.putConstantDynamicInfo("_", "I", 0)
+
+            // then
+            assertThat(index).isEqualTo(4)
+            assertThat(pool.build().entries).containsExactly(
+                ConstantUtf8Info("_"),
+                ConstantUtf8Info("I"),
+                ConstantNameAndTypeInfo(nameIndex = 1, descriptorIndex = 2),
+                ConstantDynamicInfo(bootstrapMethodIndex = 0, nameAndTypeIndex = 3),
+            )
+        }
+
+        @Test
+        fun `returns the existing index for a duplicate name, descriptor and bootstrap method`() {
+            // given
+            val first = pool.putConstantDynamicInfo("_", "I", 0)
+
+            // when
+            val second = pool.putConstantDynamicInfo("_", "I", 0)
+
+            // then
+            assertThat(second).isEqualTo(first)
+            assertThat(pool.build().entries).hasSize(4)
+        }
+
+        @Test
+        fun `keeps constants of different bootstrap methods apart while sharing one name-and-type`() {
+            // when
+            val first = pool.putConstantDynamicInfo("_", "I", 0)
+            val second = pool.putConstantDynamicInfo("_", "I", 1)
+
+            // then
+            assertThat(second).isNotEqualTo(first)
+            assertThat(pool.build().entries).containsExactly(
+                ConstantUtf8Info("_"),
+                ConstantUtf8Info("I"),
+                ConstantNameAndTypeInfo(nameIndex = 1, descriptorIndex = 2),
+                ConstantDynamicInfo(bootstrapMethodIndex = 0, nameAndTypeIndex = 3),
+                ConstantDynamicInfo(bootstrapMethodIndex = 1, nameAndTypeIndex = 3),
+            )
+        }
+    }
+
+    @Nested
+    inner class PutConstantInvokeDynamicInfo {
+
+        @Test
+        fun `stores the name-and-type first and points the invokedynamic entry at it`() {
+            // when
+            val index = pool.putConstantInvokeDynamicInfo("run", "()V", 0)
+
+            // then
+            assertThat(index).isEqualTo(4)
+            assertThat(pool.build().entries).containsExactly(
+                ConstantUtf8Info("run"),
+                ConstantUtf8Info("()V"),
+                ConstantNameAndTypeInfo(nameIndex = 1, descriptorIndex = 2),
+                ConstantInvokeDynamicInfo(bootstrapMethodIndex = 0, nameAndTypeIndex = 3),
+            )
+        }
+
+        @Test
+        fun `returns the existing index for a duplicate name, descriptor and bootstrap method`() {
+            // given
+            val first = pool.putConstantInvokeDynamicInfo("run", "()V", 0)
+
+            // when
+            val second = pool.putConstantInvokeDynamicInfo("run", "()V", 0)
+
+            // then
+            assertThat(second).isEqualTo(first)
+            assertThat(pool.build().entries).hasSize(4)
+        }
+
+        @Test
+        fun `keeps an invokedynamic apart from a dynamic constant with the same key`() {
+            // when
+            val constant = pool.putConstantDynamicInfo("_", "I", 0)
+            val call = pool.putConstantInvokeDynamicInfo("_", "I", 0)
+
+            // then
+            assertThat(call).isNotEqualTo(constant)
+            assertThat(pool.build().entries).containsExactly(
+                ConstantUtf8Info("_"),
+                ConstantUtf8Info("I"),
+                ConstantNameAndTypeInfo(nameIndex = 1, descriptorIndex = 2),
+                ConstantDynamicInfo(bootstrapMethodIndex = 0, nameAndTypeIndex = 3),
+                ConstantInvokeDynamicInfo(bootstrapMethodIndex = 0, nameAndTypeIndex = 3),
+            )
+        }
+    }
+
+    @Nested
     inner class Build {
 
         @Test
@@ -570,6 +711,9 @@ class UpdatableConstantPoolTest {
             assertThatIllegalStateException().isThrownBy { pool.putString("s") }
             assertThatIllegalStateException().isThrownBy { pool.putConstantNameAndTypeInfo("f", "()V") }
             assertThatIllegalStateException().isThrownBy { pool.putRef(1, "f", "()V", METHOD) }
+            assertThatIllegalStateException().isThrownBy { pool.putConstantMethodHandleInfo(INVOKE_STATIC, 1) }
+            assertThatIllegalStateException().isThrownBy { pool.putConstantDynamicInfo("_", "I", 0) }
+            assertThatIllegalStateException().isThrownBy { pool.putConstantInvokeDynamicInfo("_", "()V", 0) }
         }
 
         @Test

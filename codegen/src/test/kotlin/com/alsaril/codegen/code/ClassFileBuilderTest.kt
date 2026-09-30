@@ -1,6 +1,9 @@
 package com.alsaril.codegen.code
 
+import com.alsaril.codegen.ByteClassLoader
+import com.alsaril.codegen.ClassWriter
 import com.alsaril.codegen.bytesOf
+import com.alsaril.codegen.classfile.attributes.AttributeInfo
 import com.alsaril.codegen.methodLimits
 import com.alsaril.codegen.code.ClassFileBuilder.Companion.classFile
 import com.alsaril.codegen.classfile.AccessFlag.FINAL
@@ -28,12 +31,12 @@ class ClassFileBuilderTest {
     }
 
     @Test
-    fun `starts with the magic number and the java 8 version`() {
+    fun `starts with the magic number and the java 21 version`() {
         // when
         val (_, bytes) = classFile("Header", "java/lang/Object").build()
 
         // then
-        assertThat(bytes).startsWith(*bytesOf(0xCA, 0xFE, 0xBA, 0xBE, 0x00, 0x00, 0x00, 0x34))
+        assertThat(bytes).startsWith(*bytesOf(0xCA, 0xFE, 0xBA, 0xBE, 0x00, 0x00, 0x00, 0x41))
     }
 
     @Test
@@ -43,6 +46,43 @@ class ClassFileBuilderTest {
 
         // then
         assertThat(bytes).endsWith(*bytesOf(0x00, 0x00))
+    }
+
+    @Test
+    fun `writes an attribute it was given at the end of the class`() {
+        // given
+        val attribute = object : AttributeInfo(nameIndex = 9) {
+            override fun ClassWriter.writeContent() = u1(0xAA)
+        }
+
+        // when
+        val (_, bytes) = classFile("Attributed", "java/lang/Object").attribute(attribute).build()
+
+        // then
+        assertThat(bytes).endsWith(*bytesOf(0x00, 0x01, 0x00, 0x09, 0x00, 0x00, 0x00, 0x01, 0xAA))
+    }
+
+    @Test
+    fun `writes one bootstrap methods attribute however many times it is built`() {
+        // given a class with a dynamic constant, built once already
+        val builder = classFile("GenBuiltTwice", "java/lang/Object")
+            .method("f", "()Ljava/lang/Object;", PUBLIC, STATIC) {
+                +ldc(constantDynamic(self(), "boot", "(${ClassFileBuilder.BOOTSTRAP_PREFIX})Ljava/lang/Object;"))
+                +areturn
+            }
+            .method("boot", "(${ClassFileBuilder.BOOTSTRAP_PREFIX})Ljava/lang/Object;", PRIVATE, STATIC) {
+                +ldc(string("built"))
+                +areturn
+            }
+        val first = builder.build()
+
+        // when
+        val second = builder.build()
+
+        // then the JVM, which refuses a second BootstrapMethods attribute, loads it the same
+        assertThat(second.second).isEqualTo(first.second)
+        assertThat(ByteClassLoader().loadClass(second.first, second.second).getDeclaredMethod("f").invoke(null))
+            .isEqualTo("built")
     }
 
     @Test

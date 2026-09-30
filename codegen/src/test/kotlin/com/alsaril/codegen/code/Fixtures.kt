@@ -8,7 +8,7 @@ import com.alsaril.codegen.constantpool.UpdatableConstantPool
 const val THIS_CLASS = "This"
 const val PARENT_CLASS = "Parent"
 
-fun builder(cp: UpdatableConstantPool = UpdatableConstantPool()) = CodeBuilder(cp, THIS_CLASS, PARENT_CLASS)
+fun builder(cp: UpdatableConstantPool = UpdatableConstantPool()) = CodeBuilder(cp, BootstrapMethods(), THIS_CLASS, PARENT_CLASS)
 
 fun bytecode(block: CodeBuilder.() -> Unit): ByteArray = builder().apply(block).build().bytecode()
 

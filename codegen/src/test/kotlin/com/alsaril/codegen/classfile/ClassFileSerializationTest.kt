@@ -5,6 +5,8 @@ import com.alsaril.codegen.ClassWriter
 import com.alsaril.codegen.bytesOf
 import com.alsaril.codegen.classfile.attributes.AppendFrame
 import com.alsaril.codegen.classfile.attributes.AttributeInfo
+import com.alsaril.codegen.classfile.attributes.BootstrapMethod
+import com.alsaril.codegen.classfile.attributes.BootstrapMethodsAttribute
 import com.alsaril.codegen.classfile.attributes.CodeAttribute
 import com.alsaril.codegen.classfile.attributes.ExceptionHandler
 import com.alsaril.codegen.classfile.attributes.FullFrame
@@ -60,6 +62,35 @@ class ClassFileSerializationTest {
         fun `writes a zero length for empty content`() {
             assertThat(RawAttribute(7, bytesOf()).serialized())
                 .containsExactly(*bytesOf(0x00, 0x07, 0x00, 0x00, 0x00, 0x00))
+        }
+
+        @Test
+        fun `writes bootstrap methods as a count followed by each method and its arguments`() {
+            // given one bootstrap method taking two arguments and one taking none
+            val attribute = BootstrapMethodsAttribute(
+                nameIndex = 1,
+                entries = listOf(BootstrapMethod(2, listOf(3, 258)), BootstrapMethod(4, emptyList())),
+            )
+
+            // then
+            assertThat(attribute.serialized()).containsExactly(
+                *bytesOf(
+                    0x00, 0x01,              // attribute_name_index
+                    0x00, 0x00, 0x00, 0x0E,  // attribute_length
+                    0x00, 0x02,              // num_bootstrap_methods
+                    0x00, 0x02,              // bootstrap_method_ref
+                    0x00, 0x02,              // num_bootstrap_arguments
+                    0x00, 0x03, 0x01, 0x02,  // bootstrap_arguments
+                    0x00, 0x04,              // bootstrap_method_ref
+                    0x00, 0x00,              // num_bootstrap_arguments
+                ),
+            )
+        }
+
+        @Test
+        fun `writes an empty bootstrap method table as a zero count`() {
+            assertThat(BootstrapMethodsAttribute(1, emptyList()).serialized())
+                .containsExactly(*bytesOf(0x00, 0x01, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00))
         }
 
         @Test
@@ -539,6 +570,7 @@ class ClassFileSerializationTest {
                 ifaceIndexes = emptyList(),
                 fields = emptyList(),
                 methods = emptyList(),
+                attributes = emptyList(),
                 constantPool = emptyPool,
             )
 
@@ -547,7 +579,7 @@ class ClassFileSerializationTest {
                 *bytesOf(
                     0xCA, 0xFE, 0xBA, 0xBE,  // magic
                     0x00, 0x00,              // minor_version
-                    0x00, 0x34,              // major_version: java 8
+                    0x00, 0x41,              // major_version: java 21
                     0x00, 0x01,              // constant_pool_count
                     0x00, 0x11,              // access_flags: public final
                     0x00, 0x01,              // this_class
@@ -563,7 +595,7 @@ class ClassFileSerializationTest {
         @Test
         fun `writes each interface index`() {
             // given
-            val file = ClassFile(1, 2, listOf(3, 4), emptyList(), emptyList(), emptyPool)
+            val file = ClassFile(1, 2, listOf(3, 4), emptyList(), emptyList(), emptyList(), emptyPool)
 
             // then
             assertThat(file.serialized()).endsWith(
@@ -580,7 +612,7 @@ class ClassFileSerializationTest {
         fun `writes each method after the count`() {
             // given
             val method = MethodInfo(0x0001, 1, 2, emptyList())
-            val file = ClassFile(1, 2, emptyList(), emptyList(), listOf(method, method), emptyPool)
+            val file = ClassFile(1, 2, emptyList(), emptyList(), listOf(method, method), emptyList(), emptyPool)
 
             // then
             assertThat(file.serialized()).endsWith(
@@ -598,7 +630,7 @@ class ClassFileSerializationTest {
             // given
             val field = FieldInfo(0x0002, 3, 4, emptyList())
             val method = MethodInfo(0x0001, 1, 2, emptyList())
-            val file = ClassFile(1, 2, emptyList(), listOf(field, field), listOf(method), emptyPool)
+            val file = ClassFile(1, 2, emptyList(), listOf(field, field), listOf(method), emptyList(), emptyPool)
 
             // then
             assertThat(file.serialized()).endsWith(
@@ -615,16 +647,35 @@ class ClassFileSerializationTest {
         }
 
         @Test
+        fun `writes each attribute after the count, after the methods`() {
+            // given
+            val method = MethodInfo(0x0001, 1, 2, emptyList())
+            val attributes = listOf(RawAttribute(5, bytesOf(0xAA)), RawAttribute(6, bytesOf()))
+            val file = ClassFile(1, 2, emptyList(), emptyList(), listOf(method), attributes, emptyPool)
+
+            // then
+            assertThat(file.serialized()).endsWith(
+                *bytesOf(
+                    0x00, 0x01,  // methods_count
+                    0x00, 0x01, 0x00, 0x01, 0x00, 0x02, 0x00, 0x00,
+                    0x00, 0x02,  // attributes_count
+                    0x00, 0x05, 0x00, 0x00, 0x00, 0x01, 0xAA,
+                    0x00, 0x06, 0x00, 0x00, 0x00, 0x00,
+                ),
+            )
+        }
+
+        @Test
         fun `embeds the constant pool between the version and the access flags`() {
             // given
             val pool = StaticConstantPool(2, listOf(ConstantIntegerInfo(1)))
-            val file = ClassFile(1, 2, emptyList(), emptyList(), emptyList(), pool)
+            val file = ClassFile(1, 2, emptyList(), emptyList(), emptyList(), emptyList(), pool)
 
             // then
             assertThat(file.serialized()).startsWith(
                 *bytesOf(
                     0xCA, 0xFE, 0xBA, 0xBE,
-                    0x00, 0x00, 0x00, 0x34,
+                    0x00, 0x00, 0x00, 0x41,
                     0x00, 0x02,                    // constant_pool_count
                     0x03, 0x00, 0x00, 0x00, 0x01,  // the single integer entry
                     0x00, 0x11,                    // access_flags follow the pool

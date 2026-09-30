@@ -1,11 +1,15 @@
 package com.alsaril.codegen.code
 
 import com.alsaril.codegen.DosWriter
+import com.alsaril.codegen.classfile.attributes.BootstrapMethod
 import com.alsaril.codegen.classfile.attributes.ExceptionHandler
-import com.alsaril.codegen.classfile.attributes.StackMapFrame
+import com.alsaril.codegen.classfile.parseFunctionDescriptor
 import com.alsaril.codegen.instruction.Instruction
 import com.alsaril.codegen.constantpool.ClassPointer
+import com.alsaril.codegen.constantpool.ConstantMethodHandleInfo.ReferenceKind.INVOKE_STATIC
+import com.alsaril.codegen.constantpool.DataPointer
 import com.alsaril.codegen.constantpool.UpdatableConstantPool
+import com.alsaril.codegen.constantpool.UpdatableConstantPool.RefType.METHOD
 import com.alsaril.codegen.write
 import java.io.ByteArrayOutputStream
 import java.io.DataOutputStream
@@ -16,6 +20,7 @@ annotation class CodeDsl
 @CodeDsl
 class CodeBuilder(
     internal val cp: UpdatableConstantPool,
+    internal val bootstrapMethods: BootstrapMethods,
     internal val thisClass: String,
     internal val parentClass: String,
 ) {
@@ -88,6 +93,15 @@ class CodeBuilder(
             }
         }
         return this
+    }
+
+    fun constantDynamic(clazz: ClassPointer, name: String, descriptor: String, vararg args: DataPointer): DataPointer {
+        val p = parseFunctionDescriptor(descriptor)
+        val methodIdx = cp.putRef(clazz.index, name, descriptor, METHOD)
+        val methodHandleIdx = cp.putConstantMethodHandleInfo(INVOKE_STATIC, methodIdx)
+        val bootstrapMethodIdx = bootstrapMethods.add(BootstrapMethod(methodHandleIdx, args.map { it.index }))
+        val idx = cp.putConstantDynamicInfo("_", p.returnType.descriptor, bootstrapMethodIdx)
+        return DataPointer(idx, p.returnType.verificationType)
     }
 
     fun size() = size

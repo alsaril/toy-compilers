@@ -93,3 +93,45 @@ data class ConstantNameAndTypeInfo(
         u2(descriptorIndex)
     }
 }
+
+data class ConstantMethodHandleInfo(
+    val referenceKind: ReferenceKind,
+    val referenceIndex: Int
+) : CpInfo(tag = 15) {
+    override fun ClassWriter.writeInfo() {
+        u1(referenceKind.tag)
+        u2(referenceIndex)
+    }
+
+    enum class ReferenceKind(val tag: Int) {
+        GET_FIELD(1),
+        GET_STATIC(2),
+        PUT_FIELD(3),
+        PUT_STATIC(4),
+        INVOKE_VIRTUAL(5),
+        INVOKE_STATIC(6),
+        INVOKE_SPECIAL(7),
+        NEW_INVOKE_SPECIAL(8),
+        INVOKE_INTERFACE(9),
+    }
+}
+
+data class ConstantDynamicInfo(
+    val bootstrapMethodIndex: Int,
+    val nameAndTypeIndex: Int
+) : CpInfo(tag = 17) {
+    override fun ClassWriter.writeInfo() {
+        u2(bootstrapMethodIndex)
+        u2(nameAndTypeIndex)
+    }
+}
+
+data class ConstantInvokeDynamicInfo(
+    val bootstrapMethodIndex: Int,
+    val nameAndTypeIndex: Int
+) : CpInfo(tag = 18) {
+    override fun ClassWriter.writeInfo() {
+        u2(bootstrapMethodIndex)
+        u2(nameAndTypeIndex)
+    }
+}

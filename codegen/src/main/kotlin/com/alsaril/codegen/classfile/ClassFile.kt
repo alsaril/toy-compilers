@@ -2,6 +2,7 @@ package com.alsaril.codegen.classfile
 
 import com.alsaril.codegen.ClassWriter
 import com.alsaril.codegen.Writable
+import com.alsaril.codegen.classfile.attributes.AttributeInfo
 import com.alsaril.codegen.constantpool.StaticConstantPool
 import com.alsaril.codegen.write
 
@@ -12,6 +13,7 @@ data class ClassFile(
     val ifaceIndexes: List<Int>,
     val fields: List<FieldInfo>,
     val methods: List<MethodInfo>,
+    val attributes: List<AttributeInfo>,
     val constantPool: StaticConstantPool,
 ) : Writable {
     private val ACC_PUBLIC = 0x0001
@@ -21,8 +23,8 @@ data class ClassFile(
         // magic
         u1(0xca); u1(0xfe); u1(0xba); u1(0xbe)
 
-        // minor_version, major_version: 1.8
-        u2(0); u2(52)
+        // minor_version, major_version: 21
+        u2(0); u2(65)
 
         // constant_pool_count, constant_pool
         write(constantPool)
@@ -33,7 +35,7 @@ data class ClassFile(
         // this_class
         u2(thisClassIndex)
 
-        // super_class: Object
+        // super_class
         u2(parentIndex)
 
         // interfaces_count, interfaces
@@ -48,7 +50,8 @@ data class ClassFile(
         u2(methods.size)
         methods.forEach(::write)
 
-        // attributes_count, attributes: 0
-        u2(0)
+        // attributes_count, attributes
+        u2(attributes.size)
+        attributes.forEach(::write)
     }
 }
