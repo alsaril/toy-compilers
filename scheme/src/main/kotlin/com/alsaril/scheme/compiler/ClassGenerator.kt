@@ -8,7 +8,6 @@ import com.alsaril.codegen.code.ClassFileBuilder.Companion.classFile
 import com.alsaril.codegen.instruction.*
 import com.alsaril.scheme.parser.*
 import com.alsaril.scheme.parser.Number
-import com.alsaril.scheme.runtime.Nil
 import kotlin.LazyThreadSafetyMode.NONE
 
 object ClassGenerator {
@@ -50,15 +49,15 @@ object ClassGenerator {
         classFile("Lambda${lambdaCnt++}", parent = "java/lang/Object")
             .iface("com/alsaril/scheme/runtime/Function")
             .field("scope", "Lcom/alsaril/scheme/runtime/Environment;", PRIVATE, FINAL)
-            .field("args", "[Ljava/lang/String;", PRIVATE, FINAL)
-            .field("rest", "Ljava/lang/String;", PRIVATE, FINAL)
             .method("<init>", "(Lcom/alsaril/scheme/runtime/Environment;)V", PUBLIC) {
                 +aload(0)
                 invokespecial(parent(), "<init>", "()V")
                 +aload(0)
                 +aload(1)
                 +putfield(field(self(), "scope", "Lcom/alsaril/scheme/runtime/Environment;"))
-                +aload(0)
+                +`return`
+            }
+            .method("buildArgs", "(${CBP})[Ljava/lang/String;", PRIVATE, STATIC, FINAL) {
                 +ldc(int(args.size))
                 +anewarray(clazz("java/lang/String"))
                 args.forEachIndexed { index, string ->
@@ -67,18 +66,9 @@ object ClassGenerator {
                     +ldc(string(string))
                     +aastore
                 }
-                +putfield(field(self(), "args", "[Ljava/lang/String;"))
-                +aload(0)
-                if (rest != null) {
-                    +ldc(string(rest))
-                } else {
-                    +aconst_null
-                }
-                +putfield(field(self(), "rest", "Ljava/lang/String;"))
-                +`return`
+                +areturn
             }
-
-            .generateLambdaBody(nodes, context)
+            .generateLambdaBody(rest, nodes, context)
             .build()
 
     private fun CodeBuilder.resolveSymbol(name: String) {
@@ -267,7 +257,7 @@ object ClassGenerator {
             it.name
         }
         require(rest is Symbol?)
-        require(args.size == args.toSet().size)
+        require(argNames.size == argNames.toSet().size)
         require(rest?.name !in argNames)
 
         val lambda = generateLambda(argNames, rest?.name, nodes, context)
@@ -305,7 +295,10 @@ object ClassGenerator {
             return
         }
         when (node) {
-            is Null -> `null`()
+            is Null -> {
+                require(!exec)
+                `null`()
+            }
             is Number -> number(node.value)
             is Symbol -> when (node.name) {
                 "#f" -> boolean(false)
@@ -321,13 +314,15 @@ object ClassGenerator {
             +areturn
         }
 
-    private fun ClassFileBuilder.generateLambdaBody(nodes: List<Node>, context: Context) =
+    private fun ClassFileBuilder.generateLambdaBody(rest: String?, nodes: List<Node>, context: Context) =
         method("call", "(Ljava/lang/Object;)Ljava/lang/Object;", PUBLIC, FINAL) {
             +aload(1)
-            +aload(0)
-            +getfield(field(self(), "args", "[Ljava/lang/String;"))
-            +aload(0)
-            +getfield(field(self(), "rest", "Ljava/lang/String;"))
+            +ldc(constantDynamic(self(), "buildArgs", "(${CBP})[Ljava/lang/String;"))
+            if (rest != null) {
+                +ldc(string(rest))
+            } else {
+                +aconst_null
+            }
             +aload(0)
             +getfield(field(self(), "scope", "Lcom/alsaril/scheme/runtime/Environment;"))
             invokestatic(clazz("com/alsaril/scheme/runtime/Binder"), "bind", "(Ljava/lang/Object;[Ljava/lang/String;Ljava/lang/String;Lcom/alsaril/scheme/runtime/Environment;)Lcom/alsaril/scheme/runtime/Environment;")
