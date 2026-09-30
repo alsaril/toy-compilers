@@ -49,6 +49,7 @@ class GlobalEnvironment : Environment {
     init {
         map["boolean?"] = f1 { it is Boolean }
         map["number?"] = f1 { it is Int }
+        map["symbol?"] = f1 { it is Symbol }
         map["not"] = f1 { it == false }
         map["="] = comparison { a, b -> a == b }
         map["<"] = comparison { a, b -> a < b }
