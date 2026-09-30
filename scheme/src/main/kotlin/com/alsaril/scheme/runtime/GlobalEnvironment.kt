@@ -53,6 +53,18 @@ class GlobalEnvironment : Environment {
         it.asSequence().drop(1).fold(it.first(), f)
     }
 
+    private fun drop(list: Any, count: Int): Any {
+        require(count >= 0)
+        var it = list
+        var i: Int = count
+        while (it is Cons && i > 0) {
+            it = it.second
+            i--
+        }
+        require(i == 0)
+        return it
+    }
+
     init {
         map["boolean?"] = f1 { it is Boolean }
         map["number?"] = f1 { it is Int }
@@ -69,6 +81,15 @@ class GlobalEnvironment : Environment {
         map["cons"] = f2(::Cons)
         map["car"] = f1 { (it as Cons).first }
         map["cdr"] = f1 { (it as Cons).second }
+        map["list"] = object : Function {
+            override fun call(args: Any) = args
+        }
+        map["list-ref"] = f2 { list, index ->
+            val tail = drop(list, index as Int)
+            require(tail is Cons)
+            tail.first
+        }
+        map["list-tail"] = f2 { list, index -> drop(list, index as Int)}
         map["not"] = f1 { it == false }
         map["="] = comparison { a, b -> a == b }
         map["<"] = comparison { a, b -> a < b }

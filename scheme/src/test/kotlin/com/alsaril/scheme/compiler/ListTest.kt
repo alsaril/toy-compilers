@@ -156,4 +156,41 @@ class ListTest {
         // then
         assertThat(result).isEqualTo(expected)
     }
+
+    @ParameterizedTest
+    @CsvSource(
+        "(list), ()",
+        "(list 1), (1)",
+        "(list 1 2 3), (1 2 3)",
+        "(list-ref '(1 2 3) 1), 2",
+        "(list-tail '(1 2 3) 1), (2 3)",
+        "(list-tail '(1 2 3) 3), ()",
+        quoteCharacter = '$'
+    )
+    fun `list operations`(input: String, expected: String) {
+        // given
+        val env = GlobalEnvironment()
+
+        // when
+        val result = compile(input).run(env).let(::print)
+
+        // then
+        assertThat(result).isEqualTo(expected)
+    }
+
+    @ParameterizedTest
+    @CsvSource(
+        "(list-ref '(1 2 3) 3)",
+        "(list-ref '(1 2 3) 10)",
+        "(list-tail '(1 2 3) 10)",
+        "(1 . 2 3)",
+        quoteCharacter = '$'
+    )
+    fun `invalid list operations`(input: String) {
+        // given
+        val env = GlobalEnvironment()
+
+        // when / then
+        assertThatThrownBy { compile(input).run(env) }
+    }
 }
