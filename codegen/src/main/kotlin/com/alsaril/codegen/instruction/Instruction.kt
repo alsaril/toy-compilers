@@ -72,6 +72,7 @@ data class ldc(val index: Int, val type: VerificationType) : Instruction {
 
     init {
         require(index in 0..0xffff) { "$index does not fit a u2" }
+        require(type.slots == 1) { "ldc loads a one slot constant, but $type takes ${type.slots}, ldc2_w should be used" }
     }
 
     override fun stackEffect() = gives(type)
@@ -83,6 +84,16 @@ data class ldc(val index: Int, val type: VerificationType) : Instruction {
             u1(0x13); u2(index)
         }
     }
+}
+
+data class ldc2_w(val index: Int, val type: VerificationType) : TwoBytesArgInstruction(0x14, index) {
+    constructor(pointer: DataPointer) : this(pointer.index, pointer.type)
+
+    init {
+        require(type.slots == 2) { "ldc2_w loads a two slot constant, but $type takes ${type.slots}, ldc should be used" }
+    }
+
+    override fun stackEffect() = gives(type)
 }
 
 data class iload(override val index: Int) : LocalSlotInstruction(0x1a, 0x15) {

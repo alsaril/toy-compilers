@@ -1006,6 +1006,28 @@ class GeneratedClassTest {
     }
 
     @Test
+    fun `loads a long and a double from the pool with ldc2_w`() {
+        // given constants lconst has no opcode for, handed to the boxing methods that take them
+        val (name, bytes) = classFile("GenLdc2w", "java/lang/Object")
+            .method("long", "()Ljava/lang/Object;", PUBLIC, STATIC) {
+                +ldc2_w(long(1L shl 40))
+                invokestatic(clazz("java/lang/Long"), "valueOf", "(J)Ljava/lang/Long;")
+                +areturn
+            }
+            .method("double", "()Ljava/lang/Object;", PUBLIC, STATIC) {
+                +ldc2_w(double(2.5))
+                invokestatic(clazz("java/lang/Double"), "valueOf", "(D)Ljava/lang/Double;")
+                +areturn
+            }
+            .build()
+        val clazz = ByteClassLoader().loadClass(name, bytes)
+
+        // then
+        assertThat(clazz.getDeclaredMethod("long").invoke(null)).isEqualTo(1L shl 40)
+        assertThat(clazz.getDeclaredMethod("double").invoke(null)).isEqualTo(2.5)
+    }
+
+    @Test
     fun `copies two ints or one long with dup2`() {
         // given 2 + 3 + 2 + 3, and 1 + 1 as a long
         val (name, bytes) = classFile("GenDup2", "java/lang/Object")

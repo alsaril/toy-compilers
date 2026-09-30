@@ -67,10 +67,10 @@ class ClassFileBuilderTest {
         // given a class with a dynamic constant, built once already
         val builder = classFile("GenBuiltTwice", "java/lang/Object")
             .method("f", "()Ljava/lang/Object;", PUBLIC, STATIC) {
-                +ldc(constantDynamic(self(), "boot", "(${ClassFileBuilder.BOOTSTRAP_PREFIX})Ljava/lang/Object;"))
+                +ldc(constantDynamic(self(), "boot", "(${CBP})Ljava/lang/Object;"))
                 +areturn
             }
-            .method("boot", "(${ClassFileBuilder.BOOTSTRAP_PREFIX})Ljava/lang/Object;", PRIVATE, STATIC) {
+            .method("boot", "(${CBP})Ljava/lang/Object;", PRIVATE, STATIC) {
                 +ldc(string("built"))
                 +areturn
             }
@@ -325,6 +325,11 @@ class ClassFileBuilderTest {
                 +aastore
                 +`return`
             }).isEqualTo(3)
+        }
+
+        @Test
+        fun `counts a long or a double from the pool as two slots`() {
+            assertThat(stack("()V", STATIC) { +ldc2_w(long(1L shl 40)); +ldc2_w(double(2.5)); +`return` }).isEqualTo(4)
         }
 
         @Test

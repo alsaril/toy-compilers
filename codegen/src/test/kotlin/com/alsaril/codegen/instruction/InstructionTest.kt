@@ -10,6 +10,7 @@ import com.alsaril.codegen.constantpool.DataPointer
 import com.alsaril.codegen.verification.AnyReference
 import com.alsaril.codegen.verification.OfType
 import com.alsaril.codegen.verification.OneOf
+import com.alsaril.codegen.verification.PrimitiveType.DOUBLE
 import com.alsaril.codegen.verification.PrimitiveType.FLOAT
 import com.alsaril.codegen.verification.PrimitiveType.INTEGER
 import com.alsaril.codegen.verification.PrimitiveType.LONG
@@ -146,6 +147,40 @@ class InstructionTest {
                 .containsExactly(*bytesOf(0x13, 0x01, 0x00))
             assertThat(bytecode { +ldc(DataPointer(65535, INTEGER)) })
                 .containsExactly(*bytesOf(0x13, 0xFF, 0xFF))
+        }
+
+        @Test
+        fun `refuses a long or a double, which ldc2_w loads`() {
+            assertThatIllegalArgumentException()
+                .isThrownBy { ldc(DataPointer(1, LONG)) }
+                .withMessage("ldc loads a one slot constant, but LONG takes 2, ldc2_w should be used")
+            assertThatIllegalArgumentException()
+                .isThrownBy { ldc(DataPointer(1, DOUBLE)) }
+                .withMessage("ldc loads a one slot constant, but DOUBLE takes 2, ldc2_w should be used")
+        }
+
+        @Test
+        fun `writes ldc2_w with a two byte index, however low`() {
+            // ldc2_w has no single byte form
+            assertThat(bytecode { +ldc2_w(DataPointer(1, LONG)) }).containsExactly(*bytesOf(0x14, 0x00, 0x01))
+            assertThat(bytecode { +ldc2_w(DataPointer(65535, DOUBLE)) }).containsExactly(*bytesOf(0x14, 0xFF, 0xFF))
+        }
+
+        @Test
+        fun `refuses ldc2_w of a one slot constant, which ldc loads`() {
+            assertThatIllegalArgumentException()
+                .isThrownBy { ldc2_w(DataPointer(1, INTEGER)) }
+                .withMessage("ldc2_w loads a two slot constant, but INTEGER takes 1, ldc should be used")
+            assertThatIllegalArgumentException()
+                .isThrownBy { ldc2_w(DataPointer(1, ReferenceType("java/lang/String"))) }
+                .withMessage("ldc2_w loads a two slot constant, but ReferenceType(descriptor=java/lang/String) takes 1, ldc should be used")
+        }
+
+        @Test
+        fun `refuses ldc2_w past a two byte index`() {
+            assertThatIllegalArgumentException()
+                .isThrownBy { ldc2_w(DataPointer(65536, LONG)) }
+                .withMessage("65536 does not fit a u2")
         }
     }
 
@@ -392,6 +427,8 @@ class InstructionTest {
             assertThat(iconst(7).stackEffect()).isEqualTo(gives(INTEGER))
             assertThat(lconst(1).stackEffect()).isEqualTo(gives(LONG))
             assertThat(fconst(1).stackEffect()).isEqualTo(gives(FLOAT))
+            assertThat(ldc2_w(DataPointer(3, LONG)).stackEffect()).isEqualTo(gives(LONG))
+            assertThat(ldc2_w(DataPointer(3, DOUBLE)).stackEffect()).isEqualTo(gives(DOUBLE))
             assertThat(ldc(DataPointer(3, ReferenceType("java/lang/String"))).stackEffect())
                 .isEqualTo(gives(ReferenceType("java/lang/String")))
         }

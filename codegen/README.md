@@ -2,7 +2,7 @@
 
 Writes JVM class files by hand — constant pool, fields, methods, bytecode, stack map frames
 and exception handlers. No ASM. Language-agnostic: it knows about the class file format,
-nothing about sources.
+nothing about sources. Classes are written as version 65, the format of Java 21.
 
 A method body is given as instructions alone. Everything the class file needs to know about
 the code on top of that — `max_stack`, `max_locals` and the stack map frames — is derived by
@@ -22,7 +22,7 @@ Six packages, and the dependencies run one way — `code` on top, then `instruct
 
 | package | holds |
 |---|---|
-| `code` | `ClassFileBuilder`, `CodeBuilder`, `Fragment`, `BytecodeSerializer`, `Analyzer`, `Locals`, `ClassHierarchy`, `Members`, `Pointers` — everything that builds |
+| `code` | `ClassFileBuilder`, `CodeBuilder`, `Fragment`, `BytecodeSerializer`, `Analyzer`, `Locals`, `ClassHierarchy`, `Members`, `Pointers`, `DynamicConstants`, `BootstrapMethods` — everything that builds |
 | `instruction` | the opcodes, their encodings, and their effects on the stack and the locals |
 | `classfile` | the static JVMS records: `ClassFile`, `FieldInfo`, `MethodInfo`, `AccessFlag`, descriptors, and `attributes/` |
 | `constantpool` | the pool, and the typed indices into it (`ClassPointer`, `MethodDescriptor`, `FieldDescriptor`, `DataPointer`) |
@@ -37,8 +37,9 @@ offset and never describes a frame.
 Everything serialisable implements `Writable`, which writes into a `ClassWriter` — a narrow
 byte sink implemented once, by `DosWriter` (`u1`, `s1`, `u2`, `s2`, `int`, `float`, `long`,
 `double`, `bytes`, `utf8`). Class file structures follow JVMS §4.1–4.7 one-to-one:
-`ClassFile`, `FieldInfo`, `MethodInfo`, `AttributeInfo` with `CodeAttribute` and
-`StackMapTableAttribute`, and `ExceptionHandler` for a row of the `Code` attribute's exception table.
+`ClassFile`, `FieldInfo`, `MethodInfo`, `AttributeInfo` with `CodeAttribute`,
+`StackMapTableAttribute` and `BootstrapMethodsAttribute`, and `ExceptionHandler` for a row of
+the `Code` attribute's exception table.
 
 ## Analysis
 
@@ -124,13 +125,15 @@ value as something narrower.
 
 `UpdatableConstantPool` collects entries while code is generated, then freezes into a
 `StaticConstantPool`. Every kind is **cached and deduplicated** — utf8, int, long, double,
-class, string, name-and-type, and field/method/interface refs — so repeating a name or a
-descriptor costs one entry. Long and double correctly occupy two slots.
+class, string, name-and-type, field/method/interface refs, method handles, dynamic constants
+and invokedynamic entries — so repeating a name or a descriptor costs one entry. Long and
+double correctly occupy two slots.
 
 `ClassPointer` / `DataPointer` resolve to a pool index at creation, so `clazz("A")` or
 `string("boom")` registers once and the index is fixed from then on. Each also carries what
 the analyzer needs to know about it: a `ClassPointer` the class name, a `DataPointer` the
-type of the constant it loads.
+type of the constant it loads. `int`, `float`, `long`, `double` and `string` each hand out a
+`DataPointer`, and so does [`constantDynamic`](#dynamic-constants).
 
 ## Instructions
 
@@ -158,9 +161,11 @@ being a keyword.
   re-slotting or re-valuing one re-encodes it: `LocalSlotInstruction` takes the compact
   form for slots 0–3, the operand form to 255 and the wide prefix past that; `iconst`
   spans `iconst_<i>`, `bipush` and `sipush`; `ldc` and `iinc` each pick between a narrow
-  and a wide form. `iconst`, `lconst`, `fconst`, `ldc` and `iinc` carry their range check
-  in `init`; `LocalSlotInstruction` checks its slot as it writes, its `index` being
-  abstract and so out of reach of the base class's `init`.
+  and a wide form, where `ldc2_w` has the wide one alone. `iconst`, `lconst`, `fconst`,
+  `ldc` and `iinc` carry their range check in `init`; `LocalSlotInstruction` checks its slot
+  as it writes, its `index` being abstract and so out of reach of the base class's `init`.
+  `ldc` and `ldc2_w` also check the constant takes the slots they load: one for `ldc`, two —
+  a long or a double — for `ldc2_w`.
 - **`Effects.kt`** — `StackEffect` for the operand stack, `Read` and `Write` for a local
   slot. A `StackEffect` names the top of the stack an instruction expects, `before`, and
   what it leaves there, `after`, both listed bottom to top as JVMS writes
@@ -232,15 +237,19 @@ where a byte offset would have had to be recomputed, and a jump patched.
 - `int` — constants, locals, `iinc`, arithmetic, loads and stores into `int[]`, `byte[]` and
   `boolean[]`, comparisons with zero and with each other, returns;
 - `float` — constants, locals, arithmetic, negation, returns;
-- `long` — the constants 0 and 1, and stores to a local;
+- `long` — constants, and stores to a local;
+- `double` — constants;
 - references — `aconst_null`, locals, `new`, `newarray`, `anewarray`, loads and stores
   into arrays of references, `checkcast`, `instanceof`, identity and null comparisons,
   `areturn`, `athrow`;
 - fields and calls — `getstatic`, `getfield`, `putfield` and the invoke family;
-- the stack — `pop`, `pop2`, `dup`, `dup_x1`, `dup_x2`, `dup2`.
+- the stack — `pop`, `pop2`, `dup`, `dup_x1`, `dup_x2`, `dup2`;
+- the pool — `ldc` for a one slot constant, `ldc2_w` for a long or a double, either for a
+  [dynamic constant](#dynamic-constants).
 
 A float constant that has an opcode of its own (0, 1, 2) uses it; any other goes to the pool
-as `ldc`. A long constant is `lconst`, 0 or 1. `newarray` takes the `PrimitiveType` of its
+as `ldc`. A long constant 0 or 1 is `lconst`; any other long, and any double, goes to the
+pool as `ldc2_w`. `newarray` takes the `PrimitiveType` of its
 element and encodes the atype code itself; `anewarray` takes a `ClassPointer` to a class, an
 interface or an array, as `clazz("java/lang/String")` or `clazz("[I")`.
 
@@ -305,6 +314,34 @@ classFile("Holder", "java/lang/Object")
 
 Fields are written in the order they were declared, with no attributes — so no
 `ConstantValue`; a field starts at its default and is set by code.
+
+## Dynamic constants
+
+A dynamic constant is computed by a static bootstrap method the first time it is loaded, and
+every load after that gives the same value:
+
+```kotlin
+val bootstrap = "(${CBP}Ljava/lang/String;)Ljava/lang/String;"
++ldc(constantDynamic(self(), "greeting", bootstrap, string("world")))
+```
+
+`constantDynamic` takes the class that declares the bootstrap method, its name and its whole
+descriptor, then the constants the method is given as its remaining arguments — any
+`DataPointer`, another dynamic constant included. The descriptor starts with
+`CBP`, the three parameters the JVM passes first: the lookup, the
+constant's name and its type. The constant takes the type the method returns, so the
+`DataPointer` handed back is loaded by `ldc`, or by `ldc2_w` for a long or a double. A method
+whose descriptor does not start with the prefix, or that returns `void`, is refused. Every
+constant is named `_`.
+
+Each constant registers a method ref, a static method handle to it, a bootstrap method and
+the constant itself. The bootstrap methods are kept per class, shared by every code builder
+it hands out and deduplicated like the pool — one handle with the same arguments is one
+bootstrap method — and written as the class's `BootstrapMethods` attribute when there is at
+least one.
+
+`attribute(...)` on `ClassFileBuilder` adds any other attribute to the class; attributes are
+written after the methods, in the order they were given.
 
 ## Exception handlers
 

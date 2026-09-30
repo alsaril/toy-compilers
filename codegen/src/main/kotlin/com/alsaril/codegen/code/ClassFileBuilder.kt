@@ -108,8 +108,6 @@ class ClassFileBuilder {
     fun newCodeBuilder() = CodeBuilder(cp, bootstrapMethods, thisName, parentName)
 
     companion object {
-        const val BOOTSTRAP_PREFIX = "Ljava/lang/invoke/MethodHandles\$Lookup;Ljava/lang/String;Ljava/lang/Class;"
-
         fun classFile(name: String, parent: String, hierarchy: ClassHierarchy = LenientHierarchy) =
             ClassFileBuilder(name, parent, hierarchy)
     }
