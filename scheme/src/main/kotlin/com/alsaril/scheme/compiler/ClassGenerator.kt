@@ -8,6 +8,7 @@ import com.alsaril.codegen.code.ClassFileBuilder.Companion.classFile
 import com.alsaril.codegen.instruction.*
 import com.alsaril.scheme.parser.*
 import com.alsaril.scheme.parser.Number
+import com.alsaril.scheme.runtime.Nil
 import kotlin.LazyThreadSafetyMode.NONE
 
 object ClassGenerator {
@@ -40,19 +41,44 @@ object ClassGenerator {
         return ClassGraph(root, context.classes())
     }
 
-    private fun generateLambda(args: List<String>, nodes: List<Node>, context: Context): Pair<String, ByteArray> =
+    private fun generateLambda(
+        args: List<String>,
+        rest: String?,
+        nodes: List<Node>,
+        context: Context
+    ): Pair<String, ByteArray> =
         classFile("Lambda${lambdaCnt++}", parent = "java/lang/Object")
             .iface("com/alsaril/scheme/runtime/Function")
+            .field("scope", "Lcom/alsaril/scheme/runtime/Environment;", PRIVATE, FINAL)
+            .field("args", "[Ljava/lang/String;", PRIVATE, FINAL)
+            .field("rest", "Ljava/lang/String;", PRIVATE, FINAL)
             .method("<init>", "(Lcom/alsaril/scheme/runtime/Environment;)V", PUBLIC) {
                 +aload(0)
                 invokespecial(parent(), "<init>", "()V")
                 +aload(0)
                 +aload(1)
                 +putfield(field(self(), "scope", "Lcom/alsaril/scheme/runtime/Environment;"))
+                +aload(0)
+                +ldc(int(args.size))
+                +anewarray(clazz("java/lang/String"))
+                args.forEachIndexed { index, string ->
+                    +dup
+                    +ldc(int(index))
+                    +ldc(string(string))
+                    +aastore
+                }
+                +putfield(field(self(), "args", "[Ljava/lang/String;"))
+                +aload(0)
+                if (rest != null) {
+                    +ldc(string(rest))
+                } else {
+                    +aconst_null
+                }
+                +putfield(field(self(), "rest", "Ljava/lang/String;"))
                 +`return`
             }
-            .field("scope", "Lcom/alsaril/scheme/runtime/Environment;", PRIVATE, FINAL)
-            .generateLambdaBody(args, nodes, context)
+
+            .generateLambdaBody(nodes, context)
             .build()
 
     private fun CodeBuilder.resolveSymbol(name: String) {
@@ -102,14 +128,19 @@ object ClassGenerator {
     }
 
     private fun collectArgs(args: Node): List<Node> {
+        val (list, rest) = collectUnproperArgs(args)
+        require(rest == null)
+        return list
+    }
+
+    private fun collectUnproperArgs(args: Node): Pair<List<Node>, Node?> {
         var i = args
         val result = mutableListOf<Node>()
         while (i is Cell) {
             result.add(i.first)
             i = i.second
         }
-        require(i is Null)
-        return result
+        return result to (if (i is Null) null else i)
     }
 
     private fun CodeBuilder.boolTemplate(l: List<Node>, identity: Boolean, context: Context) {
@@ -230,13 +261,16 @@ object ClassGenerator {
 
         val head = l.first()
         val nodes = l.drop(1)
-        val argNames = collectArgs(head).map {
-            require(it is Symbol)
+        val (args, rest) = collectUnproperArgs(head)
+        val argNames = args.map {
+            it as Symbol
             it.name
         }
-        require(argNames.size == argNames.toSet().size)
+        require(rest is Symbol?)
+        require(args.size == args.toSet().size)
+        require(rest?.name !in argNames)
 
-        val lambda = generateLambda(argNames, nodes, context)
+        val lambda = generateLambda(argNames, rest?.name, nodes, context)
         context.addClass(lambda)
 
         +new(clazz(lambda.first))
@@ -287,53 +321,17 @@ object ClassGenerator {
             +areturn
         }
 
-    private fun ClassFileBuilder.generateLambdaBody(args: List<String>, nodes: List<Node>, context: Context) =
+    private fun ClassFileBuilder.generateLambdaBody(nodes: List<Node>, context: Context) =
         method("call", "(Ljava/lang/Object;)Ljava/lang/Object;", PUBLIC, FINAL) {
             +aload(1)
-            +astore(2)
-            +new(clazz("com/alsaril/scheme/runtime/LocalEnvironment"))
-            +dup
+            +aload(0)
+            +getfield(field(self(), "args", "[Ljava/lang/String;"))
+            +aload(0)
+            +getfield(field(self(), "rest", "Ljava/lang/String;"))
             +aload(0)
             +getfield(field(self(), "scope", "Lcom/alsaril/scheme/runtime/Environment;"))
-            invokespecial(
-                clazz("com/alsaril/scheme/runtime/LocalEnvironment"),
-                "<init>",
-                "(Lcom/alsaril/scheme/runtime/Environment;)V"
-            )
+            invokestatic(clazz("com/alsaril/scheme/runtime/Binder"), "bind", "(Ljava/lang/Object;[Ljava/lang/String;Ljava/lang/String;Lcom/alsaril/scheme/runtime/Environment;)Lcom/alsaril/scheme/runtime/Environment;")
             +astore(1)
-
-            val fails = args.map { name ->
-                +aload(2)
-                +instanceof(clazz("com/alsaril/scheme/runtime/Cons"))
-                val fail = +ifeq
-
-                +aload(2)
-                +checkcast(clazz("com/alsaril/scheme/runtime/Cons"))
-                +astore(2)
-
-                +aload(1)
-                +ldc(string(name))
-                +aload(2)
-                invokevirtual(clazz("com/alsaril/scheme/runtime/Cons"), "getFirst", "()Ljava/lang/Object;")
-                invokeinterface(
-                    clazz("com/alsaril/scheme/runtime/Environment"),
-                    "define",
-                    "(Ljava/lang/String;Ljava/lang/Object;)V"
-                )
-
-                +aload(2)
-                invokevirtual(clazz("com/alsaril/scheme/runtime/Cons"), "getSecond", "()Ljava/lang/Object;")
-                +astore(2)
-
-                fail
-            }
-
-            +aload(2)
-            +instanceof(clazz("com/alsaril/scheme/runtime/Nil"))
-            val fail = +ifeq
-
-            +aconst_null
-            +astore(2)
             nodes.forEachIndexed { index, node ->
                 list(node, resolve = true, exec = true, context)
                 if (index == nodes.size - 1) {
@@ -342,13 +340,5 @@ object ClassGenerator {
                     +pop
                 }
             }
-
-            fails.forEach { link(it, end()) }
-            link(fail, end())
-            +new(clazz("java/lang/RuntimeException"))
-            +dup
-            +ldc(string("Lambda arguments mismatch"))
-            invokespecial(clazz("java/lang/RuntimeException"), "<init>", "(Ljava/lang/String;)V")
-            +athrow
         }
 }
