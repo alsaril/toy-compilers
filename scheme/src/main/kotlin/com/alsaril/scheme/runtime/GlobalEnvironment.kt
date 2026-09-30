@@ -15,6 +15,13 @@ class GlobalEnvironment : Environment {
         }
     }
 
+    private fun f2(f: (Any, Any) -> Any) = object : Function {
+        override fun call(args: Any): Any {
+            require(args is Cons && args.second is Cons && args.second.second is Nil)
+            return f(args.first, args.second.first)
+        }
+    }
+
     private fun fvar(f: (List<Any>) -> Any) = object : Function {
         override fun call(args: Any): Any {
             val l = mutableListOf<Any>()
@@ -35,7 +42,7 @@ class GlobalEnvironment : Environment {
     }
 
     private fun comparison(f: (Int, Int) -> Boolean) = fnumvar {
-        (it.asSequence() zip it.asSequence().drop(1)).fold(true) {acc, (a, b) -> acc && f(a, b)}
+        (it.asSequence() zip it.asSequence().drop(1)).fold(true) { acc, (a, b) -> acc && f(a, b) }
     }
 
     private fun arithmetic(identity: Int? = null, f: (Int, Int) -> Int) = fnumvar {
@@ -50,6 +57,18 @@ class GlobalEnvironment : Environment {
         map["boolean?"] = f1 { it is Boolean }
         map["number?"] = f1 { it is Int }
         map["symbol?"] = f1 { it is Symbol }
+        map["pair?"] = f1 { it is Cons }
+        map["null?"] = f1 { it is Nil }
+        map["list?"] = f1 {
+            var i = it
+            while (i is Cons) {
+                i = i.second
+            }
+            i is Nil
+        }
+        map["cons"] = f2(::Cons)
+        map["car"] = f1 { (it as Cons).first }
+        map["cdr"] = f1 { (it as Cons).second }
         map["not"] = f1 { it == false }
         map["="] = comparison { a, b -> a == b }
         map["<"] = comparison { a, b -> a < b }
