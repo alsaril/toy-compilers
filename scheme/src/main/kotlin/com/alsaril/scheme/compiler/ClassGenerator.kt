@@ -40,7 +40,7 @@ object ClassGenerator {
         return ClassGraph(root, context.classes())
     }
 
-    private fun generateLambda(args: List<Symbol>, nodes: List<Node>, context: Context): Pair<String, ByteArray> =
+    private fun generateLambda(args: List<String>, nodes: List<Node>, context: Context): Pair<String, ByteArray> =
         classFile("Lambda${lambdaCnt++}", parent = "java/lang/Object")
             .iface("com/alsaril/scheme/runtime/Function")
             .method("<init>", "(Lcom/alsaril/scheme/runtime/Environment;)V", PUBLIC) {
@@ -230,11 +230,13 @@ object ClassGenerator {
 
         val head = l.first()
         val nodes = l.drop(1)
-        val argNames = collectArgs(head)
-        require(argNames.all { it is Symbol })
+        val argNames = collectArgs(head).map {
+            require(it is Symbol)
+            it.name
+        }
+        require(argNames.size == argNames.toSet().size)
 
-        @Suppress("UNCHECKED_CAST")
-        val lambda = generateLambda(argNames as List<Symbol>, nodes, context)
+        val lambda = generateLambda(argNames, nodes, context)
         context.addClass(lambda)
 
         +new(clazz(lambda.first))
@@ -285,7 +287,7 @@ object ClassGenerator {
             +areturn
         }
 
-    private fun ClassFileBuilder.generateLambdaBody(args: List<Symbol>, nodes: List<Node>, context: Context) =
+    private fun ClassFileBuilder.generateLambdaBody(args: List<String>, nodes: List<Node>, context: Context) =
         method("call", "(Ljava/lang/Object;)Ljava/lang/Object;", PUBLIC, FINAL) {
             +aload(1)
             +astore(2)
@@ -310,7 +312,7 @@ object ClassGenerator {
                 +astore(2)
 
                 +aload(1)
-                +ldc(string(name.name))
+                +ldc(string(name))
                 +aload(2)
                 invokevirtual(clazz("com/alsaril/scheme/runtime/Cons"), "getFirst", "()Ljava/lang/Object;")
                 invokeinterface(
