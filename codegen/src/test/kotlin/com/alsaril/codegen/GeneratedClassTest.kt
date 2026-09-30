@@ -454,6 +454,74 @@ class GeneratedClassTest {
     }
 
     @Test
+    fun `stores and reads references with aastore and aaload`() {
+        // given the argument stored at 1 and null at 0, with the array kept in a local
+        // across a jump so a frame has to name it
+        val (name, bytes) = classFile("GenObjectArray", "java/lang/Object")
+            .method("f", "(Ljava/lang/String;I)Ljava/lang/String;", PUBLIC, STATIC) {
+                +iconst(2)
+                +anewarray(clazz("java/lang/String"))
+                +astore(2)
+                +aload(2)
+                +iconst(1)
+                +aload(0)
+                +aastore
+                +aload(2)
+                +iconst(0)
+                +aconst_null
+                +aastore
+                val skip = +goto
+                val target = +aload(2)
+                link(skip, target)
+                +iload(1)
+                +aaload
+                +areturn
+            }
+            .build()
+        val method = ByteClassLoader().loadClass(name, bytes)
+            .getDeclaredMethod("f", String::class.java, Int::class.javaPrimitiveType)
+
+        // then
+        assertThat(method.invoke(null, "s", 1)).isEqualTo("s")
+        assertThat(method.invoke(null, "s", 0)).isNull()
+    }
+
+    @Test
+    fun `reads a row out of an array of arrays with aaload`() {
+        // given rows[0] = new int[3], rows[0][2] = 5, then rows[0] read back and held across a
+        // jump, so a frame has to name it as the int[] iaload takes
+        val (name, bytes) = classFile("GenRows", "java/lang/Object")
+            .method("f", "()I", PUBLIC, STATIC) {
+                +iconst(1)
+                +anewarray(clazz("[I"))
+                +astore(0)
+                +aload(0)
+                +iconst(0)
+                +iconst(3)
+                +newarray(PrimitiveType.INTEGER)
+                +aastore
+                +aload(0)
+                +iconst(0)
+                +aaload
+                +iconst(2)
+                +iconst(5)
+                +iastore
+                +aload(0)
+                +iconst(0)
+                +aaload
+                val skip = +goto
+                val target = +iconst(2)
+                link(skip, target)
+                +iaload
+                +ireturn
+            }
+            .build()
+
+        // then
+        assertThat(ByteClassLoader().loadClass(name, bytes).getDeclaredMethod("f").invoke(null)).isEqualTo(5)
+    }
+
+    @Test
     fun `covers the range it guards with an exception handler`() {
         // given a read that is in range for 0 and out of range for anything else
         val (name, bytes) = classFile("GenCatch", "java/lang/Object")

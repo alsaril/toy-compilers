@@ -53,7 +53,10 @@ local slot, as the JVM's own verifier does (JVMS 4.10.1).
   against the top of the stack, reads against the type in the slot, and what it gives and
   what it writes are recorded. The [dynamic instructions](#instructions) have a rule each —
   `aload` pushes whatever the slot holds, the `pop` forms drop whatever is on top, the
-  `dup` forms copy it, `new` pushes an `Uninitialized` naming its own index.
+  `dup` forms copy it, `new` pushes an `Uninitialized` naming its own index, and `aaload`
+  pushes whatever its array holds — `null` from the null array. `aaload` and `aastore` take
+  an array of references alone; which class `aastore` stores is left to the running code, as
+  the verifier leaves it, where a wrong one is an `ArrayStoreException`.
 - **A constructor call** turns every copy of the object it initialises, on the stack and in
   the locals, into the class — or into this class, for the parent constructor called on
   `this`. Until then the object can be copied, kept in a local and have its constructor
@@ -184,7 +187,8 @@ short for `takes(OfType(INTEGER))`; only a list mixing the two, as `baload`'s do
 frame never holds an expectation.
 
 A few instructions have no effect they could state on their own: `aload`, `astore`, `new`,
-`pop`, `pop2` and the four `dup` forms move, drop or copy whatever type the frame holds. They are marked
+`aaload`, `aastore`, `pop`, `pop2` and the four `dup` forms move, read, store, drop or copy
+whatever type the frame holds. They are marked
 `DynamicInstruction`, and the analyzer has a rule for each.
 
 `Instruction` is sealed, so its files must stay in that one package — nothing outside it
@@ -229,8 +233,9 @@ where a byte offset would have had to be recomputed, and a jump patched.
   `boolean[]`, comparisons with zero and with each other, returns;
 - `float` — constants, locals, arithmetic, negation, returns;
 - `long` — the constants 0 and 1, and stores to a local;
-- references — `aconst_null`, locals, `new`, `newarray`, `anewarray`, `checkcast`,
-  `instanceof`, identity and null comparisons, `areturn`, `athrow`;
+- references — `aconst_null`, locals, `new`, `newarray`, `anewarray`, loads and stores
+  into arrays of references, `checkcast`, `instanceof`, identity and null comparisons,
+  `areturn`, `athrow`;
 - fields and calls — `getstatic`, `getfield`, `putfield` and the invoke family;
 - the stack — `pop`, `pop2`, `dup`, `dup_x1`, `dup_x2`, `dup2`.
 

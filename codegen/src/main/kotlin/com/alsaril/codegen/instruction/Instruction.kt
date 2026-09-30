@@ -101,6 +101,8 @@ data object iaload : NoArgInstruction(0x2e) {
     override fun stackEffect() = takes(ReferenceType("[I"), INTEGER) gives INTEGER
 }
 
+data object aaload : NoArgInstruction(0x32), DynamicInstruction
+
 private val byteOrBooleanArray = OneOf(ReferenceType("[B"), ReferenceType("[Z"))
 
 data object baload : NoArgInstruction(0x33) {
@@ -127,6 +129,8 @@ data class astore(override val index: Int) : LocalSlotInstruction(0x4b, 0x3a), D
 data object iastore : NoArgInstruction(0x4f) {
     override fun stackEffect() = takes(ReferenceType("[I"), INTEGER, INTEGER)
 }
+
+data object aastore : NoArgInstruction(0x53), DynamicInstruction
 
 data object bastore : NoArgInstruction(0x54) {
     override fun stackEffect() = takes(byteOrBooleanArray, OfType(INTEGER), OfType(INTEGER))

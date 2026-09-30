@@ -6,6 +6,7 @@ import com.alsaril.codegen.classfile.attributes.ObjectVariableInfo
 import com.alsaril.codegen.classfile.attributes.SimpleVerificationTypeInfo.*
 import com.alsaril.codegen.classfile.attributes.UninitializedVariableInfo
 import com.alsaril.codegen.classfile.parseFunctionDescriptor
+import com.alsaril.codegen.classfile.parseType
 import com.alsaril.codegen.constantpool.UpdatableConstantPool
 import com.alsaril.codegen.instruction.*
 import com.alsaril.codegen.verification.*
@@ -175,6 +176,17 @@ internal class Analyzer(
         return actual
     }
 
+    private fun componentOf(array: VerificationType, instruction: Instruction, pc: Int): VerificationType {
+        if (array == NULL) return NULL
+        val component = (array as? ReferenceType)?.descriptor
+            ?.takeIf { it.startsWith('[') }
+            ?.let { parseType(it.substring(1)).verificationType }
+        require(component != null && component.isAssignableToReference) {
+            "$instruction at $pc expects an array of references on the stack, but finds $array"
+        }
+        return component
+    }
+
     private fun staticLocals(enterLocals: Locals, instruction: Instruction, pc: Int): Locals =
         instruction.localEffects().fold(enterLocals) { locals, effect ->
             when (effect) {
@@ -215,6 +227,23 @@ internal class Analyzer(
             val top = stack.removeLast()
             require(top.fitsReferenceSlot) { "$instruction at $pc stores a reference, but finds $top" }
             Frame(stack = stack, locals = enterFrame.locals.write(instruction.index, top))
+        }
+
+        aaload -> {
+            requireDepth(enterFrame.stack, 2, instruction, pc)
+            val stack = enterFrame.stack.toMutableList()
+            stack.pop(OfType(INTEGER), instruction, pc)
+            stack.add(componentOf(stack.removeLast(), instruction, pc))
+            enterFrame.copy(stack = stack)
+        }
+
+        aastore -> {
+            requireDepth(enterFrame.stack, 3, instruction, pc)
+            val stack = enterFrame.stack.toMutableList()
+            stack.pop(AnyReference, instruction, pc)
+            stack.pop(OfType(INTEGER), instruction, pc)
+            componentOf(stack.removeLast(), instruction, pc)
+            enterFrame.copy(stack = stack)
         }
 
         pop -> {

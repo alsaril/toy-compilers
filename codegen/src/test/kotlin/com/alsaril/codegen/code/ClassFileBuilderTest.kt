@@ -276,6 +276,18 @@ class ClassFileBuilderTest {
         }
 
         @Test
+        fun `counts the array, the index and the value aastore takes`() {
+            assertThat(stack("()V", STATIC) {
+                +iconst(1)
+                +anewarray(clazz("java/lang/Object"))
+                +iconst(0)
+                +aconst_null
+                +aastore
+                +`return`
+            }).isEqualTo(3)
+        }
+
+        @Test
         fun `counts both values dup2 copies`() {
             // two ints in, both copied
             assertThat(stack("()V", STATIC) { +iconst(1); +iconst(2); +dup2; +`return` }).isEqualTo(4)

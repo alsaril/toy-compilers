@@ -495,6 +495,51 @@ class FramesTest {
             )
         }
 
+        @Test
+        fun `types what aaload reads as what its array holds`() {
+            // given a String[][], read down to a String[] and then a String
+            val frames = derived("([[Ljava/lang/String;)V") {
+                +aload(0)
+                +iconst(0)
+                +aaload
+                +dup
+                +iconst(0)
+                +aaload
+                +iconst(0)
+                val jump = +ifeq
+                +nop
+                val target = +`return` // 9
+                link(jump, target)
+            }
+
+            // then
+            assertThat(frames).containsExactly(
+                FullFrame(
+                    9,
+                    listOf(obj("[[Ljava/lang/String;")),
+                    listOf(obj("[Ljava/lang/String;"), obj("java/lang/String")),
+                ),
+            )
+        }
+
+        @Test
+        fun `types what aaload reads from the null array as null`() {
+            // given
+            val frames = derived {
+                +aconst_null
+                +iconst(0)
+                +aaload
+                +iconst(0)
+                val jump = +ifeq
+                +nop
+                val target = +`return` // 6
+                link(jump, target)
+            }
+
+            // then
+            assertThat(frames).containsExactly(FullFrame(6, emptyList(), listOf(NullVariableInfo)))
+        }
+
         // the two arms of `x == 0 ? a : b` leave one value each where they meet at areturn
         private fun CodeBuilder.choose(a: CodeBuilder.() -> Unit, b: CodeBuilder.() -> Unit) {
             +iload(0)

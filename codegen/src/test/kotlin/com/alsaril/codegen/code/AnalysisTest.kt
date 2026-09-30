@@ -7,6 +7,7 @@ import com.alsaril.codegen.classfile.attributes.ExceptionHandler
 import org.assertj.core.api.Assertions.assertThatExceptionOfType
 import org.assertj.core.api.Assertions.assertThatIllegalArgumentException
 import org.assertj.core.api.Assertions.assertThatIllegalStateException
+import org.assertj.core.api.Assertions.assertThatNoException
 import org.junit.jupiter.api.Test
 import com.alsaril.codegen.instruction.*
 
@@ -304,6 +305,58 @@ class AnalysisTest {
         assertThatIllegalArgumentException()
             .isThrownBy { method { +aconst_null; +anewarray(clazz("java/lang/String")); +`return` } }
             .withMessageContaining("at 1 expects INTEGER on the stack, but finds NULL")
+    }
+
+    @Test
+    fun `refuses aaload from an array of numbers`() {
+        assertThatIllegalArgumentException()
+            .isThrownBy { method { +iconst(1); +newarray(ElementType.INTEGER); +iconst(0); +aaload; +`return` } }
+            .withMessageContaining("aaload at 3 expects an array of references on the stack, but finds ReferenceType(descriptor=[I)")
+    }
+
+    @Test
+    fun `refuses aaload from something that is not an array`() {
+        assertThatIllegalArgumentException()
+            .isThrownBy { method { +ldc(string("s")); +iconst(0); +aaload; +`return` } }
+            .withMessageContaining("aaload at 2 expects an array of references on the stack, but finds ReferenceType(descriptor=java/lang/String)")
+    }
+
+    @Test
+    fun `refuses aastore into an array of numbers`() {
+        assertThatIllegalArgumentException()
+            .isThrownBy { method { +iconst(1); +newarray(ElementType.INTEGER); +iconst(0); +aconst_null; +aastore; +`return` } }
+            .withMessageContaining("aastore at 4 expects an array of references on the stack, but finds ReferenceType(descriptor=[I)")
+    }
+
+    @Test
+    fun `refuses aastore of a number`() {
+        assertThatIllegalArgumentException()
+            .isThrownBy {
+                method { +iconst(1); +anewarray(clazz("java/lang/Object")); +iconst(0); +iconst(1); +aastore; +`return` }
+            }
+            .withMessageContaining("aastore at 4 expects AnyReference on the stack, but finds INTEGER")
+    }
+
+    @Test
+    fun `leaves it to the running code whether aastore's array takes the class it stores`() {
+        // given a hierarchy that takes nothing but an exact match, the verifier still only asks
+        // aastore for a reference, and a wrong one is an ArrayStoreException when it runs
+        val strict = object : ClassHierarchy {
+            override fun isAssignable(from: String, to: String) = from == to
+            override fun commonSuperclass(a: String, b: String) = a
+        }
+
+        // then an Object goes into a String[]
+        assertThatNoException().isThrownBy {
+            method("(Ljava/lang/Object;)V", strict) {
+                +iconst(1)
+                +anewarray(clazz("java/lang/String"))
+                +iconst(0)
+                +aload(0)
+                +aastore
+                +`return`
+            }
+        }
     }
 
     @Test
