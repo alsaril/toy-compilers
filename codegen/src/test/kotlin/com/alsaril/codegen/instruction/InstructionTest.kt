@@ -435,6 +435,17 @@ class InstructionTest {
         }
 
         @Test
+        fun `push an array of the class, interface or array they are given`() {
+            // the pool names a class by its name alone, and an array by its descriptor
+            assertThat(anewarray(4, "java/lang/String").stackEffect())
+                .isEqualTo(takes(INTEGER) gives ReferenceType("[Ljava/lang/String;"))
+            assertThat(anewarray(4, "[I").stackEffect())
+                .isEqualTo(takes(INTEGER) gives ReferenceType("[[I"))
+            assertThat(anewarray(4, "[Ljava/lang/String;").stackEffect())
+                .isEqualTo(takes(INTEGER) gives ReferenceType("[[Ljava/lang/String;"))
+        }
+
+        @Test
         fun `take the object and the value a field store writes`() {
             val owner = ReferenceType("A")
 

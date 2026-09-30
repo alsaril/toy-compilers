@@ -229,14 +229,15 @@ where a byte offset would have had to be recomputed, and a jump patched.
   `boolean[]`, comparisons with zero and with each other, returns;
 - `float` — constants, locals, arithmetic, negation, returns;
 - `long` — the constants 0 and 1, and stores to a local;
-- references — `aconst_null`, locals, `new`, `newarray`, `checkcast`, `instanceof`,
-  identity and null comparisons, `areturn`, `athrow`;
+- references — `aconst_null`, locals, `new`, `newarray`, `anewarray`, `checkcast`,
+  `instanceof`, identity and null comparisons, `areturn`, `athrow`;
 - fields and calls — `getstatic`, `getfield`, `putfield` and the invoke family;
 - the stack — `pop`, `pop2`, `dup`, `dup_x1`, `dup_x2`, `dup2`.
 
 A float constant that has an opcode of its own (0, 1, 2) uses it; any other goes to the pool
 as `ldc`. A long constant is `lconst`, 0 or 1. `newarray` takes the `PrimitiveType` of its
-element and encodes the atype code itself.
+element and encodes the atype code itself; `anewarray` takes a `ClassPointer` to a class, an
+interface or an array, as `clazz("java/lang/String")` or `clazz("[I")`.
 
 **Local slots widen automatically.** The loads and stores take a slot and nothing else;
 which of the three encodings that slot needs is settled when the instruction is written,

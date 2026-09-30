@@ -267,6 +267,12 @@ class MembersTest {
         }
 
         @Test
+        fun `writes anewarray with the class index`() {
+            assertThat(bytecode { +anewarray(ClassPointer(4, "A")) })
+                .containsExactly(*bytesOf(0xBD, 0x00, 0x04))
+        }
+
+        @Test
         fun `writes newarray with the atype of its element`() {
             // the codes JVMS 6.5 lists for newarray, T_BOOLEAN through T_LONG
             assertThat(bytecode { +newarray(ElementType.BOOLEAN) }).containsExactly(*bytesOf(0xBC, 0x04))

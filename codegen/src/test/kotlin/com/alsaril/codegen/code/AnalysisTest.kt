@@ -300,6 +300,13 @@ class AnalysisTest {
     }
 
     @Test
+    fun `refuses anewarray of a length that is not an int`() {
+        assertThatIllegalArgumentException()
+            .isThrownBy { method { +aconst_null; +anewarray(clazz("java/lang/String")); +`return` } }
+            .withMessageContaining("at 1 expects INTEGER on the stack, but finds NULL")
+    }
+
+    @Test
     fun `refuses an array baload does not serve, given a hierarchy that says so`() {
         // given a hierarchy that takes nothing but an exact match
         val strict = object : ClassHierarchy {

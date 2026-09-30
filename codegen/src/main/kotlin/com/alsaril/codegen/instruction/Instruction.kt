@@ -4,6 +4,8 @@ import com.alsaril.codegen.ClassWriter
 import com.alsaril.codegen.Writable
 import com.alsaril.codegen.classfile.ArrayType
 import com.alsaril.codegen.classfile.PrimitiveType
+import com.alsaril.codegen.classfile.ReferenceType as ClassType
+import com.alsaril.codegen.classfile.parseType
 import com.alsaril.codegen.constantpool.ClassPointer
 import com.alsaril.codegen.constantpool.DataPointer
 import com.alsaril.codegen.constantpool.FieldDescriptor
@@ -333,6 +335,14 @@ data class newarray(val type: Int, val descriptor: String) : OneByteArgInstructi
     }
 
     override fun stackEffect() = takes(INTEGER) gives ReferenceType(descriptor)
+}
+
+data class anewarray(val index: Int, val clazz: String) : TwoBytesArgInstruction(0xbd, index) {
+    constructor(clazz: ClassPointer) : this(clazz.index, clazz.name)
+
+    private val element = if (clazz.startsWith('[')) parseType(clazz) else ClassType(clazz)
+
+    override fun stackEffect() = takes(INTEGER) gives ArrayType(element).verificationType
 }
 
 data class checkcast(val index: Int, val clazz: String) : TwoBytesArgInstruction(0xc0, index) {

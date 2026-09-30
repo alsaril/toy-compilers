@@ -426,6 +426,34 @@ class GeneratedClassTest {
     }
 
     @Test
+    fun `creates arrays of a class and of an array with anewarray`() {
+        // given each array kept in a local across a jump, so a frame has to name its type
+        // and the verifier checks it against the one the method returns
+        fun ClassFileBuilder.array(method: String, descriptor: String, element: String) =
+            method(method, descriptor, PUBLIC, STATIC) {
+                +iconst(3)
+                +anewarray(clazz(element))
+                +astore(0)
+                val skip = +goto
+                val target = +aload(0)
+                link(skip, target)
+                +areturn
+            }
+
+        val (name, bytes) = classFile("GenArrays", "java/lang/Object")
+            .array("strings", "()[Ljava/lang/String;", "java/lang/String")
+            .array("rows", "()[[I", "[I")
+            .build()
+        val clazz = ByteClassLoader().loadClass(name, bytes)
+
+        // then both come back empty, three elements long
+        assertThat(clazz.getDeclaredMethod("strings").invoke(null) as Array<*>)
+            .isInstanceOf(Array<String>::class.java).hasSize(3).containsOnlyNulls()
+        assertThat(clazz.getDeclaredMethod("rows").invoke(null) as Array<*>)
+            .isInstanceOf(Array<IntArray>::class.java).hasSize(3).containsOnlyNulls()
+    }
+
+    @Test
     fun `covers the range it guards with an exception handler`() {
         // given a read that is in range for 0 and out of range for anything else
         val (name, bytes) = classFile("GenCatch", "java/lang/Object")
