@@ -23,7 +23,7 @@ object Printer {
             sb.append(")").toString()
         }
         is Nil -> "()"
-
+        is Unspecified -> "#<unspecified>"
         else -> throw IllegalArgumentException(value.toString())
     }
 }

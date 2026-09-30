@@ -185,7 +185,15 @@ object ClassGenerator {
             list(l.value[1], resolve = true, exec = true, context)
             val end = +goto
             link(f, end())
-            if (l.value.size == 2) `null`() else list(l.value[2], resolve = true, exec = true, context)
+            if (l.value.size == 2) {
+                +getstatic(
+                    field(
+                        clazz("com/alsaril/scheme/runtime/Unspecified"),
+                        "INSTANCE",
+                        "Lcom/alsaril/scheme/runtime/Unspecified;"
+                    )
+                )
+            } else list(l.value[2], resolve = true, exec = true, context)
             link(end, end())
 
             return true

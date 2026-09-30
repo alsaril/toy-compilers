@@ -10,6 +10,4 @@ data class Cons(val first: Any, val second: Any) {
 data object Nil
 data class Symbol(val name: String)
 
-object Unspecified {
-    override fun toString() = "#<unspecified>"
-}
+object Unspecified

@@ -14,7 +14,7 @@ class IfTest {
     @ParameterizedTest
     @CsvSource(
         "(if #t 0), 0",
-        "(if #f 0), ()",
+        "(if #f 0), #<unspecified>",
         "(if (= 2 2) (+ 1 10)), 11",
         "(if (= 2 3) (+ 1 10) 5), 5",
         quoteCharacter = '$'
