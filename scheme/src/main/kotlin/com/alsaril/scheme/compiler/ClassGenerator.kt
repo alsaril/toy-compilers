@@ -2,14 +2,13 @@ package com.alsaril.scheme.compiler
 
 import com.alsaril.codegen.ClassDef
 import com.alsaril.codegen.ClassGraph
-import com.alsaril.codegen.classfile.AccessFlag.FINAL
-import com.alsaril.codegen.classfile.AccessFlag.PRIVATE
-import com.alsaril.codegen.classfile.AccessFlag.PUBLIC
+import com.alsaril.codegen.classfile.AccessFlag.*
 import com.alsaril.codegen.code.*
 import com.alsaril.codegen.code.ClassFileBuilder.Companion.classFile
 import com.alsaril.codegen.instruction.*
 import com.alsaril.scheme.parser.*
 import com.alsaril.scheme.parser.Number
+import kotlin.LazyThreadSafetyMode.NONE
 
 object ClassGenerator {
     private var implCnt = 0
@@ -113,8 +112,7 @@ object ClassGenerator {
         return result
     }
 
-    private fun CodeBuilder.boolTemplate(args: Node, identity: Boolean, context: Context) {
-        val l = collectArgs(args)
+    private fun CodeBuilder.boolTemplate(l: List<Node>, identity: Boolean, context: Context) {
         if (l.isEmpty()) {
             boolean(identity)
             return
@@ -149,75 +147,92 @@ object ClassGenerator {
             return true
         }
 
+        val l = lazy(NONE) { collectArgs(args) }
+
         if (name == "and") {
-            boolTemplate(args, true, context)
+            boolTemplate(l.value, true, context)
             return true
         }
 
         if (name == "or") {
-            boolTemplate(args, false, context)
+            boolTemplate(l.value, false, context)
+            return true
+        }
+
+        if (name == "define" && args is Cell && args.first is Cell) { // this is a lambda
+            val head = args.first
+            require(head.first is Symbol)
+            val name = head.first.name
+            define(name, op = "define") {
+                lambda(collectArgs(Cell(head.second, args.second)), context)
+            }
             return true
         }
 
         if (name == "define" || name == "set!") {
-            val l = collectArgs(args)
-            require(l.size == 2)
-            val (key, def) = l
+            require(l.value.size == 2)
+            val (key, def) = l.value
             require(key is Symbol)
-            +aload(1)
-            +ldc(string(key.name))
-            list(def, resolve = true, exec = true, context)
-            invokeinterface(
-                clazz("com/alsaril/scheme/runtime/Environment"),
-                if (name == "define") "define" else "set",
-                "(Ljava/lang/String;Ljava/lang/Object;)V"
-            )
-            +getstatic(
-                field(
-                    clazz("com/alsaril/scheme/runtime/Unspecified"),
-                    "INSTANCE",
-                    "Lcom/alsaril/scheme/runtime/Unspecified;"
-                )
-            )
+            define(key.name, op = name) { list(def, resolve = true, exec = true, context) }
             return true
         }
 
         if (name == "if") {
-            val l = collectArgs(args)
-            require(l.size == 2 || l.size == 3)
-            list(l[0], resolve = true, exec = true, context)
+            require(l.value.size == 2 || l.value.size == 3)
+            list(l.value[0], resolve = true, exec = true, context)
             boolean(false)
             val f = +if_acmpeq
-            list(l[1], resolve = true, exec = true, context)
+            list(l.value[1], resolve = true, exec = true, context)
             val end = +goto
             link(f, end())
-            if (l.size == 2) `null`() else list(l[2], resolve = true, exec = true, context)
+            if (l.value.size == 2) `null`() else list(l.value[2], resolve = true, exec = true, context)
             link(end, end())
 
             return true
         }
 
         if (name == "lambda") {
-            val l = collectArgs(args)
-            require(l.size >= 2)
-
-            val head = l.first()
-            val nodes = l.drop(1)
-            val argNames = collectArgs(head)
-            require(argNames.all { it is Symbol })
-
-            val lambda = generateLambda(argNames as List<Symbol>, nodes, context)
-            context.addClass(lambda)
-
-            +new(clazz(lambda.first))
-            +dup
-            +aload(1)
-            invokespecial(clazz(lambda.first), "<init>", "(Lcom/alsaril/scheme/runtime/Environment;)V")
-
+            lambda(l.value, context)
             return true
         }
 
         return false
+    }
+
+    private fun CodeBuilder.define(name: String, op: String, def: () -> Unit) {
+        +aload(1)
+        +ldc(string(name))
+        def()
+        invokeinterface(
+            clazz("com/alsaril/scheme/runtime/Environment"),
+            if (op == "define") "define" else "set",
+            "(Ljava/lang/String;Ljava/lang/Object;)V"
+        )
+        +getstatic(
+            field(
+                clazz("com/alsaril/scheme/runtime/Unspecified"),
+                "INSTANCE",
+                "Lcom/alsaril/scheme/runtime/Unspecified;"
+            )
+        )
+    }
+
+    private fun CodeBuilder.lambda(l: List<Node>, context: Context) {
+        require(l.size >= 2)
+
+        val head = l.first()
+        val nodes = l.drop(1)
+        val argNames = collectArgs(head)
+        require(argNames.all { it is Symbol })
+
+        @Suppress("UNCHECKED_CAST")
+        val lambda = generateLambda(argNames as List<Symbol>, nodes, context)
+        context.addClass(lambda)
+
+        +new(clazz(lambda.first))
+        +dup
+        +aload(1)
+        invokespecial(clazz(lambda.first), "<init>", "(Lcom/alsaril/scheme/runtime/Environment;)V")
     }
 
     private fun CodeBuilder.call(cell: Cell, context: Context) {
@@ -270,7 +285,11 @@ object ClassGenerator {
             +dup
             +aload(0)
             +getfield(field(self(), "scope", "Lcom/alsaril/scheme/runtime/Environment;"))
-            invokespecial(clazz("com/alsaril/scheme/runtime/LocalEnvironment"), "<init>", "(Lcom/alsaril/scheme/runtime/Environment;)V")
+            invokespecial(
+                clazz("com/alsaril/scheme/runtime/LocalEnvironment"),
+                "<init>",
+                "(Lcom/alsaril/scheme/runtime/Environment;)V"
+            )
             +astore(1)
 
             val fails = args.map { name ->

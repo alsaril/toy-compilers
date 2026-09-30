@@ -4,6 +4,7 @@ import com.alsaril.scheme.compiler.SchemeCompiler.compile
 import com.alsaril.scheme.runtime.GlobalEnvironment
 import com.alsaril.scheme.runtime.Printer.print
 import org.assertj.core.api.Assertions.assertThat
+import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.CsvSource
@@ -74,4 +75,48 @@ class LambdaTest {
         assertThat(compile("x").run(env).let(::print)).isEqualTo("1")
     }
 
+    @ParameterizedTest
+    @CsvSource(
+        "(define (inc x) (+ x 1)), (inc -1), 0",
+        "(define (add x y) (+ x y 1)), (add -10 10), 1",
+        "(define (zero) 0), (zero), 0",
+        quoteCharacter = '$'
+    )
+    fun `defines lambda sugar`(def: String, input: String, expected: String) {
+        // given
+        val env = GlobalEnvironment()
+        compile(def).run(env)
+
+        // when
+        val result = compile(input).run(env).let(::print)
+
+        // then
+        assertThat(result).isEqualTo(expected)
+    }
+
+    @Test
+    fun `local define`() {
+        // given
+        val env = GlobalEnvironment()
+        compile("(define (f) (define f 15) (+ f 17))").run(env)
+
+        // when / then
+        assertThat(compile("(f)").run(env).let(::print)).isEqualTo("32")
+        assertThat(compile("(f)").run(env).let(::print)).isEqualTo("32")
+    }
+
+    @ParameterizedTest
+    @CsvSource(
+        "(lambda)",
+        "(lambda x)",
+        "(lambda (x))",
+        quoteCharacter = '$'
+    )
+    fun `throws on if syntax errors`(input: String) {
+        // given
+        val env = GlobalEnvironment()
+
+        // when / then
+        assertThatThrownBy { compile(input).run(env) }
+    }
 }
