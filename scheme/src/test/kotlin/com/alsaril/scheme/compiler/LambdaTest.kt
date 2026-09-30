@@ -59,13 +59,15 @@ class LambdaTest {
         // given
         val env = GlobalEnvironment()
         compile("(define x 1)").run(env)
-        compile("""
+        compile(
+            """
          (define range
           (lambda (x)
             (lambda ()
               (set! x (+ x 1))
               x)))     
-        """.trimIndent()).run(env)
+        """.trimIndent()
+        ).run(env)
         compile("(define my-range (range 10))").run(env)
 
         // when / then
@@ -80,6 +82,8 @@ class LambdaTest {
         "(define (inc x) (+ x 1)), (inc -1), 0",
         "(define (add x y) (+ x y 1)), (add -10 10), 1",
         "(define (zero) 0), (zero), 0",
+        "(define (f . xs) xs), (f 1 2), (1 2)",
+        "(define (g a . xs) xs), (g 1 2 3), (2 3)",
         quoteCharacter = '$'
     )
     fun `defines lambda sugar`(def: String, input: String, expected: String) {
@@ -103,6 +107,75 @@ class LambdaTest {
         // when / then
         assertThat(compile("(f)").run(env).let(::print)).isEqualTo("32")
         assertThat(compile("(f)").run(env).let(::print)).isEqualTo("32")
+
+        // when / then
+        assertThat(compile("((lambda (x) (define y 1) (+ x y)) 5)").run(env).let(::print)).isEqualTo("6")
+        assertThatThrownBy { compile("y").run(env) }
+    }
+
+    @Test
+    fun `recursion`() {
+        val env = GlobalEnvironment()
+        compile("(define (fact n) (if (= n 0) 1 (* n (fact (- n 1)))))").run(env)
+
+        // when
+        val result = compile("(fact 10)").run(env).let(::print)
+
+        // then
+        assertThat(result).isEqualTo("3628800")
+    }
+
+    @Test
+    fun `closures`() {
+        val env = GlobalEnvironment()
+        compile(
+            """
+            (define (make-counter)
+              (define n 0)
+              (lambda () (set! n (+ n 1)) n))
+        """.trimIndent()
+        ).run(env)
+        compile("(define c1 (make-counter))").run(env)
+        compile("(define c2 (make-counter))").run(env)
+
+        // when
+        val result = compile("(list (c1) (c1) (c2))").run(env).let(::print)
+
+        // then
+        assertThat(result).isEqualTo("(1 2 1)")
+    }
+
+    @Test
+    fun `lexical scope`() {
+        val env = GlobalEnvironment()
+        compile("(define x 1)").run(env)
+        compile("(define (f) x)").run(env)
+        compile("(define (g x) (f))").run(env)
+
+        // when
+        val result = compile("(g 2)  ").run(env).let(::print)
+
+        // then
+        assertThat(result).isEqualTo("1")
+    }
+
+    @ParameterizedTest
+    @CsvSource(
+        "((lambda args args) 1 2 3), (1 2 3)",
+        "((lambda args args)), ()",
+        "((lambda (a . rest) rest) 1 2 3), (2 3)",
+        "((lambda (a . rest) rest) 1), ()",
+        quoteCharacter = '$'
+    )
+    fun `varargs`(input: String, expected: String) {
+        // given
+        val env = GlobalEnvironment()
+
+        // when
+        val result = compile(input).run(env).let(::print)
+
+        // then
+        assertThat(result).isEqualTo(expected)
     }
 
     @ParameterizedTest
@@ -110,6 +183,11 @@ class LambdaTest {
         "(lambda)",
         "(lambda x)",
         "(lambda (x))",
+        "((lambda (a b) a) 1)",
+        "((lambda (a) a) 1 2)",
+        "((lambda (a . rest) rest))",
+        "(lambda (x x) x)",
+        "(lambda (a . a) a)",
         quoteCharacter = '$'
     )
     fun `throws on if syntax errors`(input: String) {

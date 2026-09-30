@@ -107,6 +107,7 @@ class ListTest {
         "(null? '()), #t",
         "(null? '(1 2)), #f",
         "(null? '(1 . 2)), #f",
+        "(null? (if #f #f)), #f",
         quoteCharacter = '$'
     )
     fun `null predicate`(input: String, expected: String) {

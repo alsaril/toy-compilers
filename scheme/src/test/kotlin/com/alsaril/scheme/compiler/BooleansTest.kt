@@ -60,6 +60,8 @@ class BooleansTest {
         "(or (not (= 2 2)) (> 2 1)), #t",
         "(or #f (< 2 1)), #f",
         "(or #f 1), 1",
+        "(or 2 #f), 2",
+        "(or #f #f), #f",
         "(boolean? (or #f #f #f)), #t",
         "(boolean? (or #f #f -15)), #f",
         "(or #f #t (1 2)), #t",
