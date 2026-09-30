@@ -58,4 +58,58 @@ class SymbolsTest {
         // then
         assertThat(result).isEqualTo(expected)
     }
+
+    @ParameterizedTest
+    @CsvSource(
+        "(define x (+ 1 2)), x, 3",
+        "(define x (+ 2 -4)), x, -2",
+        quoteCharacter = '$'
+    )
+    fun `symbols as variable names`(input: String, name: String, expected: String) {
+        // given
+        val env = GlobalEnvironment()
+        compile(input).run(env)
+
+        // when
+        val result = compile(name).run(env).let(::print)
+
+        // then
+        assertThat(result).isEqualTo(expected)
+    }
+
+    @Test
+    fun `set overrides variables`() {
+        // given
+        val env = GlobalEnvironment()
+
+        assertThatThrownBy { compile("(set! x 2)").run(env) }
+        assertThatThrownBy { compile("x").run(env) }
+
+        compile("(define x 1)").run(env)
+        assertThat(compile("x").run(env).let(::print)).isEqualTo("1")
+
+        compile("(set! x (+ 2 4))").run(env)
+        assertThat(compile("x").run(env).let(::print)).isEqualTo("6")
+
+        compile("(set! x '(+ 2 (min -4 3)))").run(env)
+        assertThat(compile("x").run(env).let(::print)).isEqualTo("(+ 2 (min -4 3))")
+    }
+
+    @ParameterizedTest
+    @CsvSource(
+        "(define)",
+        "(define 1)",
+        "(define x 1 2)",
+        "(set!)",
+        "(set! 1)",
+        "(set! x 1 2)",
+        quoteCharacter = '$'
+    )
+    fun `throws on invalid syntax`(input: String) {
+        // given
+        val env = GlobalEnvironment()
+
+        // when / then
+        assertThatThrownBy { compile(input).run(env) }
+    }
 }
