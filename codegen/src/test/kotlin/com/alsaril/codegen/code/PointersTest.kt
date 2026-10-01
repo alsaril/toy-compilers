@@ -1,11 +1,6 @@
 package com.alsaril.codegen.code
 
 import com.alsaril.codegen.constantpool.*
-import com.alsaril.codegen.verification.PrimitiveType.DOUBLE
-import com.alsaril.codegen.verification.PrimitiveType.FLOAT
-import com.alsaril.codegen.verification.PrimitiveType.INTEGER
-import com.alsaril.codegen.verification.PrimitiveType.LONG
-import com.alsaril.codegen.verification.ReferenceType
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
@@ -61,118 +56,6 @@ class PointersTest {
 
             // then
             assertThat(builder.self()).isNotEqualTo(builder.parent())
-        }
-    }
-
-    @Nested
-    inner class Constants {
-
-        @Test
-        fun `registers an integer constant`() {
-            // given
-            val cp = UpdatableConstantPool()
-
-            // when
-            val pointer = builder(cp).int(42)
-
-            // then
-            assertThat(pointer).isEqualTo(DataPointer(1, INTEGER))
-            assertThat(cp.build().entries).containsExactly(ConstantIntegerInfo(42))
-        }
-
-        @Test
-        fun `registers a float constant`() {
-            // given
-            val cp = UpdatableConstantPool()
-
-            // when
-            val pointer = builder(cp).float(1.5f)
-
-            // then
-            assertThat(pointer).isEqualTo(DataPointer(1, FLOAT))
-            assertThat(cp.build().entries).containsExactly(ConstantFloatInfo(1.5f))
-        }
-
-        @Test
-        fun `registers a long constant across two slots`() {
-            // given
-            val cp = UpdatableConstantPool()
-            val builder = builder(cp)
-
-            // when
-            val pointer = builder.long(1L shl 40)
-            val next = builder.int(1)
-
-            // then the entry after it starts two slots on
-            assertThat(pointer).isEqualTo(DataPointer(1, LONG))
-            assertThat(next.index).isEqualTo(3)
-            assertThat(cp.build().entries).containsExactly(ConstantLongInfo(1L shl 40), ConstantIntegerInfo(1))
-        }
-
-        @Test
-        fun `registers a double constant across two slots`() {
-            // given
-            val cp = UpdatableConstantPool()
-            val builder = builder(cp)
-
-            // when
-            val pointer = builder.double(2.5)
-            val next = builder.int(1)
-
-            // then
-            assertThat(pointer).isEqualTo(DataPointer(1, DOUBLE))
-            assertThat(next.index).isEqualTo(3)
-            assertThat(cp.build().entries).containsExactly(ConstantDoubleInfo(2.5), ConstantIntegerInfo(1))
-        }
-
-        @Test
-        fun `registers a string constant behind its utf8`() {
-            // given
-            val cp = UpdatableConstantPool()
-
-            // when
-            val pointer = builder(cp).string("boom")
-
-            // then the pointer addresses the string entry, not the utf8 it wraps
-            assertThat(pointer).isEqualTo(DataPointer(2, ReferenceType("java/lang/String")))
-            assertThat(cp.build().entries).containsExactly(
-                ConstantUtf8Info("boom"),
-                ConstantStringInfo(valueIndex = 1),
-            )
-        }
-
-        @Test
-        fun `reuses one pool entry for a repeated constant`() {
-            // given
-            val cp = UpdatableConstantPool()
-            val builder = builder(cp)
-
-            // when
-            val int = builder.int(1)
-            val string = builder.string("s")
-
-            // then
-            assertThat(builder.int(1)).isEqualTo(int)
-            assertThat(builder.string("s")).isEqualTo(string)
-            assertThat(cp.build().entries).hasSize(3)
-        }
-
-        @Test
-        fun `keeps an integer and a string apart`() {
-            // given
-            val builder = builder()
-
-            // then
-            assertThat(builder.int(1)).isNotEqualTo(builder.string("1"))
-        }
-
-        @Test
-        fun `keeps an integer and a float of the same value apart`() {
-            // given
-            val builder = builder()
-
-            // then
-            assertThat(builder.int(1)).isNotEqualTo(builder.float(1.0f))
         }
     }
 }

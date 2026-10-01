@@ -1,6 +1,7 @@
 package com.alsaril.codegen
 
 import com.alsaril.codegen.code.ClassFileBuilder
+import com.alsaril.codegen.constantpool.ConstantMethodHandleInfo.ReferenceKind.*
 import com.alsaril.codegen.code.ClassFileBuilder.Companion.classFile
 import com.alsaril.codegen.classfile.AccessFlag.FINAL
 import com.alsaril.codegen.classfile.AccessFlag.PRIVATE
@@ -1025,6 +1026,45 @@ class GeneratedClassTest {
         // then
         assertThat(clazz.getDeclaredMethod("long").invoke(null)).isEqualTo(1L shl 40)
         assertThat(clazz.getDeclaredMethod("double").invoke(null)).isEqualTo(2.5)
+    }
+
+    @Test
+    fun `loads method handles with ldc and calls them`() {
+        // given a handle of each kind of ref, called through invokeExact with the type it has
+        val handle = "java/lang/invoke/MethodHandle"
+        val (name, bytes) = classFile("GenHandles", "java/lang/Object")
+            .method("max", "()I", PUBLIC, STATIC) {
+                +ldc(methodHandle(INVOKE_STATIC, clazz("java/lang/Math"), "max", "(II)I"))
+                +iconst(3)
+                +iconst(7)
+                invokevirtual(clazz(handle), "invokeExact", "(II)I")
+                +ireturn
+            }
+            .method("length", "()I", PUBLIC, STATIC) {
+                +ldc(methodHandle(INVOKE_VIRTUAL, clazz("java/lang/String"), "length", "()I"))
+                +ldc(string("abcd"))
+                invokevirtual(clazz(handle), "invokeExact", "(Ljava/lang/String;)I")
+                +ireturn
+            }
+            .method("limit", "()I", PUBLIC, STATIC) {
+                +ldc(methodHandle(GET_STATIC, clazz("java/lang/Integer"), "MAX_VALUE", "I"))
+                invokevirtual(clazz(handle), "invokeExact", "()I")
+                +ireturn
+            }
+            .method("built", "()Ljava/lang/Object;", PUBLIC, STATIC) {
+                +ldc(methodHandle(NEW_INVOKE_SPECIAL, clazz("java/lang/StringBuilder"), "<init>", "(Ljava/lang/String;)V"))
+                +ldc(string("sb"))
+                invokevirtual(clazz(handle), "invokeExact", "(Ljava/lang/String;)Ljava/lang/StringBuilder;")
+                +areturn
+            }
+            .build()
+        val clazz = ByteClassLoader().loadClass(name, bytes)
+
+        // then
+        assertThat(clazz.getDeclaredMethod("max").invoke(null)).isEqualTo(7)
+        assertThat(clazz.getDeclaredMethod("length").invoke(null)).isEqualTo(4)
+        assertThat(clazz.getDeclaredMethod("limit").invoke(null)).isEqualTo(Int.MAX_VALUE)
+        assertThat(clazz.getDeclaredMethod("built").invoke(null).toString()).isEqualTo("sb")
     }
 
     @Test

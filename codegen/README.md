@@ -22,7 +22,7 @@ Six packages, and the dependencies run one way — `code` on top, then `instruct
 
 | package | holds |
 |---|---|
-| `code` | `ClassFileBuilder`, `CodeBuilder`, `Fragment`, `BytecodeSerializer`, `Analyzer`, `Locals`, `ClassHierarchy`, `Members`, `Pointers`, `DynamicConstants`, `BootstrapMethods` — everything that builds |
+| `code` | `ClassFileBuilder`, `CodeBuilder`, `Fragment`, `BytecodeSerializer`, `Analyzer`, `Locals`, `ClassHierarchy`, `Members`, `Pointers`, `Constants`, `BootstrapMethods` — everything that builds |
 | `instruction` | the opcodes, their encodings, and their effects on the stack and the locals |
 | `classfile` | the static JVMS records: `ClassFile`, `FieldInfo`, `MethodInfo`, `AccessFlag`, descriptors, and `attributes/` |
 | `constantpool` | the pool, and the typed indices into it (`ClassPointer`, `MethodDescriptor`, `FieldDescriptor`, `DataPointer`) |
@@ -132,8 +132,20 @@ double correctly occupy two slots.
 `ClassPointer` / `DataPointer` resolve to a pool index at creation, so `clazz("A")` or
 `string("boom")` registers once and the index is fixed from then on. Each also carries what
 the analyzer needs to know about it: a `ClassPointer` the class name, a `DataPointer` the
-type of the constant it loads. `int`, `float`, `long`, `double` and `string` each hand out a
-`DataPointer`, and so does [`constantDynamic`](#dynamic-constants).
+type of the constant it loads.
+
+`Pointers` hands out the `ClassPointer`s — `clazz`, `self` and `parent` — which the
+instructions and helpers naming a class take. `Constants` hands out the `DataPointer`s: the
+loadable constants, which `ldc` or `ldc2_w` load and a bootstrap method takes as arguments —
+`int`, `float`, `long`, `double`, `string`, `methodHandle` and
+[`constantDynamic`](#dynamic-constants).
+
+`methodHandle(kind, clazz, name, descriptor)` registers a method handle — a `DataPointer`
+that `ldc` loads as a `java/lang/invoke/MethodHandle`, or that a
+[dynamic constant](#dynamic-constants) takes as an argument. The `ReferenceKind` picks the
+ref it points at: a field ref for the four field kinds, an interface method ref for
+`INVOKE_INTERFACE`, and a method ref for the rest. `NEW_INVOKE_SPECIAL` names `<init>` and
+nothing else does; anything else is refused.
 
 ## Instructions
 
@@ -216,8 +228,9 @@ method("f", "()I", PUBLIC, STATIC) {
 
 Being a member rather than a top-level extension, it is in scope only inside a
 `CodeBuilder.() -> Unit` block. Around it sits the code that does more than name an
-opcode: `Members` (calls, field refs and `constructDefault`), `Pointers` (refs for classes
-and constants), and `link` / `` `catch` `` / `end` for addressing.
+opcode: `Members` (calls, field refs and `constructDefault`), `Pointers` (refs for
+classes), `Constants` (the constants `ldc` loads), and `link` / `` `catch` `` / `end` for
+addressing.
 
 `@DslMarker` (`@CodeDsl`) keeps a nested block from resolving an outer receiver.
 
@@ -329,13 +342,20 @@ val bootstrap = "(${CBP}Ljava/lang/String;)Ljava/lang/String;"
 descriptor, then the constants the method is given as its remaining arguments — any
 `DataPointer`, another dynamic constant included. The descriptor starts with
 `CBP`, the three parameters the JVM passes first: the lookup, the
-constant's name and its type. The constant takes the type the method returns, so the
-`DataPointer` handed back is loaded by `ldc`, or by `ldc2_w` for a long or a double. A method
-whose descriptor does not start with the prefix, or that returns `void`, is refused. Every
-constant is named `_`.
+constant's name and its type. The constant is named `_` and takes the type the method
+returns, unless `constantName` and `constantType` — a field descriptor — say otherwise, which
+is how a bootstrap method returning `Object`, as the JDK's `ConstantBootstraps` do, gives a
+typed constant. The `DataPointer` handed back is loaded by `ldc`, or by `ldc2_w` for a long
+or a double. A method whose descriptor does not start with the prefix, or that returns
+`void`, is refused, and so is a constant typed `void`.
 
-Each constant registers a method ref, a static method handle to it, a bootstrap method and
-the constant itself. The bootstrap methods are kept per class, shared by every code builder
+```kotlin
++ldc(constantDynamic(clazz("java/lang/invoke/ConstantBootstraps"), "getStaticFinal",
+    "(${CBP})Ljava/lang/Object;", constantName = "MAX_VALUE", constantType = "I"))
+```
+
+Each constant registers a static [method handle](#constant-pool) to its bootstrap method,
+a bootstrap method and the constant itself. The bootstrap methods are kept per class, shared by every code builder
 it hands out and deduplicated like the pool — one handle with the same arguments is one
 bootstrap method — and written as the class's `BootstrapMethods` attribute when there is at
 least one.

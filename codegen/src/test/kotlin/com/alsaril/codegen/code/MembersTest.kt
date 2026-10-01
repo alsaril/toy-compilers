@@ -6,6 +6,7 @@ import com.alsaril.codegen.constantpool.ClassPointer
 import com.alsaril.codegen.constantpool.ConstantClassInfo
 import com.alsaril.codegen.constantpool.ConstantFieldRefInfo
 import com.alsaril.codegen.constantpool.ConstantInterfaceMethodRefInfo
+import com.alsaril.codegen.constantpool.ConstantMethodHandleInfo.ReferenceKind.*
 import com.alsaril.codegen.constantpool.ConstantMethodRefInfo
 import com.alsaril.codegen.constantpool.ConstantNameAndTypeInfo
 import com.alsaril.codegen.constantpool.ConstantUtf8Info
