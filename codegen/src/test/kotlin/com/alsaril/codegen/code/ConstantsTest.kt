@@ -81,6 +81,32 @@ class ConstantsTest {
         }
 
         @Test
+        fun `registers a method type behind the utf8 of its descriptor`() {
+            // given
+            val cp = UpdatableConstantPool()
+
+            // when
+            val pointer = builder(cp).methodType("(I)V")
+
+            // then
+            assertThat(pointer).isEqualTo(DataPointer(2, ReferenceType("java/lang/invoke/MethodType")))
+            assertThat(cp.build().entries).containsExactly(
+                ConstantUtf8Info("(I)V"),
+                ConstantMethodTypeInfo(descriptorIndex = 1),
+            )
+        }
+
+        @Test
+        fun `reuses one pool entry for a repeated method type`() {
+            // given
+            val builder = builder()
+
+            // then
+            assertThat(builder.methodType("(I)V")).isEqualTo(builder.methodType("(I)V"))
+            assertThat(builder.methodType("(J)V")).isNotEqualTo(builder.methodType("(I)V"))
+        }
+
+        @Test
         fun `registers a string constant behind its utf8`() {
             // given
             val cp = UpdatableConstantPool()
@@ -314,99 +340,45 @@ class ConstantsTest {
     @Nested
     inner class DynamicConstants {
 
-        /** the descriptor of a bootstrap method taking [args] after the lookup, name and type, and returning [returns] */
-        private fun bootstrap(returns: String, args: String = "") = "($CBP$args)$returns"
+        /** the descriptor of a dynamic constant's bootstrap method taking [args] after the lookup, name and type */
+        private fun bootstrapDescriptor(returns: String, args: String = "") = "($CBP$args)$returns"
 
         @Nested
         inner class Pool {
 
             @Test
-            fun `registers the bootstrap handle, then the constant typed as the bootstrap method returns`() {
+            fun `registers the constant behind its name-and-type, naming the bootstrap method it is given`() {
                 // given
                 val cp = UpdatableConstantPool()
-                val builder = builder(cp)
-                val owner = builder.clazz("B")
 
                 // when
-                val pointer = builder.constantDynamic(owner, "boot", bootstrap("I"))
+                val pointer = builder(cp).constantDynamic("answer", "I", BootstrapPointer(3))
 
-                // then the method ref and a static handle to it, and the constant behind its name-and-type
-                assertThat(pointer).isEqualTo(DataPointer(11, INTEGER))
+                // then
+                assertThat(pointer).isEqualTo(DataPointer(4, INTEGER))
                 assertThat(cp.build().entries).containsExactly(
-                    ConstantUtf8Info("B"),
-                    ConstantClassInfo(nameIndex = 1),
-                    ConstantUtf8Info("boot"),
-                    ConstantUtf8Info(bootstrap("I")),
-                    ConstantNameAndTypeInfo(nameIndex = 3, descriptorIndex = 4),
-                    ConstantMethodRefInfo(classNameIndex = 2, nameAndTypeIndex = 5),
-                    ConstantMethodHandleInfo(INVOKE_STATIC, referenceIndex = 6),
-                    ConstantUtf8Info("_"),
-                    ConstantUtf8Info("I"),
-                    ConstantNameAndTypeInfo(nameIndex = 8, descriptorIndex = 9),
-                    ConstantDynamicInfo(bootstrapMethodIndex = 0, nameAndTypeIndex = 10),
-                )
-                assertThat(builder.bootstrapMethods.methods()).containsExactly(BootstrapMethod(7, emptyList()))
-            }
-
-            @Test
-            fun `types the constant as the class the bootstrap method returns`() {
-                // given
-                val builder = builder()
-
-                // when
-                val pointer = builder.constantDynamic(builder.clazz("B"), "boot", bootstrap("Ljava/lang/String;"))
-
-                // then
-                assertThat(pointer.type).isEqualTo(ReferenceType("java/lang/String"))
-            }
-
-            @Test
-            fun `names and types the constant as given, over what the bootstrap method returns`() {
-                // given
-                val cp = UpdatableConstantPool()
-                val builder = builder(cp)
-
-                // when
-                val pointer = builder.constantDynamic(
-                    builder.clazz("B"), "boot", bootstrap("Ljava/lang/Object;"),
-                    constantName = "answer", constantType = "I",
-                )
-
-                // then
-                assertThat(pointer).isEqualTo(DataPointer(11, INTEGER))
-                assertThat(cp.build().entries.takeLast(4)).containsExactly(
                     ConstantUtf8Info("answer"),
                     ConstantUtf8Info("I"),
-                    ConstantNameAndTypeInfo(nameIndex = 8, descriptorIndex = 9),
-                    ConstantDynamicInfo(bootstrapMethodIndex = 0, nameAndTypeIndex = 10),
+                    ConstantNameAndTypeInfo(nameIndex = 1, descriptorIndex = 2),
+                    ConstantDynamicInfo(bootstrapMethodIndex = 3, nameAndTypeIndex = 3),
                 )
             }
 
             @Test
-            fun `keeps constants of one bootstrap method apart by name and by type`() {
+            fun `types the constant as its descriptor says`() {
                 // given
                 val builder = builder()
-                val owner = builder.clazz("B")
-                val descriptor = bootstrap("Ljava/lang/Object;")
 
-                // when
-                val a = builder.constantDynamic(owner, "boot", descriptor, constantName = "a")
-                val b = builder.constantDynamic(owner, "boot", descriptor, constantName = "b")
-                val string = builder.constantDynamic(owner, "boot", descriptor, constantName = "a", constantType = "Ljava/lang/String;")
-
-                // then one bootstrap method serves all three
-                assertThat(listOf(a.index, b.index, string.index)).doesNotHaveDuplicates()
-                assertThat(string.type).isEqualTo(ReferenceType("java/lang/String"))
-                assertThat(builder.bootstrapMethods.methods()).hasSize(1)
+                // then
+                assertThat(builder.constantDynamic("_", "Ljava/lang/String;", BootstrapPointer(0)).type)
+                    .isEqualTo(ReferenceType("java/lang/String"))
+                assertThat(builder.constantDynamic("_", "[I", BootstrapPointer(0)).type).isEqualTo(ReferenceType("[I"))
             }
 
             @Test
             fun `types a long constant as two slots, for ldc2_w to load`() {
-                // given
-                val builder = builder()
-
                 // when
-                val pointer = builder.constantDynamic(builder.clazz("B"), "boot", bootstrap("J"))
+                val pointer = builder().constantDynamic("_", "J", BootstrapPointer(0))
 
                 // then
                 assertThat(pointer.type).isEqualTo(LONG)
@@ -414,64 +386,30 @@ class ConstantsTest {
             }
 
             @Test
-            fun `passes the arguments to the bootstrap method as their pool indices`() {
+            fun `reuses one entry for a repeated constant`() {
                 // given
                 val builder = builder()
-                val first = builder.int(1)
-                val second = builder.string("s")
-
-                // when
-                builder.constantDynamic(builder.clazz("B"), "boot", bootstrap("I", "ILjava/lang/String;"), first, second)
 
                 // then
-                assertThat(builder.bootstrapMethods.methods().single().bootstrapArguments)
-                    .containsExactly(first.index, second.index)
+                assertThat(builder.constantDynamic("_", "I", BootstrapPointer(0)))
+                    .isEqualTo(builder.constantDynamic("_", "I", BootstrapPointer(0)))
             }
 
             @Test
-            fun `reuses one constant and one bootstrap method for a repeated constant`() {
+            fun `keeps constants apart by name, by type and by bootstrap method`() {
                 // given
                 val builder = builder()
-                val owner = builder.clazz("B")
 
                 // when
-                val first = builder.constantDynamic(owner, "boot", bootstrap("I", "I"), builder.int(1))
-                val second = builder.constantDynamic(owner, "boot", bootstrap("I", "I"), builder.int(1))
+                val constants = listOf(
+                    builder.constantDynamic("a", "I", BootstrapPointer(0)),
+                    builder.constantDynamic("b", "I", BootstrapPointer(0)),
+                    builder.constantDynamic("a", "J", BootstrapPointer(0)),
+                    builder.constantDynamic("a", "I", BootstrapPointer(1)),
+                )
 
                 // then
-                assertThat(second).isEqualTo(first)
-                assertThat(builder.bootstrapMethods.methods()).hasSize(1)
-            }
-
-            @Test
-            fun `keeps constants with different arguments apart`() {
-                // given
-                val builder = builder()
-                val owner = builder.clazz("B")
-
-                // when
-                val one = builder.constantDynamic(owner, "boot", bootstrap("I", "I"), builder.int(1))
-                val two = builder.constantDynamic(owner, "boot", bootstrap("I", "I"), builder.int(2))
-
-                // then
-                assertThat(two.index).isNotEqualTo(one.index)
-                assertThat(builder.bootstrapMethods.methods()).hasSize(2)
-            }
-
-            @Test
-            fun `shares the bootstrap methods of every code builder of a class`() {
-                // given
-                val clazz = classFile("Shared", "java/lang/Object")
-                val first = clazz.newCodeBuilder()
-                val second = clazz.newCodeBuilder()
-
-                // when
-                val one = first.constantDynamic(first.self(), "boot", bootstrap("I"))
-                val other = second.constantDynamic(second.self(), "boot", bootstrap("I"))
-
-                // then
-                assertThat(other).isEqualTo(one)
-                assertThat(second.bootstrapMethods).isSameAs(first.bootstrapMethods)
+                assertThat(constants.map { it.index }).doesNotHaveDuplicates()
             }
         }
 
@@ -479,24 +417,10 @@ class ConstantsTest {
         inner class Refuses {
 
             @Test
-            fun `a bootstrap method that returns nothing`() {
-                assertThatIllegalArgumentException()
-                    .isThrownBy { builder().run { constantDynamic(self(), "boot", bootstrap("V")) } }
-                    .withMessage("boot${bootstrap("V")} returns void, so it has no constant to give")
-            }
-
-            @Test
             fun `a constant typed void`() {
                 assertThatIllegalArgumentException()
-                    .isThrownBy { builder().run { constantDynamic(self(), "boot", bootstrap("I"), constantType = "V") } }
+                    .isThrownBy { builder().constantDynamic("_", "V", BootstrapPointer(0)) }
                     .withMessage("a dynamic constant of type V would hold nothing")
-            }
-
-            @Test
-            fun `a method that does not take a lookup, a name and a type first`() {
-                assertThatIllegalArgumentException()
-                    .isThrownBy { builder().run { constantDynamic(self(), "boot", "(Ljava/lang/String;)I") } }
-                    .withMessage("boot(Ljava/lang/String;)I cannot bootstrap a dynamic constant, which takes a lookup, a name and a type first")
             }
         }
 
@@ -519,13 +443,19 @@ class ConstantsTest {
             private fun ClassFileBuilder.withBootstrap(name: String, descriptor: String, body: CodeBuilder.() -> Unit) =
                 method(name, descriptor, PRIVATE, STATIC, codeBuilder = body)
 
+            /** the bootstrap method [name] of this class, handed [args] */
+            private fun CodeBuilder.own(name: String, descriptor: String, vararg args: DataPointer) =
+                bootstrap(methodHandle(INVOKE_STATIC, self(), name, descriptor), *args)
+
+            private fun CodeBuilder.jdk(name: String, descriptor: String, vararg args: DataPointer) =
+                bootstrap(methodHandle(INVOKE_STATIC, clazz("java/lang/invoke/ConstantBootstraps"), name, descriptor), *args)
+
             @Test
             fun `hands back what its bootstrap method returns`() {
-                val result = call(
-                    "()Ljava/lang/Object;",
-                    { withBootstrap("boot", bootstrap("Ljava/lang/Object;")) { +ldc(string("Hello, world!")); +areturn } },
-                ) {
-                    +ldc(constantDynamic(self(), "boot", bootstrap("Ljava/lang/Object;")))
+                val boot = bootstrapDescriptor("Ljava/lang/Object;")
+
+                val result = call("()Ljava/lang/Object;", { withBootstrap("boot", boot) { +ldc(string("Hello, world!")); +areturn } }) {
+                    +ldc(constantDynamic("_", "Ljava/lang/Object;", own("boot", boot)))
                     +areturn
                 }
 
@@ -535,12 +465,12 @@ class ConstantsTest {
             @Test
             fun `hands its arguments to the bootstrap method after the lookup, the name and the type`() {
                 // given a bootstrap method formatting its two arguments, which sit in slots 3 and 4
-                val descriptor = bootstrap("Ljava/lang/Object;", "Ljava/lang/String;Ljava/lang/String;")
+                val boot = bootstrapDescriptor("Ljava/lang/Object;", "Ljava/lang/String;Ljava/lang/String;")
 
                 val result = call(
                     "()Ljava/lang/Object;",
                     {
-                        withBootstrap("boot", descriptor) {
+                        withBootstrap("boot", boot) {
                             +ldc(string("Hello, world! %s %s"))
                             +iconst(2)
                             +anewarray(clazz("java/lang/Object"))
@@ -557,7 +487,7 @@ class ConstantsTest {
                         }
                     },
                 ) {
-                    +ldc(constantDynamic(self(), "boot", descriptor, string("plus"), string("minus")))
+                    +ldc(constantDynamic("_", "Ljava/lang/Object;", own("boot", boot, string("plus"), string("minus"))))
                     +areturn
                 }
 
@@ -567,11 +497,14 @@ class ConstantsTest {
             @Test
             fun `takes another dynamic constant as an argument`() {
                 // given an int constant handed on as the argument of a second one
+                val offset = bootstrapDescriptor("I")
+                val tail = bootstrapDescriptor("Ljava/lang/Object;", "I")
+
                 val result = call(
                     "()Ljava/lang/Object;",
                     {
-                        withBootstrap("offset", bootstrap("I")) { +iconst(5); +ireturn }
-                            .withBootstrap("tail", bootstrap("Ljava/lang/Object;", "I")) {
+                        withBootstrap("offset", offset) { +iconst(5); +ireturn }
+                            .withBootstrap("tail", tail) {
                                 +ldc(string("Hello, world!"))
                                 +iload(3)
                                 invokevirtual(clazz("java/lang/String"), "substring", "(I)Ljava/lang/String;")
@@ -579,8 +512,8 @@ class ConstantsTest {
                             }
                     },
                 ) {
-                    val offset = constantDynamic(self(), "offset", bootstrap("I"))
-                    +ldc(constantDynamic(self(), "tail", bootstrap("Ljava/lang/Object;", "I"), offset))
+                    val five = constantDynamic("_", "I", own("offset", offset))
+                    +ldc(constantDynamic("_", "Ljava/lang/Object;", own("tail", tail, five)))
                     +areturn
                 }
 
@@ -588,10 +521,12 @@ class ConstantsTest {
             }
 
             @Test
-            fun `loads a constant as the primitive its bootstrap method returns`() {
+            fun `loads a constant typed as a primitive`() {
                 // given the constant handed straight to ireturn, which takes nothing but an int
-                val result = call("()I", { withBootstrap("boot", bootstrap("I")) { +iconst(5); +ireturn } }) {
-                    +ldc(constantDynamic(self(), "boot", bootstrap("I")))
+                val boot = bootstrapDescriptor("I")
+
+                val result = call("()I", { withBootstrap("boot", boot) { +iconst(5); +ireturn } }) {
+                    +ldc(constantDynamic("_", "I", own("boot", boot)))
                     +ireturn
                 }
 
@@ -599,13 +534,12 @@ class ConstantsTest {
             }
 
             @Test
-            fun `loads a constant as the class its bootstrap method returns`() {
+            fun `loads a constant typed as a class`() {
                 // given the constant used as a String, which the verifier checks against its declared type
-                val result = call(
-                    "()I",
-                    { withBootstrap("boot", bootstrap("Ljava/lang/String;")) { +ldc(string("abc")); +areturn } },
-                ) {
-                    +ldc(constantDynamic(self(), "boot", bootstrap("Ljava/lang/String;")))
+                val boot = bootstrapDescriptor("Ljava/lang/Object;")
+
+                val result = call("()I", { withBootstrap("boot", boot) { +ldc(string("abc")); +areturn } }) {
+                    +ldc(constantDynamic("_", "Ljava/lang/String;", own("boot", boot)))
                     invokevirtual(clazz("java/lang/String"), "length", "()I")
                     +ireturn
                 }
@@ -618,12 +552,7 @@ class ConstantsTest {
                 // given the JDK's getStaticFinal, which reads the static field the constant is named
                 // after, from the class of the constant's type, here Integer for int
                 val result = call("()I", { this }) {
-                    +ldc(
-                        constantDynamic(
-                            clazz("java/lang/invoke/ConstantBootstraps"), "getStaticFinal", bootstrap("Ljava/lang/Object;"),
-                            constantName = "MAX_VALUE", constantType = "I",
-                        ),
-                    )
+                    +ldc(constantDynamic("MAX_VALUE", "I", jdk("getStaticFinal", bootstrapDescriptor("Ljava/lang/Object;"))))
                     +ireturn
                 }
 
@@ -633,16 +562,11 @@ class ConstantsTest {
             @Test
             fun `takes a method handle as an argument`() {
                 // given the JDK's invoke, which calls the handle on the remaining arguments
-                val invoke = bootstrap("Ljava/lang/Object;", "Ljava/lang/invoke/MethodHandle;[Ljava/lang/Object;")
+                val invoke = bootstrapDescriptor("Ljava/lang/Object;", "Ljava/lang/invoke/MethodHandle;[Ljava/lang/Object;")
 
                 val result = call("()I", { this }) {
                     val max = methodHandle(INVOKE_STATIC, clazz("java/lang/Math"), "max", "(II)I")
-                    +ldc(
-                        constantDynamic(
-                            clazz("java/lang/invoke/ConstantBootstraps"), "invoke", invoke, max, int(3), int(7),
-                            constantType = "I",
-                        ),
-                    )
+                    +ldc(constantDynamic("_", "I", jdk("invoke", invoke, max, int(3), int(7))))
                     +ireturn
                 }
 
@@ -652,16 +576,13 @@ class ConstantsTest {
             @Test
             fun `resolves a constant once, however often it is loaded`() {
                 // given a bootstrap method handing out a new object on every call
+                val boot = bootstrapDescriptor("Ljava/lang/Object;")
+
                 val result = call(
                     "()I",
-                    {
-                        withBootstrap("boot", bootstrap("Ljava/lang/Object;")) {
-                            constructDefault(clazz("java/lang/Object"))
-                            +areturn
-                        }
-                    },
+                    { withBootstrap("boot", boot) { constructDefault(clazz("java/lang/Object")); +areturn } },
                 ) {
-                    val constant = constantDynamic(self(), "boot", bootstrap("Ljava/lang/Object;"))
+                    val constant = constantDynamic("_", "Ljava/lang/Object;", own("boot", boot))
                     +ldc(constant)
                     +ldc(constant)
                     val same = +if_acmpeq

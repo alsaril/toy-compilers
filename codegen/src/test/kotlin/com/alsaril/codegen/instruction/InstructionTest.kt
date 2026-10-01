@@ -504,6 +504,7 @@ class InstructionTest {
             assertThat(invokeinterface(1, args, LONG).stackEffect()).isEqualTo(expected)
             assertThat(invokespecial(1, args, LONG, null).stackEffect()).isEqualTo(expected)
             assertThat(invokestatic(1, args, LONG).stackEffect()).isEqualTo(expected)
+            assertThat(invokedynamic(1, args, LONG).stackEffect()).isEqualTo(expected)
         }
 
         @Test

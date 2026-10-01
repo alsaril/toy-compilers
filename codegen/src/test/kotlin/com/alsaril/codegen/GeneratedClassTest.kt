@@ -1030,6 +1030,21 @@ class GeneratedClassTest {
     }
 
     @Test
+    fun `loads a method type with ldc`() {
+        // given
+        val (name, bytes) = classFile("GenMethodType", "java/lang/Object")
+            .method("f", "()Ljava/lang/Object;", PUBLIC, STATIC) {
+                +ldc(methodType("(ILjava/lang/String;)V"))
+                +areturn
+            }
+            .build()
+
+        // then
+        assertThat(ByteClassLoader().loadClass(name, bytes).getDeclaredMethod("f").invoke(null))
+            .isEqualTo(java.lang.invoke.MethodType.methodType(Void.TYPE, Int::class.javaPrimitiveType, String::class.java))
+    }
+
+    @Test
     fun `loads method handles with ldc and calls them`() {
         // given a handle of each kind of ref, called through invokeExact with the type it has
         val handle = "java/lang/invoke/MethodHandle"

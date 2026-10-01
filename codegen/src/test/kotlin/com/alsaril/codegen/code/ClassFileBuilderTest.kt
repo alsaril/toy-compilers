@@ -3,6 +3,7 @@ package com.alsaril.codegen.code
 import com.alsaril.codegen.ByteClassLoader
 import com.alsaril.codegen.ClassWriter
 import com.alsaril.codegen.bytesOf
+import com.alsaril.codegen.constantpool.ConstantMethodHandleInfo.ReferenceKind.INVOKE_STATIC
 import com.alsaril.codegen.classfile.attributes.AttributeInfo
 import com.alsaril.codegen.methodLimits
 import com.alsaril.codegen.code.ClassFileBuilder.Companion.classFile
@@ -67,7 +68,7 @@ class ClassFileBuilderTest {
         // given a class with a dynamic constant, built once already
         val builder = classFile("GenBuiltTwice", "java/lang/Object")
             .method("f", "()Ljava/lang/Object;", PUBLIC, STATIC) {
-                +ldc(constantDynamic(self(), "boot", "(${CBP})Ljava/lang/Object;"))
+                +ldc(constantDynamic("_", "Ljava/lang/Object;", bootstrap(methodHandle(INVOKE_STATIC, self(), "boot", "(${CBP})Ljava/lang/Object;"))))
                 +areturn
             }
             .method("boot", "(${CBP})Ljava/lang/Object;", PRIVATE, STATIC) {

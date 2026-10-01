@@ -16,6 +16,7 @@ class UpdatableConstantPool {
     private val classCache = mutableMapOf<String, Int>()
     private val nameAndTypeCache = mutableMapOf<Pair<String, String>, Int>()
     private val methodHandleCache = mutableMapOf<Pair<ReferenceKind, Int>, Int>()
+    private val methodTypeCache = mutableMapOf<String, Int>()
     private val constantDynamicCache = mutableMapOf<Triple<String, String, Int>, Int>()
     private val constantInvokeDynamicCache = mutableMapOf<Triple<String, String, Int>, Int>()
     private val refCache = mutableMapOf<RefKey, Int>()
@@ -70,7 +71,7 @@ class UpdatableConstantPool {
         index++
     }
 
-    fun putConstantNameAndTypeInfo(name: String, descriptor: String) =
+    fun putNameAndType(name: String, descriptor: String) =
         nameAndTypeCache.computeIfAbsent(name to descriptor) {
             if (built) throw IllegalStateException("built")
             val nameIndex = putUtf8(name)
@@ -79,25 +80,32 @@ class UpdatableConstantPool {
             index++
         }
 
-    fun putConstantMethodHandleInfo(referenceKind: ReferenceKind, referenceIndex: Int) =
+    fun putMethodHandle(referenceKind: ReferenceKind, referenceIndex: Int) =
         methodHandleCache.computeIfAbsent(referenceKind to referenceIndex) {
             if (built) throw IllegalStateException("built")
             entries.add(ConstantMethodHandleInfo(referenceKind, referenceIndex))
             index++
         }
 
-    fun putConstantDynamicInfo(name: String, descriptor: String, bootstrapMethodIndex: Int) =
+    fun putMethodType(descriptor: String) = methodTypeCache.computeIfAbsent(descriptor) {
+        if (built) throw IllegalStateException("built")
+        val descriptorIndex = putUtf8(descriptor)
+        entries.add(ConstantMethodTypeInfo(descriptorIndex))
+        index++
+    }
+
+    fun putDynamic(name: String, descriptor: String, bootstrapMethodIndex: Int) =
         constantDynamicCache.computeIfAbsent(Triple(name, descriptor, bootstrapMethodIndex)) {
             if (built) throw IllegalStateException("built")
-            val nameAndTypeIndex = putConstantNameAndTypeInfo(name, descriptor)
+            val nameAndTypeIndex = putNameAndType(name, descriptor)
             entries.add(ConstantDynamicInfo(bootstrapMethodIndex, nameAndTypeIndex))
             index++
         }
 
-    fun putConstantInvokeDynamicInfo(name: String, descriptor: String, bootstrapMethodIndex: Int) =
+    fun putInvokeDynamic(name: String, descriptor: String, bootstrapMethodIndex: Int) =
         constantInvokeDynamicCache.computeIfAbsent(Triple(name, descriptor, bootstrapMethodIndex)) {
             if (built) throw IllegalStateException("built")
-            val nameAndTypeIndex = putConstantNameAndTypeInfo(name, descriptor)
+            val nameAndTypeIndex = putNameAndType(name, descriptor)
             entries.add(ConstantInvokeDynamicInfo(bootstrapMethodIndex, nameAndTypeIndex))
             index++
         }
@@ -111,7 +119,7 @@ class UpdatableConstantPool {
     fun putRef(classNameIndex: Int, name: String, descriptor: String, refType: RefType) =
         refCache.computeIfAbsent(RefKey(classNameIndex, name, descriptor, refType)) {
             if (built) throw IllegalStateException("built")
-            val nameAndTypeIndex = putConstantNameAndTypeInfo(name, descriptor)
+            val nameAndTypeIndex = putNameAndType(name, descriptor)
             val info = when (refType) {
                 FIELD -> ConstantFieldRefInfo(classNameIndex, nameAndTypeIndex)
                 METHOD -> ConstantMethodRefInfo(classNameIndex, nameAndTypeIndex)

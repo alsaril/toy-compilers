@@ -4,18 +4,14 @@ import com.alsaril.codegen.ClassWriter
 import com.alsaril.codegen.Writable
 import com.alsaril.codegen.classfile.ArrayType
 import com.alsaril.codegen.classfile.PrimitiveType
-import com.alsaril.codegen.classfile.ReferenceType as ClassType
 import com.alsaril.codegen.classfile.parseType
 import com.alsaril.codegen.constantpool.ClassPointer
 import com.alsaril.codegen.constantpool.DataPointer
 import com.alsaril.codegen.constantpool.FieldDescriptor
 import com.alsaril.codegen.constantpool.MethodDescriptor
-import com.alsaril.codegen.verification.AnyReference
-import com.alsaril.codegen.verification.OfType
-import com.alsaril.codegen.verification.OneOf
+import com.alsaril.codegen.verification.*
 import com.alsaril.codegen.verification.PrimitiveType.*
-import com.alsaril.codegen.verification.ReferenceType
-import com.alsaril.codegen.verification.VerificationType
+import com.alsaril.codegen.classfile.ReferenceType as ClassType
 
 sealed interface Instruction : Writable {
     fun stackEffect(): StackEffect = StackEffect.NONE
@@ -324,6 +320,25 @@ data class invokeinterface(
         u1(0xb9)
         u2(index)
         u1(args.sumOf { it.slots })
+        u1(0)
+    }
+}
+
+data class invokedynamic(
+    val index: Int,
+    override val args: List<VerificationType>,
+    override val returnType: VerificationType,
+) : Invocation {
+    constructor(method: MethodDescriptor) : this(method.index, method.args, method.returnType)
+
+    init {
+        require(index in 0..0xffff) { "$index does not fit a u2" }
+    }
+
+    override fun ClassWriter.write() {
+        u1(0xba)
+        u2(index)
+        u1(0)
         u1(0)
     }
 }

@@ -174,6 +174,12 @@ class ConstantPoolSerializationTest {
         }
 
         @Test
+        fun `writes a method type as tag and descriptor index`() {
+            assertThat(ConstantMethodTypeInfo(descriptorIndex = 258).serialized())
+                .containsExactly(*bytesOf(0x10, 0x01, 0x02))
+        }
+
+        @Test
         fun `writes a dynamic constant as tag, bootstrap method index and name-and-type index`() {
             assertThat(ConstantDynamicInfo(bootstrapMethodIndex = 3, nameAndTypeIndex = 258).serialized())
                 .containsExactly(*bytesOf(0x11, 0x00, 0x03, 0x01, 0x02))

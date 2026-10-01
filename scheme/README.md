@@ -145,13 +145,10 @@ runs and the same object on every run after, so a call allocates nothing for it 
 class needs no static initializer:
 
 ```kotlin
-+ldc(constantDynamic(
-    clazz("java/lang/invoke/ConstantBootstraps"), "invoke",
-    "(${CBP}Ljava/lang/invoke/MethodHandle;[Ljava/lang/Object;)Ljava/lang/Object;",
-    methodHandle(INVOKE_STATIC, clazz("java/util/List"), "of", "([Ljava/lang/Object;)Ljava/util/List;", onInterface = true),
-    *names.map(::string).toTypedArray(),
-    constantType = "Ljava/util/List;",
-))
+val invoke = methodHandle(INVOKE_STATIC, clazz("java/lang/invoke/ConstantBootstraps"), "invoke",
+    "(${CBP}Ljava/lang/invoke/MethodHandle;[Ljava/lang/Object;)Ljava/lang/Object;")
+val listOf = methodHandle(INVOKE_STATIC, clazz("java/util/List"), "of", "([Ljava/lang/Object;)Ljava/util/List;", onInterface = true)
++ldc(constantDynamic("_", "Ljava/util/List;", bootstrap(invoke, listOf, *names.map(::string).toTypedArray())))
 ```
 
 `ConstantBootstraps.invoke` is the JDK's general-purpose bootstrap: it calls the method

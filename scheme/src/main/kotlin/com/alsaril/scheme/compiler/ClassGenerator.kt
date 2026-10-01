@@ -309,21 +309,17 @@ object ClassGenerator {
         rest: String?,
         nodes: List<Node>,
         context: Context
-    ) =
-        method("call", "(Ljava/lang/Object;)Ljava/lang/Object;", PUBLIC, FINAL) {
+    ) = method("call", "(Ljava/lang/Object;)Ljava/lang/Object;", PUBLIC, FINAL) {
             +aload(1)
             val listOf = methodHandle(INVOKE_STATIC, clazz("java/util/List"), "of", "([Ljava/lang/Object;)Ljava/util/List;", onInterface = true)
             val args = names.map(::string).toTypedArray()
-            +ldc(
-                constantDynamic(
-                    clazz("java/lang/invoke/ConstantBootstraps"),
-                    "invoke",
-                    "(${CBP}Ljava/lang/invoke/MethodHandle;[Ljava/lang/Object;)Ljava/lang/Object;",
-                    listOf,
-                    *args,
-                    constantType = "Ljava/util/List;",
-                )
+            val invoke = methodHandle(
+                INVOKE_STATIC,
+                clazz("java/lang/invoke/ConstantBootstraps"),
+                "invoke",
+                "(${CBP}Ljava/lang/invoke/MethodHandle;[Ljava/lang/Object;)Ljava/lang/Object;",
             )
+            +ldc(constantDynamic("_", "Ljava/util/List;", bootstrap(invoke, listOf, *args)))
             if (rest != null) {
                 +ldc(string(rest))
             } else {

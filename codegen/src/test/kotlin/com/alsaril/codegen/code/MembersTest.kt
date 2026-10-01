@@ -1,17 +1,7 @@
 package com.alsaril.codegen.code
 
 import com.alsaril.codegen.bytesOf
-import com.alsaril.codegen.classfile.PrimitiveType as ElementType
-import com.alsaril.codegen.constantpool.ClassPointer
-import com.alsaril.codegen.constantpool.ConstantClassInfo
-import com.alsaril.codegen.constantpool.ConstantFieldRefInfo
-import com.alsaril.codegen.constantpool.ConstantInterfaceMethodRefInfo
-import com.alsaril.codegen.constantpool.ConstantMethodHandleInfo.ReferenceKind.*
-import com.alsaril.codegen.constantpool.ConstantMethodRefInfo
-import com.alsaril.codegen.constantpool.ConstantNameAndTypeInfo
-import com.alsaril.codegen.constantpool.ConstantUtf8Info
-import com.alsaril.codegen.constantpool.FieldDescriptor
-import com.alsaril.codegen.constantpool.UpdatableConstantPool
+import com.alsaril.codegen.constantpool.*
 import com.alsaril.codegen.instruction.*
 import com.alsaril.codegen.verification.PrimitiveType.*
 import com.alsaril.codegen.verification.ReferenceType
@@ -19,6 +9,7 @@ import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatIllegalArgumentException
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import com.alsaril.codegen.classfile.PrimitiveType as ElementType
 
 /**
  * The helpers that turn a class, a name and a descriptor into constant pool refs and the
@@ -154,6 +145,53 @@ class MembersTest {
         }
 
         @Test
+        fun `emit invokedynamic against a call site entry, with no receiver among its operands`() {
+            // given
+            val cp = UpdatableConstantPool()
+            val builder = builder(cp)
+
+            // when
+            builder.invokedynamic("make", "(IJ)LA;", BootstrapPointer(3))
+
+            // then the arguments alone, and the result
+            assertThat(builder.emitted()).containsExactly(invokedynamic(4, listOf(INTEGER, LONG), a))
+            assertThat(cp.build().entries).containsExactly(
+                ConstantUtf8Info("make"),
+                ConstantUtf8Info("(IJ)LA;"),
+                ConstantNameAndTypeInfo(nameIndex = 1, descriptorIndex = 2),
+                ConstantInvokeDynamicInfo(bootstrapMethodIndex = 3, nameAndTypeIndex = 3),
+            )
+        }
+
+        @Test
+        fun `emit one invokedynamic per call, sharing the pool entry of an equal call site`() {
+            // given
+            val cp = UpdatableConstantPool()
+            val builder = builder(cp)
+
+            // when
+            builder.invokedynamic("make", "()V", BootstrapPointer(0))
+            builder.invokedynamic("make", "()V", BootstrapPointer(0))
+
+            // then the JVM links each instruction on its own, so the entry is all they share
+            assertThat(builder.emitted()).containsExactly(invokedynamic(4, emptyList(), VOID), invokedynamic(4, emptyList(), VOID))
+            assertThat(cp.build().entries).hasSize(4)
+        }
+
+        @Test
+        fun `keep call sites of different bootstrap methods apart`() {
+            // given
+            val builder = builder()
+
+            // when
+            builder.invokedynamic("make", "()V", BootstrapPointer(0))
+            builder.invokedynamic("make", "()V", BootstrapPointer(1))
+
+            // then
+            assertThat(builder.emitted().map { (it as invokedynamic).index }).doesNotHaveDuplicates()
+        }
+
+        @Test
         fun `hand back the label of the call they emit`() {
             // given one instruction ahead of every call, so each lands at index 1
             val calls = listOf<CodeBuilder.(ClassPointer) -> Label>(
@@ -161,6 +199,7 @@ class MembersTest {
                 { invokespecial(it, "f", "()V") },
                 { invokestatic(it, "f", "()V") },
                 { invokeinterface(it, "f", "()V") },
+                { invokedynamic("f", "()V", BootstrapPointer(0)) },
             )
 
             // then like every other emitter, so a call can be a branch target or open a guarded range
@@ -217,6 +256,20 @@ class MembersTest {
                 .containsExactly(*bytesOf(0xB7, 0x00, 0x01))
             assertThat(bytecode { +invokestatic(1, emptyList(), VOID) })
                 .containsExactly(*bytesOf(0xB8, 0x00, 0x01))
+        }
+
+        @Test
+        fun `writes invokedynamic with the call site index and two zero bytes`() {
+            // the two bytes after the index are reserved, and JVMS has them zero
+            assertThat(bytecode { +invokedynamic(0x0102, emptyList(), VOID) })
+                .containsExactly(*bytesOf(0xBA, 0x01, 0x02, 0x00, 0x00))
+        }
+
+        @Test
+        fun `refuses invokedynamic past a two byte index`() {
+            assertThatIllegalArgumentException()
+                .isThrownBy { invokedynamic(65536, emptyList(), VOID) }
+                .withMessage("65536 does not fit a u2")
         }
 
         @Test

@@ -116,6 +116,12 @@ data class ConstantMethodHandleInfo(
     }
 }
 
+data class ConstantMethodTypeInfo(
+    val descriptorIndex: Int
+) : CpInfo(tag = 16) {
+    override fun ClassWriter.writeInfo() = u2(descriptorIndex)
+}
+
 data class ConstantDynamicInfo(
     val bootstrapMethodIndex: Int,
     val nameAndTypeIndex: Int

@@ -126,7 +126,7 @@ value as something narrower.
 
 `UpdatableConstantPool` collects entries while code is generated, then freezes into a
 `StaticConstantPool`. Every kind is **cached and deduplicated** — utf8, int, long, double,
-class, string, name-and-type, field/method/interface refs, method handles, dynamic constants
+class, string, name-and-type, field/method/interface refs, method handles, method types, dynamic constants
 and invokedynamic entries — so repeating a name or a descriptor costs one entry. Long and
 double correctly occupy two slots.
 
@@ -138,7 +138,7 @@ type of the constant it loads.
 `Pointers` hands out the `ClassPointer`s — `clazz`, `self` and `parent` — which the
 instructions and helpers naming a class take. `Constants` hands out the `DataPointer`s: the
 loadable constants, which `ldc` or `ldc2_w` load and a bootstrap method takes as arguments —
-`int`, `float`, `long`, `double`, `string`, `methodHandle` and
+`int`, `float`, `long`, `double`, `string`, `methodType`, `methodHandle` and
 [`constantDynamic`](#dynamic-constants).
 
 `methodHandle(kind, clazz, name, descriptor)` registers a method handle — a `DataPointer`
@@ -260,7 +260,8 @@ where a byte offset would have had to be recomputed, and a jump patched.
 - references — `aconst_null`, locals, `new`, `newarray`, `anewarray`, loads and stores
   into arrays of references, `checkcast`, `instanceof`, identity and null comparisons,
   `areturn`, `athrow`;
-- fields and calls — `getstatic`, `getfield`, `putfield` and the invoke family;
+- fields and calls — `getstatic`, `getfield`, `putfield` and the invoke family, with
+  [`invokedynamic`](#bootstrap-methods);
 - the stack — `pop`, `pop2`, `dup`, `dup_x1`, `dup_x2`, `dup2`;
 - the pool — `ldc` for a one slot constant, `ldc2_w` for a long or a double, either for a
   [dynamic constant](#dynamic-constants).
@@ -333,37 +334,55 @@ classFile("Holder", "java/lang/Object")
 Fields are written in the order they were declared, with no attributes — so no
 `ConstantValue`; a field starts at its default and is set by code.
 
+## Bootstrap methods
+
+A bootstrap method is a method handle and the constants it is given as arguments, which the
+JVM calls once to link a [dynamic constant](#dynamic-constants) or an `invokedynamic` call
+site. They are kept per class, shared by every code builder it hands out and deduplicated
+like the pool — one handle with the same arguments is one bootstrap method — and written as
+the class's `BootstrapMethods` attribute when there is at least one.
+
+`bootstrap(handle, args...)` registers one and hands back a `BootstrapPointer`, an index into
+that table which a constant pool index cannot be mistaken for. `lambdaBootstrap` registers
+the JDK's `LambdaMetafactory.metafactory` with the interface method type, the implementation
+handle and the dynamic method type, which is how a lambda is made:
+
+```kotlin
++ldc(int(10))   // captured
+invokedynamic("apply", "(I)Ljava/util/function/Function;",
+    lambdaBootstrap("(Ljava/lang/Object;)Ljava/lang/Object;", methodHandle(INVOKE_STATIC, self(), "add", "(II)I"),
+        "(Ljava/lang/Integer;)Ljava/lang/Integer;"))
+```
+
+`invokedynamic(name, descriptor, bootstrap)` emits a call site of that name and method
+descriptor; it takes the arguments the descriptor names and no receiver. The JVM links each
+`invokedynamic` instruction on its own, though equal call sites share a pool entry. A
+bootstrap method of a call site takes `IDP` first — the lookup, the call site's name and its
+method type:
+
+```kotlin
+val bind = "(${IDP}Ljava/lang/invoke/MethodHandle;)Ljava/lang/invoke/CallSite;"
+val impl = methodHandle(INVOKE_STATIC, self(), "impl", "(I)I")
+invokedynamic("_", "(I)I", bootstrap(methodHandle(INVOKE_STATIC, self(), "bind", bind), impl))
+```
+
 ## Dynamic constants
 
-A dynamic constant is computed by a static bootstrap method the first time it is loaded, and
-every load after that gives the same value:
+A dynamic constant is computed by a [bootstrap method](#bootstrap-methods) the first time it
+is loaded, and every load after that gives the same value. `constantDynamic(name, type,
+bootstrap)` registers one, the way `invokedynamic` names a call site: the constant's name and
+its type — a field descriptor, which `void` cannot be — and the `BootstrapPointer` that
+computes it. The `DataPointer` handed back is loaded by `ldc`, or by `ldc2_w` for a long or a
+double, and can be a bootstrap method's argument in turn.
+
+A bootstrap method of a dynamic constant takes `CBP` first — the lookup, the constant's name
+and its type — which is all the JDK's `ConstantBootstraps` need to read a static field:
 
 ```kotlin
-val bootstrap = "(${CBP}Ljava/lang/String;)Ljava/lang/String;"
-+ldc(constantDynamic(self(), "greeting", bootstrap, string("world")))
+val getStaticFinal = methodHandle(INVOKE_STATIC, clazz("java/lang/invoke/ConstantBootstraps"),
+    "getStaticFinal", "(${CBP})Ljava/lang/Object;")
++ldc(constantDynamic("MAX_VALUE", "I", bootstrap(getStaticFinal)))
 ```
-
-`constantDynamic` takes the class that declares the bootstrap method, its name and its whole
-descriptor, then the constants the method is given as its remaining arguments — any
-`DataPointer`, another dynamic constant included. The descriptor starts with
-`CBP`, the three parameters the JVM passes first: the lookup, the
-constant's name and its type. The constant is named `_` and takes the type the method
-returns, unless `constantName` and `constantType` — a field descriptor — say otherwise, which
-is how a bootstrap method returning `Object`, as the JDK's `ConstantBootstraps` do, gives a
-typed constant. The `DataPointer` handed back is loaded by `ldc`, or by `ldc2_w` for a long
-or a double. A method whose descriptor does not start with the prefix, or that returns
-`void`, is refused, and so is a constant typed `void`.
-
-```kotlin
-+ldc(constantDynamic(clazz("java/lang/invoke/ConstantBootstraps"), "getStaticFinal",
-    "(${CBP})Ljava/lang/Object;", constantName = "MAX_VALUE", constantType = "I"))
-```
-
-Each constant registers a static [method handle](#constant-pool) to its bootstrap method,
-a bootstrap method and the constant itself. The bootstrap methods are kept per class, shared by every code builder
-it hands out and deduplicated like the pool — one handle with the same arguments is one
-bootstrap method — and written as the class's `BootstrapMethods` attribute when there is at
-least one.
 
 `attribute(...)` on `ClassFileBuilder` adds any other attribute to the class; attributes are
 written after the methods, in the order they were given.
@@ -476,8 +495,8 @@ where it is written. There are two layers:
 
 - **The encoding shapes** — each `Encodings.kt` base class checks its operand in `init`, so
   a bad value is refused when the instruction is *constructed* rather than when the body is
-  finally written. The four that write their operands directly — `iconst`, `ldc`, `iinc`
-  and `invokeinterface` — carry the same check themselves.
+  finally written. The five that write their operands directly — `iconst`, `ldc`, `iinc`,
+  `invokeinterface` and `invokedynamic` — carry the same check themselves.
 
 `BytecodeSerializer.s2At` is the same check for a branch offset, which only exists once the
 target's position is known.
