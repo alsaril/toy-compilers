@@ -12,6 +12,7 @@ import org.assertj.core.api.Assertions.assertThatExceptionOfType
 import org.assertj.core.api.Assertions.assertThatIllegalArgumentException
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import java.lang.invoke.MethodHandles
 
 /** The interface the classes generated below are asked to implement. */
 interface Counter {
@@ -19,13 +20,19 @@ interface Counter {
 }
 
 /**
- * The pipeline every frontend is built on: parse, generate, load, then hand back an
- * instance of the interface the frontend declares. The frontends here are stand-ins,
- * so a failure points at the pipeline rather than at any one language.
+ * The pipeline every frontend is built on: parse, generate, define the class through the
+ * frontend's lookup, then hand back an instance of the interface the frontend declares.
+ * The frontends here are stand-ins, so a failure points at the pipeline rather than at
+ * any one language.
  */
 class CompilerTest {
 
     private val counterIface = Counter::class.java.name.replace('.', '/')
+
+    private val lookup = MethodHandles.lookup()
+
+    /** a class name in the package of [lookup], the only one it can define a class in */
+    private fun inPackage(name: String) = "com/alsaril/codegen/$name"
 
     private fun ClassFileBuilder.withConstructor() = method(
         "<init>",
@@ -48,18 +55,17 @@ class CompilerTest {
     }
 
     /** the backend a well behaved frontend would bring */
-    private fun counter(value: Int, name: String = "GenCounter") = classFile(name, "java/lang/Object")
+    private fun counter(value: Int, name: String = "GenCounter") = classFile(inPackage(name), "java/lang/Object")
         .iface(counterIface)
         .withConstructor()
         .withCount(value)
         .build()
-        .let(::ClassGraph)
 
     /** counts the characters of the source, standing in for a real frontend */
     private fun parse(source: String) = source.length
 
     private fun compile(source: String) =
-        pipeline(source, ::parse, { counter(it) }, Counter::class.java)
+        pipeline(source, ::parse, { counter(it) }, Counter::class.java, lookup)
 
     @Nested
     inner class Runs {
@@ -81,7 +87,7 @@ class CompilerTest {
             var seen: String? = null
 
             // when
-            pipeline("  a b  ", { seen = it; it.length }, { counter(it) }, Counter::class.java)
+            pipeline("  a b  ", { seen = it; it.length }, { counter(it) }, Counter::class.java, lookup)
 
             // then
             assertThat(seen).isEqualTo("  a b  ")
@@ -93,27 +99,29 @@ class CompilerTest {
             var seen: Int? = null
 
             // when
-            pipeline("abcd", ::parse, { seen = it; counter(it) }, Counter::class.java)
+            pipeline("abcd", ::parse, { seen = it; counter(it) }, Counter::class.java, lookup)
 
             // then
             assertThat(seen).isEqualTo(4)
         }
 
         @Test
-        fun `loads the class under the name the backend chose`() {
+        fun `defines a hidden class under the name the backend chose`() {
             val program = pipeline(
                 "",
                 ::parse,
                 { counter(it, name = "GenNamed") },
                 Counter::class.java,
+                lookup,
             )
 
-            assertThat(program.javaClass.name).isEqualTo("GenNamed")
+            assertThat(program.javaClass.isHidden).isTrue()
+            assertThat(program.javaClass.name).startsWith("com.alsaril.codegen.GenNamed/")
         }
 
         @Test
         fun `gives every call its own class, even for the same source`() {
-            // a fresh loader per call, so the same name does not clash
+            // a hidden class each time, so the same name does not clash
             val first = compile("ab")
             val second = compile("ab")
 
@@ -127,78 +135,17 @@ class CompilerTest {
                 "",
                 ::parse,
                 {
-                    classFile("GenRunnable", "java/lang/Object")
+                    classFile(inPackage("GenRunnable"), "java/lang/Object")
                         .iface("java/lang/Runnable")
                         .withConstructor()
                         .method("run", "()V", PUBLIC) { +`return` }
                         .build()
-                        .let(::ClassGraph)
                 },
                 Runnable::class.java,
+                lookup,
             )
 
             assertThat(program).isInstanceOf(Runnable::class.java)
-        }
-    }
-
-    @Nested
-    inner class Graphs {
-
-        /** a dependency whose value() returns [value] */
-        private fun valueClass(name: String, value: Int) = classFile(name, "java/lang/Object")
-            .withConstructor()
-            .method("value", "()I", PUBLIC) {
-                +iconst(value)
-                +ireturn
-            }
-            .build()
-
-        /** a dependency whose value() asks [target] for its value */
-        private fun forwarding(name: String, target: String) = classFile(name, "java/lang/Object")
-            .withConstructor()
-            .method("value", "()I", PUBLIC) {
-                constructDefault(clazz(target))
-                invokevirtual(clazz(target), "value", "()I")
-                +ireturn
-            }
-            .build()
-
-        /** a root whose count() asks [target] for its value */
-        private fun user(target: String) = classFile("GenUser", "java/lang/Object")
-            .iface(counterIface)
-            .withConstructor()
-            .method("count", "()I", PUBLIC) {
-                constructDefault(clazz(target))
-                invokevirtual(clazz(target), "value", "()I")
-                +ireturn
-            }
-            .build()
-
-        @Test
-        fun `loads a dependency the root uses from its code`() {
-            // given
-            val graph = ClassGraph(user("GenValue"), listOf(valueClass("GenValue", 7)))
-
-            // when
-            val program = pipeline("", ::parse, { graph }, Counter::class.java)
-
-            // then
-            assertThat(program.count()).isEqualTo(7)
-        }
-
-        @Test
-        fun `loads a dependency only another dependency uses`() {
-            // given GenInner is reachable only through GenOuter, and is listed first
-            val graph = ClassGraph(
-                user("GenOuter"),
-                listOf(valueClass("GenInner", 7), forwarding("GenOuter", "GenInner")),
-            )
-
-            // when
-            val program = pipeline("", ::parse, { graph }, Counter::class.java)
-
-            // then
-            assertThat(program.count()).isEqualTo(7)
         }
     }
 
@@ -213,16 +160,17 @@ class CompilerTest {
                         "",
                         ::parse,
                         {
-                            classFile("GenBare", "java/lang/Object")
+                            classFile(inPackage("GenBare"), "java/lang/Object")
                                 .withConstructor()
                                 .withCount(it)
                                 .build()
-                                .let(::ClassGraph)
                         },
                         Counter::class.java,
+                        lookup,
                     )
                 }
-                .withMessage("generated class GenBare does not implement ${Counter::class.java.name}")
+                .withMessageStartingWith("generated class com.alsaril.codegen.GenBare/")
+                .withMessageEndingWith(" does not implement ${Counter::class.java.name}")
         }
 
         @Test
@@ -233,17 +181,32 @@ class CompilerTest {
                         "",
                         ::parse,
                         {
-                            classFile("GenOther", "java/lang/Object")
+                            classFile(inPackage("GenOther"), "java/lang/Object")
                                 .iface("java/lang/Runnable")
                                 .withConstructor()
                                 .method("run", "()V", PUBLIC) { +`return` }
                                 .build()
-                                .let(::ClassGraph)
                         },
                         Counter::class.java,
+                        lookup,
                     )
                 }
                 .withMessageContaining("GenOther")
+        }
+
+        @Test
+        fun `a class outside the package of the lookup`() {
+            assertThatIllegalArgumentException()
+                .isThrownBy {
+                    pipeline(
+                        "",
+                        ::parse,
+                        { classFile("GenElsewhere", "java/lang/Object").iface(counterIface).withConstructor().withCount(it).build() },
+                        Counter::class.java,
+                        lookup,
+                    )
+                }
+                .withMessageContaining("not in same package as lookup class")
         }
 
         @Test
@@ -254,13 +217,13 @@ class CompilerTest {
                         "",
                         ::parse,
                         {
-                            classFile("GenNoCtor", "java/lang/Object")
+                            classFile(inPackage("GenNoCtor"), "java/lang/Object")
                                 .iface(counterIface)
                                 .withCount(it)
                                 .build()
-                                .let(::ClassGraph)
                         },
                         Counter::class.java,
+                        lookup,
                     )
                 }
         }
@@ -278,6 +241,7 @@ class CompilerTest {
                         { throw IllegalArgumentException("bad source") },
                         { counter(it) },
                         Counter::class.java,
+                        lookup,
                     )
                 }
                 .withMessage("bad source")
@@ -295,6 +259,7 @@ class CompilerTest {
                     { throw IllegalArgumentException("bad source") },
                     { generated = true; counter(it) },
                     Counter::class.java,
+                    lookup,
                 )
             }
 
@@ -311,6 +276,7 @@ class CompilerTest {
                         ::parse,
                         { throw IllegalStateException("cannot generate") },
                         Counter::class.java,
+                        lookup,
                     )
                 }
                 .withMessage("cannot generate")
@@ -323,8 +289,9 @@ class CompilerTest {
                     pipeline<Counter, Int>(
                         "",
                         ::parse,
-                        { ClassGraph("GenBroken" to bytesOf(0xCA, 0xFE, 0xBA, 0xBE)) },
+                        { bytesOf(0xCA, 0xFE, 0xBA, 0xBE) },
                         Counter::class.java,
+                        lookup,
                     )
                 }
         }

@@ -11,8 +11,8 @@ import org.junit.jupiter.api.Test
 class InvokeDynamicTest {
 
     private fun call(argument: Int, members: ClassFileBuilder.() -> ClassFileBuilder): Any? {
-        val (name, bytes) = classFile("GenIndy", parent = "java/lang/Object").members().build()
-        return ByteClassLoader().loadClass(name, bytes).getDeclaredMethod("call", Int::class.java).invoke(null, argument)
+        val bytes = classFile("GenIndy", parent = "java/lang/Object").members().build()
+        return load(bytes).getDeclaredMethod("call", Int::class.java).invoke(null, argument)
     }
 
     @Test

@@ -12,5 +12,6 @@ object SchemeCompiler {
         { tokenize(it).let(::parse) },
         ::generate,
         Program::class.java,
+        ClassGenerator.lookup,
     )
 }

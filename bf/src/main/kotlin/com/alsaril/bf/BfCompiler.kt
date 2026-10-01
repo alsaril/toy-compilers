@@ -8,6 +8,7 @@ object BfCompiler {
         expr,
         Parser::parse,
         ClassGenerator::generate,
-        Program::class.java
+        Program::class.java,
+        ClassGenerator.lookup,
     )
 }

@@ -1,6 +1,5 @@
 package com.alsaril.scheme.compiler
 
-import com.alsaril.codegen.ClassGraph
 import com.alsaril.codegen.classfile.AccessFlag.*
 import com.alsaril.codegen.code.*
 import com.alsaril.codegen.code.ClassFileBuilder.Companion.classFile
@@ -9,16 +8,19 @@ import com.alsaril.codegen.instruction.*
 import com.alsaril.scheme.SchemeSyntaxException
 import com.alsaril.scheme.parser.*
 import com.alsaril.scheme.parser.Number
+import java.lang.invoke.MethodHandles
 import kotlin.LazyThreadSafetyMode.NONE
 
 class ClassGenerator private constructor() {
     companion object {
-        fun generate(node: Node): ClassGraph = ClassGenerator().generate(node)
+        internal val lookup: MethodHandles.Lookup = MethodHandles.lookup()
+
+        fun generate(node: Node): ByteArray = ClassGenerator().generate(node)
     }
 
     private var lambdaCnt = 0
 
-    private val classFileBuilder = classFile("Impl", parent = "java/lang/Object")
+    private val classFileBuilder = classFile("com/alsaril/scheme/compiler/Impl", parent = "java/lang/Object")
         .iface("com/alsaril/scheme/runtime/Program")
         .method("<init>", "()V", PUBLIC) {
             +aload(0)
@@ -26,10 +28,7 @@ class ClassGenerator private constructor() {
             +`return`
         }
 
-    private fun generate(node: Node): ClassGraph {
-        val root = generateProcedure(node).build()
-        return ClassGraph(root)
-    }
+    private fun generate(node: Node): ByteArray = generateProcedure(node).build()
 
     private fun CodeBuilder.resolveSymbol(name: String) {
         +aload(1)

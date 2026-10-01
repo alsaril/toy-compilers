@@ -1,6 +1,6 @@
 package com.alsaril.codegen.code
 
-import com.alsaril.codegen.ByteClassLoader
+import com.alsaril.codegen.load
 import com.alsaril.codegen.classfile.AccessFlag.PRIVATE
 import com.alsaril.codegen.classfile.AccessFlag.PUBLIC
 import com.alsaril.codegen.classfile.AccessFlag.STATIC
@@ -433,11 +433,11 @@ class ConstantsTest {
                 bootstraps: ClassFileBuilder.() -> ClassFileBuilder,
                 body: CodeBuilder.() -> Unit,
             ): Any? {
-                val (name, bytes) = classFile("GenDynamic", "java/lang/Object")
+                val bytes = classFile("GenDynamic", "java/lang/Object")
                     .method("f", descriptor, PUBLIC, STATIC, codeBuilder = body)
                     .bootstraps()
                     .build()
-                return ByteClassLoader().loadClass(name, bytes).getDeclaredMethod("f").invoke(null)
+                return load(bytes).getDeclaredMethod("f").invoke(null)
             }
 
             private fun ClassFileBuilder.withBootstrap(name: String, descriptor: String, body: CodeBuilder.() -> Unit) =

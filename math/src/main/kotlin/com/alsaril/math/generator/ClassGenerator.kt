@@ -1,6 +1,5 @@
 package com.alsaril.math.generator
 
-import com.alsaril.codegen.ClassGraph
 import com.alsaril.codegen.code.ClassFileBuilder
 import com.alsaril.codegen.code.ClassFileBuilder.Companion.classFile
 import com.alsaril.codegen.classfile.AccessFlag.FINAL
@@ -10,10 +9,12 @@ import com.alsaril.codegen.classfile.AccessFlag.STATIC
 import com.alsaril.codegen.code.*
 import com.alsaril.codegen.instruction.*
 import com.alsaril.math.Node
+import java.lang.invoke.MethodHandles
 
 object ClassGenerator {
+    internal val lookup: MethodHandles.Lookup = MethodHandles.lookup()
 
-    fun generate(ast: Node) = classFile("Impl", parent = "java/lang/Object")
+    fun generate(ast: Node) = classFile("com/alsaril/math/generator/Impl", parent = "java/lang/Object")
         .iface("com/alsaril/math/Program")
         .method("<init>", "()V", PUBLIC) {
             +aload(0)
@@ -23,7 +24,6 @@ object ClassGenerator {
         .emitGetFloat()
         .generateEval(ast)
         .build()
-        .let(::ClassGraph)
 
     private fun ClassFileBuilder.emitGetFloat() =
         method("getFloat", "(Ljava/util/Map;Ljava/lang/String;)F", PRIVATE, STATIC, FINAL) {

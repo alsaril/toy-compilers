@@ -1,6 +1,5 @@
 package com.alsaril.codegen.code
 
-import com.alsaril.codegen.ClassDef
 import com.alsaril.codegen.classfile.AccessFlag
 import com.alsaril.codegen.classfile.AccessFlag.STATIC
 import com.alsaril.codegen.classfile.ClassFile
@@ -93,7 +92,7 @@ class ClassFileBuilder {
         return newCodeBuilder().apply { codeBuilder() }.build()
     }
 
-    fun build(): ClassDef {
+    fun build(): ByteArray {
         val attributes = if (bootstrapMethods.isEmpty()) attributes.toList() else
             attributes + BootstrapMethodsAttribute(cp.putUtf8("BootstrapMethods"), bootstrapMethods.methods())
         val file = ClassFile(
@@ -105,7 +104,7 @@ class ClassFileBuilder {
             attributes,
             cp.build(),
         )
-        return thisName to toBytes { write(file) }
+        return toBytes { write(file) }
     }
 
     fun newCodeBuilder() = CodeBuilder(cp, bootstrapMethods, thisName, parentName)

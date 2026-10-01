@@ -1,6 +1,6 @@
 package com.alsaril.codegen.code
 
-import com.alsaril.codegen.ByteClassLoader
+import com.alsaril.codegen.load
 import com.alsaril.codegen.ClassWriter
 import com.alsaril.codegen.bytesOf
 import com.alsaril.codegen.constantpool.ConstantMethodHandleInfo.ReferenceKind.INVOKE_STATIC
@@ -22,19 +22,18 @@ import com.alsaril.codegen.classfile.PrimitiveType
 class ClassFileBuilderTest {
 
     @Test
-    fun `returns the class name alongside the bytes`() {
+    fun `writes the class under the name it was given`() {
         // when
-        val (name, bytes) = classFile("Empty", "java/lang/Object").build()
+        val bytes = classFile("Empty", "java/lang/Object").build()
 
         // then
-        assertThat(name).isEqualTo("Empty")
-        assertThat(bytes).isNotEmpty()
+        assertThat(load(bytes).name).isEqualTo("Empty")
     }
 
     @Test
     fun `starts with the magic number and the java 21 version`() {
         // when
-        val (_, bytes) = classFile("Header", "java/lang/Object").build()
+        val bytes = classFile("Header", "java/lang/Object").build()
 
         // then
         assertThat(bytes).startsWith(*bytesOf(0xCA, 0xFE, 0xBA, 0xBE, 0x00, 0x00, 0x00, 0x41))
@@ -43,7 +42,7 @@ class ClassFileBuilderTest {
     @Test
     fun `ends with an empty class attribute list`() {
         // when
-        val (_, bytes) = classFile("Tail", "java/lang/Object").build()
+        val bytes = classFile("Tail", "java/lang/Object").build()
 
         // then
         assertThat(bytes).endsWith(*bytesOf(0x00, 0x00))
@@ -57,7 +56,7 @@ class ClassFileBuilderTest {
         }
 
         // when
-        val (_, bytes) = classFile("Attributed", "java/lang/Object").attribute(attribute).build()
+        val bytes = classFile("Attributed", "java/lang/Object").attribute(attribute).build()
 
         // then
         assertThat(bytes).endsWith(*bytesOf(0x00, 0x01, 0x00, 0x09, 0x00, 0x00, 0x00, 0x01, 0xAA))
@@ -81,9 +80,8 @@ class ClassFileBuilderTest {
         val second = builder.build()
 
         // then the JVM, which refuses a second BootstrapMethods attribute, loads it the same
-        assertThat(second.second).isEqualTo(first.second)
-        assertThat(ByteClassLoader().loadClass(second.first, second.second).getDeclaredMethod("f").invoke(null))
-            .isEqualTo("built")
+        assertThat(second).isEqualTo(first)
+        assertThat(load(second).getDeclaredMethod("f").invoke(null)).isEqualTo("built")
     }
 
     @Test
@@ -117,7 +115,7 @@ class ClassFileBuilderTest {
     @Test
     fun `writes a declared field with its flags, name and descriptor`() {
         // given the pool of an otherwise empty class is known, so the indexes are too
-        val (_, bytes) = classFile("Fields", "java/lang/Object")
+        val bytes = classFile("Fields", "java/lang/Object")
             .field("x", "J", PRIVATE, FINAL)
             .build()
 
@@ -137,7 +135,7 @@ class ClassFileBuilderTest {
 
     @Test
     fun `keeps the fields in the order they were declared`() {
-        val (_, bytes) = classFile("Fields", "java/lang/Object")
+        val bytes = classFile("Fields", "java/lang/Object")
             .field("a", "I", PRIVATE)
             .field("b", "I", PUBLIC)
             .build()
@@ -186,8 +184,8 @@ class ClassFileBuilderTest {
 
         // then the fragment carries the code, and no method was declared for it
         assertThat(fragment.bytecode()).containsExactly(*bytesOf(0xB1))
-        assertThat(builder.build().second).isEqualTo(
-            classFile("Fragments", "java/lang/Object").build().second
+        assertThat(builder.build()).isEqualTo(
+            classFile("Fragments", "java/lang/Object").build()
         )
     }
 
@@ -197,7 +195,7 @@ class ClassFileBuilderTest {
         private fun stack(descriptor: String, vararg flags: AccessFlag, body: CodeBuilder.() -> Unit) =
             classFile("Stack", "java/lang/Object")
                 .method("f", descriptor, *flags, codeBuilder = body)
-                .build().second
+                .build()
                 .let { methodLimits(it).single { method -> method.name == "f" }.maxStack }
 
         @Test
@@ -387,7 +385,7 @@ class ClassFileBuilderTest {
             val fragment = builder.emitFragment { +iconst(1); +iconst(1); +iadd; +ireturn }
 
             // when
-            val bytes = builder.method("f", "()I", fragment, STATIC).build().second
+            val bytes = builder.method("f", "()I", fragment, STATIC).build()
 
             // then
             assertThat(methodLimits(bytes).single { it.name == "f" }.maxStack).isEqualTo(2)
@@ -400,7 +398,7 @@ class ClassFileBuilderTest {
         private fun locals(descriptor: String, vararg flags: AccessFlag, body: CodeBuilder.() -> Unit = { +nop; +`return` }) =
             classFile("Locals", "java/lang/Object")
                 .method("f", descriptor, *flags, codeBuilder = body)
-                .build().second
+                .build()
                 .let { methodLimits(it).single { method -> method.name == "f" }.maxLocals }
 
         @Test
@@ -499,7 +497,7 @@ class ClassFileBuilderTest {
 
             val bytes = builder
                 .method("f", "()V", piece, STATIC)
-                .build().second
+                .build()
 
             assertThat(methodLimits(bytes).single { it.name == "f" }.maxLocals).isEqualTo(5)
         }
@@ -508,10 +506,10 @@ class ClassFileBuilderTest {
     @Test
     fun `grows the output as fields are added`() {
         // given
-        val bare = classFile("Bare", "java/lang/Object").build().second
+        val bare = classFile("Bare", "java/lang/Object").build()
         val withField = classFile("WithField", "java/lang/Object")
             .field("x", "I", PRIVATE)
-            .build().second
+            .build()
 
         // then
         assertThat(withField.size).isGreaterThan(bare.size)
@@ -520,10 +518,10 @@ class ClassFileBuilderTest {
     @Test
     fun `grows the output as methods are added`() {
         // given
-        val bare = classFile("Bare", "java/lang/Object").build().second
+        val bare = classFile("Bare", "java/lang/Object").build()
         val withMethod = classFile("WithMethod", "java/lang/Object")
             .method("f", "()V", PUBLIC) { +`return` }
-            .build().second
+            .build()
 
         // then
         assertThat(withMethod.size).isGreaterThan(bare.size)

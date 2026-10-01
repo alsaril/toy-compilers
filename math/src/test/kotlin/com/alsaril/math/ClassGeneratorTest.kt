@@ -1,7 +1,7 @@
 package com.alsaril.math
 
-import com.alsaril.codegen.ByteClassLoader
 import com.alsaril.math.BinaryKind.*
+import com.alsaril.math.generator.ClassGenerator
 import com.alsaril.math.generator.ClassGenerator.generate
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatExceptionOfType
@@ -21,10 +21,9 @@ class ClassGeneratorTest {
         }
     }
 
-    private fun program(ast: Node): Program {
-        val (name, bytes) = generate(ast).root
-        return ByteClassLoader().loadClass(name, bytes).getDeclaredConstructor().newInstance() as Program
-    }
+    private fun define(ast: Node) = ClassGenerator.lookup.defineHiddenClass(generate(ast), true).lookupClass()
+
+    private fun program(ast: Node) = define(ast).getDeclaredConstructor().newInstance() as Program
 
     private fun eval(ast: Node, variables: Map<String, Float> = emptyMap()) =
         program(ast).eval(variables)
@@ -331,13 +330,13 @@ class ClassGeneratorTest {
 
         @Test
         fun `keeps a body that fits in one method`() {
-            assertThat(methodNames(generate(Op(MUL, Var("a"), Value(2.0f))).root.second))
+            assertThat(methodNames(generate(Op(MUL, Var("a"), Value(2.0f)))))
                 .containsExactly("<init>", "getFloat", "f0", "eval")
         }
 
         @Test
         fun `outlines a body that does not fit`() {
-            val names = methodNames(generate(chain(5_000)).root.second)
+            val names = methodNames(generate(chain(5_000)))
 
             assertThat(names).startsWith("<init>", "getFloat").endsWith("eval")
             assertThat(names.filter { it.startsWith("f") }).hasSizeGreaterThan(1)
@@ -372,7 +371,7 @@ class ClassGeneratorTest {
 
         /** the slots the body methods declare, entry method last */
         private fun bodySlots(ast: Node): List<Int> {
-            val bytes = generate(ast).root.second
+            val bytes = generate(ast)
             return methodNames(bytes).zip(maxLocals(bytes))
                 .filter { (name, _) -> name.startsWith("f") }
                 .map { (_, slots) -> slots }
@@ -445,7 +444,7 @@ class ClassGeneratorTest {
             // part of the method, so it has to be part of the estimate that splits it
             val (ast, _) = overVariables(128, 6_000)
 
-            assertThat(codeLengths(generate(ast).root.second))
+            assertThat(codeLengths(generate(ast)))
                 .allSatisfy { assertThat(it).isLessThanOrEqualTo(8_000) }
         }
 
@@ -456,7 +455,7 @@ class ClassGeneratorTest {
             // them that getting the width wrong outgrows the slack rather than hiding in it
             val (ast, _) = overVariables(600, 6_000)
 
-            assertThat(codeLengths(generate(ast).root.second))
+            assertThat(codeLengths(generate(ast)))
                 .allSatisfy { assertThat(it).isLessThanOrEqualTo(8_000) }
         }
 
@@ -470,7 +469,7 @@ class ClassGeneratorTest {
 
         @Test
         fun `reads the map through one accessor however many methods there are`() {
-            assertThat(methodNames(generate(chain(5_000)).root.second).filter { it == "getFloat" })
+            assertThat(methodNames(generate(chain(5_000))).filter { it == "getFloat" })
                 .hasSize(1)
         }
     }
@@ -479,8 +478,8 @@ class ClassGeneratorTest {
     inner class Shape {
 
         @Test
-        fun `names the generated class Impl`() {
-            assertThat(generate(Value(1.0f)).root.first).isEqualTo("Impl")
+        fun `names the generated class Impl, in the package of the lookup that defines it`() {
+            assertThat(define(Value(1.0f)).name).startsWith("com.alsaril.math.generator.Impl/")
         }
 
         @Test
@@ -501,8 +500,8 @@ class ClassGeneratorTest {
 
         @Test
         fun `builds the same bytes for the same tree`() {
-            assertThat(generate(Op(ADD, Var("x"), Value(2.0f))).root.second)
-                .isEqualTo(generate(Op(ADD, Var("x"), Value(2.0f))).root.second)
+            assertThat(generate(Op(ADD, Var("x"), Value(2.0f))))
+                .isEqualTo(generate(Op(ADD, Var("x"), Value(2.0f))))
         }
     }
 }
