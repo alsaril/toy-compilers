@@ -1,4 +1,4 @@
-package com.alsaril.codegen.code
+package com.alsaril.codegen.assembly
 
 import com.alsaril.codegen.classfile.attributes.FullFrame
 import com.alsaril.codegen.classfile.attributes.ObjectVariableInfo
@@ -10,6 +10,7 @@ import com.alsaril.codegen.classfile.attributes.SimpleVerificationTypeInfo.NullV
 import com.alsaril.codegen.classfile.attributes.SimpleVerificationTypeInfo.TopVariableInfo
 import com.alsaril.codegen.classfile.attributes.SimpleVerificationTypeInfo.UninitializedThis
 import com.alsaril.codegen.classfile.attributes.UninitializedVariableInfo
+import com.alsaril.codegen.code.*
 import com.alsaril.codegen.constantpool.UpdatableConstantPool
 import com.alsaril.codegen.instruction.*
 import org.assertj.core.api.Assertions.assertThat

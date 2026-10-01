@@ -1,4 +1,4 @@
-package com.alsaril.codegen.code
+package com.alsaril.codegen.assembly
 
 interface ClassHierarchy {
     fun isAssignable(from: String, to: String): Boolean

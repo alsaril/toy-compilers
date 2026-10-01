@@ -1,8 +1,6 @@
-package com.alsaril.codegen.code
+package com.alsaril.codegen.instruction
 
 import com.alsaril.codegen.classfile.attributes.ExceptionHandler
-import com.alsaril.codegen.classfile.attributes.StackMapFrame
-import com.alsaril.codegen.instruction.Instruction
 
 
 data class Fragment(

@@ -1,5 +1,6 @@
 package com.alsaril.codegen
 
+import com.alsaril.codegen.assembly.ClassHierarchy
 import com.alsaril.codegen.code.ClassFileBuilder
 import com.alsaril.codegen.constantpool.ConstantMethodHandleInfo.ReferenceKind.*
 import com.alsaril.codegen.code.ClassFileBuilder.Companion.classFile

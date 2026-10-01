@@ -3,6 +3,7 @@ package com.alsaril.codegen.code
 import com.alsaril.codegen.DosWriter
 import com.alsaril.codegen.classfile.attributes.ExceptionHandler
 import com.alsaril.codegen.instruction.Instruction
+import com.alsaril.codegen.instruction.Fragment
 import com.alsaril.codegen.constantpool.ClassPointer
 import com.alsaril.codegen.constantpool.UpdatableConstantPool
 import com.alsaril.codegen.write

@@ -1,6 +1,6 @@
 package com.alsaril.bf.generator
 
-import com.alsaril.codegen.code.Fragment
+import com.alsaril.codegen.instruction.Fragment
 
 class Generation(
     val bodyLengthLimit: Int,

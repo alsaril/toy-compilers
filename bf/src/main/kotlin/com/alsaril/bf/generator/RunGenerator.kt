@@ -5,13 +5,13 @@ import com.alsaril.bf.CommandInstruction
 import com.alsaril.bf.Instruction
 import com.alsaril.bf.Loop
 import com.alsaril.codegen.code.ClassFileBuilder
-import com.alsaril.codegen.code.Fragment
+import com.alsaril.codegen.instruction.Fragment
 import com.alsaril.codegen.classfile.AccessFlag.*
 import com.alsaril.codegen.code.*
 import com.alsaril.codegen.instruction.*
 import com.alsaril.codegen.classfile.PrimitiveType.BYTE
 import com.alsaril.codegen.classfile.PrimitiveType.INTEGER
-import com.alsaril.codegen.code.join
+import com.alsaril.codegen.instruction.join
 import kotlin.math.min
 
 object RunGenerator {

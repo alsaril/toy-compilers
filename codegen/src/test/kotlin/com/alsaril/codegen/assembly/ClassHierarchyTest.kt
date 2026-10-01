@@ -1,5 +1,6 @@
-package com.alsaril.codegen.code
+package com.alsaril.codegen.assembly
 
+import com.alsaril.codegen.code.ClassFileBuilder
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
 

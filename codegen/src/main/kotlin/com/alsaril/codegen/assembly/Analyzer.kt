@@ -1,4 +1,4 @@
-package com.alsaril.codegen.code
+package com.alsaril.codegen.assembly
 
 import com.alsaril.codegen.classfile.attributes.ExceptionHandler
 import com.alsaril.codegen.classfile.attributes.FullFrame

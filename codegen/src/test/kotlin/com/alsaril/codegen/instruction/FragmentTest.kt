@@ -1,4 +1,4 @@
-package com.alsaril.codegen.code
+package com.alsaril.codegen.instruction
 
 import com.alsaril.codegen.constantpool.ClassPointer
 import com.alsaril.codegen.bytesOf
@@ -6,7 +6,7 @@ import com.alsaril.codegen.classfile.attributes.ExceptionHandler
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
-import com.alsaril.codegen.instruction.*
+import com.alsaril.codegen.code.*
 
 
 class FragmentTest {

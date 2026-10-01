@@ -1,4 +1,4 @@
-package com.alsaril.codegen.code
+package com.alsaril.codegen.assembly
 
 import com.alsaril.codegen.instruction.Instruction
 import com.alsaril.codegen.verification.PrimitiveType.TOP

@@ -17,13 +17,14 @@ ClassFileBuilder ─> CodeBuilder ─> Fragment ─> BytecodeSerializer ─> Cla
                                                     Analyzer
 ```
 
-Six packages, and the dependencies run one way — `code` on top, then `instruction`,
-`classfile` and `constantpool`, with `verification` at the bottom; no cycles:
+Seven packages, and the dependencies run one way — `code` on top, then `assembly`, then
+`instruction`, `classfile` and `constantpool`, with `verification` at the bottom; no cycles:
 
 | package | holds |
 |---|---|
-| `code` | `ClassFileBuilder`, `CodeBuilder`, `Fragment`, `BytecodeSerializer`, `Analyzer`, `Locals`, `ClassHierarchy`, `Members`, `Pointers`, `Constants`, `BootstrapMethods` — everything that builds |
-| `instruction` | the opcodes, their encodings, and their effects on the stack and the locals |
+| `code` | `ClassFileBuilder`, `CodeBuilder`, `BootstrapMethods`, `Members`, `Pointers`, `Constants` — everything that builds |
+| `assembly` | `BytecodeSerializer`, `Analyzer`, `Locals`, `ClassHierarchy` — what turns a built body into a `Code` attribute: the [analysis](#analysis) and the layout |
+| `instruction` | the opcodes, their encodings, their effects on the stack and the locals, and `Fragment`, a body as a list of them |
 | `classfile` | the static JVMS records: `ClassFile`, `FieldInfo`, `MethodInfo`, `AccessFlag`, descriptors, and `attributes/` |
 | `constantpool` | the pool, and the typed indices into it (`ClassPointer`, `MethodDescriptor`, `FieldDescriptor`, `DataPointer`) |
 | `verification` | the verification types of JVMS 4.10.1.2, which values on the stack and in the locals have, and the expectations an instruction states for its operands |
@@ -187,6 +188,8 @@ being a keyword.
   `Invocation`, which states a call's effect once from its argument and return types: the
   receiver and the arguments, then the result, or nothing for `void`.
 - **`Instruction.kt`** — the opcodes, and the sealed interface the files above refine.
+- **`Fragment.kt`** — a body as these instructions, with its jumps and handlers, and
+  [`join`](#three-ways-to-define-a-method) for stitching several into one.
 
 Effects are stated in the `verification` package, below everything else. A value has one of
 the verification types of JVMS 4.10.1.2: `INTEGER`, `FLOAT`, `LONG`, `DOUBLE`, `NULL`, `TOP`,

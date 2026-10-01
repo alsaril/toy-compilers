@@ -1,14 +1,19 @@
-package com.alsaril.codegen.code
+package com.alsaril.codegen.assembly
 
 import com.alsaril.codegen.DosWriter
 import com.alsaril.codegen.classfile.attributes.*
+import com.alsaril.codegen.constantpool.UpdatableConstantPool
+import com.alsaril.codegen.instruction.Fragment
 import com.alsaril.codegen.instruction.JumpInstruction
 import com.alsaril.codegen.write
 import java.io.ByteArrayOutputStream
 import java.io.DataOutputStream
 
 object BytecodeSerializer {
-    fun ClassFileBuilder.serialize(
+    fun serialize(
+        cp: UpdatableConstantPool,
+        thisName: String,
+        hierarchy: ClassHierarchy,
         fragment: Fragment,
         descriptor: String,
         constructor: Boolean,

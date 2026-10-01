@@ -1,5 +1,6 @@
-package com.alsaril.codegen.code
+package com.alsaril.codegen.assembly
 
+import com.alsaril.codegen.code.*
 import com.alsaril.codegen.code.ClassFileBuilder.Companion.classFile
 import com.alsaril.codegen.classfile.AccessFlag.STATIC
 import com.alsaril.codegen.classfile.PrimitiveType as ElementType

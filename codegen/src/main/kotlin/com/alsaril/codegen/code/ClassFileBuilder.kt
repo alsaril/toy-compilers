@@ -8,8 +8,11 @@ import com.alsaril.codegen.classfile.FieldInfo
 import com.alsaril.codegen.classfile.MethodInfo
 import com.alsaril.codegen.classfile.attributes.AttributeInfo
 import com.alsaril.codegen.classfile.attributes.BootstrapMethodsAttribute
-import com.alsaril.codegen.code.BytecodeSerializer.serialize
+import com.alsaril.codegen.assembly.BytecodeSerializer.serialize
+import com.alsaril.codegen.assembly.ClassHierarchy
+import com.alsaril.codegen.assembly.LenientHierarchy
 import com.alsaril.codegen.constantpool.UpdatableConstantPool
+import com.alsaril.codegen.instruction.Fragment
 import com.alsaril.codegen.toBytes
 import com.alsaril.codegen.write
 import kotlin.contracts.ExperimentalContracts
@@ -66,7 +69,7 @@ class ClassFileBuilder {
         fragment: Fragment,
         vararg accessFlags: AccessFlag,
     ): ClassFileBuilder {
-        val code = serialize(fragment, descriptor, constructor = name == "<init>", static = accessFlags.contains(STATIC))
+        val code = serialize(cp, thisName, hierarchy, fragment, descriptor, constructor = name == "<init>", static = accessFlags.contains(STATIC))
         val methodInfo = MethodInfo(
             accessFlags.fold(0) { acc, flag -> acc or flag.value },
             cp.putUtf8(name),
