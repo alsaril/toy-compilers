@@ -128,27 +128,16 @@ object ClassGenerator {
             boolean(identity)
             return
         }
-        if (l.size == 1) {
-            list(l.first(), resolve = true, exec = true, context)
-            return
-        }
-        val labels = l.asSequence()
-            .take(l.size - 1)
-            .map {
-                list(it, resolve = true, exec = true, context)
-                boolean(!identity)
-                +if_acmpeq
-            }
-            .toList()
-
-        val exit = l.last().let {
+        val exits = l.dropLast(1).map {
             list(it, resolve = true, exec = true, context)
-            +goto
+            +dup
+            boolean(false)
+            val exit = if (identity) +if_acmpeq else +if_acmpne
+            +pop
+            exit
         }
-
-        val fail = boolean(!identity)
-        labels.forEach { link(it, fail) }
-        link(exit, end())
+        list(l.last(), resolve = true, exec = true, context)
+        exits.forEach { link(it, end()) }
     }
 
     private fun CodeBuilder.special(name: String, args: Node, context: Context): Boolean {
