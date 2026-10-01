@@ -5,7 +5,6 @@ import com.alsaril.scheme.parser.Number
 import com.alsaril.scheme.parser.Parser.parse
 import com.alsaril.scheme.tokenizer.Tokenizer.tokenize
 import org.assertj.core.api.Assertions.assertThat
-import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.Arguments.arguments
@@ -13,60 +12,44 @@ import org.junit.jupiter.params.provider.CsvSource
 import org.junit.jupiter.params.provider.MethodSource
 
 class ParserTest {
-    @Test
-    fun `throws on empty input`() {
-        assertThrows<IllegalArgumentException> { parse(emptyList()) }
-    }
-
     @ParameterizedTest
-    @MethodSource("simple")
-    fun `parses numbers`(input: String, expected: Node) {
-        // when
-        val output = parse(tokenize(input))
-
-        // then
-        assertThat(output).isEqualTo(expected)
-    }
-
-    @ParameterizedTest
-    @MethodSource("lists")
-    fun `parses lists`(input: String, expected: Node) {
-        // when
-        val output = parse(tokenize(input))
-
-        // then
-        assertThat(output).isEqualTo(expected)
+    @MethodSource("atoms", "lists")
+    fun `parses atoms and lists`(input: String, expected: Node) {
+        assertThat(parse(tokenize(input))).isEqualTo(expected)
     }
 
     @ParameterizedTest
     @CsvSource(
-        "(",
-        ")",
-        " . ",
-        "(1",
-        "(1 .",
-        "( .",
-        "(1 . ()",
-        "(1 . )",
-        "(- 3 (+ 2 .))",
-        "(1 . 2 3)",
-        "(. 3)",
-        "- 5",
-        "(1 . 2 . 3)",
+        "$$ | unexpected end of input",
+        "' | unexpected end of input",
+        "( | unexpected end of input, expected ')' to close list opened at index 0",
+        "(1 | unexpected end of input, expected ')' to close list opened at index 0",
+        "((1) | unexpected end of input, expected ')' to close list opened at index 0",
+        "(1 . | unexpected end of input",
+        "(1 . () | unexpected end of input, expected ')' after dotted pair tail",
+        ") | unexpected ')' at index 0",
+        ")(1) | unexpected ')' at index 0",
+        "(1 . ) | unexpected ')' at index 3",
+        "(- 3 (+ 2 .)) | unexpected ')' at index 7",
+        ". | unexpected '.' at index 0",
+        "( . | unexpected '.' at index 1",
+        "(. 3) | unexpected '.' at index 1",
+        "(1 . 2 3) | expected ')' after dotted pair tail at index 4",
+        "(1 . 2 . 3) | expected ')' after dotted pair tail at index 4",
+        "- 5 | unexpected '5' after the end of the expression at index 1",
+        "a b | unexpected 'b' after the end of the expression at index 1",
+        "(1)) | unexpected ')' after the end of the expression at index 3",
+        "1 (2) | unexpected '(' after the end of the expression at index 1",
+        "1 . 2 | unexpected '.' after the end of the expression at index 1",
+        delimiter = '|',
+        quoteCharacter = '$'
     )
-    fun `throws on invalid lists`(input: String) {
-        // when / then
-        assertThrows<IllegalArgumentException> { parse(tokenize(input)) }
-    }
-
-    @ParameterizedTest
-    @MethodSource("errorMessages")
-    fun `throws with a descriptive message`(input: String, expectedMessage: String) {
+    fun `rejects malformed input`(input: String, message: String) {
         // when
-        val exception = assertThrows<IllegalArgumentException> { parse(tokenize(input)) }
+        val exception = assertThrows<SchemeSyntaxException> { parse(tokenize(input)) }
 
         // then
-        assertThat(exception.message).isEqualTo(expectedMessage)
+        assertThat(exception.message).isEqualTo(message)
     }
 
     companion object {
@@ -77,7 +60,7 @@ class ParserTest {
             items.foldRight(tail) { item, acc -> Cell(item, acc) }
 
         @JvmStatic
-        fun simple() = listOf(
+        fun atoms() = listOf(
             arguments("5", Number(5)),
             arguments("+", Symbol("+")),
             arguments(" #foo", Symbol("#foo")),
@@ -138,17 +121,6 @@ class ParserTest {
                 "(1 2 (3 . 4) 5)",
                 properList(Number(1), Number(2), dottedList(Number(3), tail = Number(4)), Number(5))
             ),
-        )
-
-        @JvmStatic
-        fun errorMessages() = listOf(
-            arguments("", "unexpected end of input"),
-            arguments("(1", "unexpected end of input, expected ')' to close list opened at index 0"),
-            arguments("(. 3)", "unexpected token DotToken at index 1"),
-            arguments(")", "unexpected ')' at index 0"),
-            arguments("(1 . 2 3)", "expected ')' after dotted pair tail at index 4"),
-            arguments("- 5", "unexpected trailing token ConstantToken(value=5) at index 1"),
-            arguments("(1 . 2 . 3)", "expected ')' after dotted pair tail at index 4"),
         )
     }
 }

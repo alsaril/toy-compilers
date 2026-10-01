@@ -1,5 +1,8 @@
 package com.alsaril.scheme.runtime
 
+import com.alsaril.scheme.SchemeNameException
+import com.alsaril.scheme.SchemeRuntimeException
+import com.alsaril.scheme.runtime.Printer.print
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
@@ -8,104 +11,93 @@ class GlobalEnvironment : Environment {
     private val map = mutableMapOf<String, Any>()
     private val symbols = mutableMapOf<String, Symbol>()
 
-    private fun f1(f: (Any) -> Any) = object : Function {
-        override fun call(args: Any): Any {
-            require(args is Cons && args.second is Nil)
-            return f(args.first)
+    private fun fvar(name: String, f: (List<Any>) -> Any) {
+        map[name] = object : Function {
+            override fun call(args: Any) = f(argumentList(args))
         }
     }
 
-    private fun f2(f: (Any, Any) -> Any) = object : Function {
-        override fun call(args: Any): Any {
-            require(args is Cons && args.second is Cons && args.second.second is Nil)
-            return f(args.first, args.second.first)
-        }
+    private fun fixed(name: String, count: Int, f: (List<Any>) -> Any) = fvar(name) {
+        if (it.size != count) throw SchemeRuntimeException("$name: expected ${arguments(count)}, got ${it.size}")
+        f(it)
     }
 
-    private fun fvar(f: (List<Any>) -> Any) = object : Function {
-        override fun call(args: Any): Any {
-            val l = mutableListOf<Any>()
-            var ptr = args
-            while (ptr != Nil) {
-                require(ptr is Cons)
-                l.add(ptr.first)
-                ptr = ptr.second
-            }
-            return f(l)
-        }
+    private fun f1(name: String, f: (Any) -> Any) = fixed(name, 1) { f(it[0]) }
+
+    private fun f2(name: String, f: (Any, Any) -> Any) = fixed(name, 2) { f(it[0], it[1]) }
+
+    private fun fnumvar(name: String, min: Int, f: (List<Int>) -> Any) = fvar(name) { args ->
+        if (args.size < min) throw SchemeRuntimeException("$name: expected at least ${arguments(min)}, got ${args.size}")
+        f(args.map { it.number(name) })
     }
 
-    @Suppress("UNCHECKED_CAST")
-    private fun fnumvar(f: (List<Int>) -> Any) = fvar {
-        require(it.all { it is Int })
-        f(it as List<Int>)
-    }
-
-    private fun comparison(f: (Int, Int) -> Boolean) = fnumvar {
+    private fun comparison(name: String, f: (Int, Int) -> Boolean) = fnumvar(name, 0) {
         (it.asSequence() zip it.asSequence().drop(1)).fold(true) { acc, (a, b) -> acc && f(a, b) }
     }
 
-    private fun arithmetic(identity: Int? = null, f: (Int, Int) -> Int) = fnumvar {
-        if (it.isEmpty()) {
-            require(identity != null)
-            return@fnumvar identity
+    private fun arithmetic(name: String, identity: Int? = null, f: (Int, Int) -> Int) =
+        fnumvar(name, if (identity == null) 1 else 0) {
+            if (it.isEmpty()) identity!! else it.asSequence().drop(1).fold(it.first(), f)
         }
-        it.asSequence().drop(1).fold(it.first(), f)
+
+    private fun Any.number(name: String) =
+        this as? Int ?: throw SchemeRuntimeException("$name: expected a number, got ${print(this)}")
+
+    private fun Any.pair(name: String) =
+        this as? Cons ?: throw SchemeRuntimeException("$name: expected a pair, got ${print(this)}")
+
+    private fun drop(name: String, list: Any, index: Any): Any {
+        val count = index.number(name)
+        if (count < 0) throw SchemeRuntimeException("$name: expected a non-negative index, got $count")
+        var tail = list
+        repeat(count) {
+            tail = (tail as? Cons)?.second ?: throw outOfRange(name, list, count)
+        }
+        return tail
     }
 
-    private fun drop(list: Any, count: Int): Any {
-        require(count >= 0)
-        var it = list
-        var i: Int = count
-        while (it is Cons && i > 0) {
-            it = it.second
-            i--
-        }
-        require(i == 0)
-        return it
-    }
+    private fun outOfRange(name: String, list: Any, index: Int) =
+        SchemeRuntimeException("$name: index $index is out of range for ${print(list)}")
 
     init {
-        map["boolean?"] = f1 { it is Boolean }
-        map["number?"] = f1 { it is Int }
-        map["symbol?"] = f1 { it is Symbol }
-        map["pair?"] = f1 { it is Cons }
-        map["null?"] = f1 { it is Nil }
-        map["list?"] = f1 {
+        f1("boolean?") { it is Boolean }
+        f1("number?") { it is Int }
+        f1("symbol?") { it is Symbol }
+        f1("pair?") { it is Cons }
+        f1("null?") { it is Nil }
+        f1("list?") {
             var i = it
             while (i is Cons) {
                 i = i.second
             }
             i is Nil
         }
-        map["cons"] = f2(::Cons)
-        map["car"] = f1 { (it as Cons).first }
-        map["cdr"] = f1 { (it as Cons).second }
+        f2("cons", ::Cons)
+        f1("car") { it.pair("car").first }
+        f1("cdr") { it.pair("cdr").second }
         map["list"] = object : Function {
             override fun call(args: Any) = args
         }
-        map["list-ref"] = f2 { list, index ->
-            val tail = drop(list, index as Int)
-            require(tail is Cons)
-            tail.first
+        f2("list-ref") { list, index ->
+            (drop("list-ref", list, index) as? Cons)?.first ?: throw outOfRange("list-ref", list, index as Int)
         }
-        map["list-tail"] = f2 { list, index -> drop(list, index as Int)}
-        map["not"] = f1 { it == false }
-        map["="] = comparison { a, b -> a == b }
-        map["<"] = comparison { a, b -> a < b }
-        map[">"] = comparison { a, b -> a > b }
-        map["<="] = comparison { a, b -> a <= b }
-        map[">="] = comparison { a, b -> a >= b }
-        map["+"] = arithmetic(0) { a, b -> a + b }
-        map["-"] = arithmetic { a, b -> a - b }
-        map["*"] = arithmetic(1) { a, b -> a * b }
-        map["/"] = arithmetic { a, b -> a / b }
-        map["max"] = arithmetic { a, b -> max(a, b) }
-        map["min"] = arithmetic { a, b -> min(a, b) }
-        map["abs"] = f1 {
-            require(it is Int)
-            abs(it)
+        f2("list-tail") { list, index -> drop("list-tail", list, index) }
+        f1("not") { it == false }
+        comparison("=") { a, b -> a == b }
+        comparison("<") { a, b -> a < b }
+        comparison(">") { a, b -> a > b }
+        comparison("<=") { a, b -> a <= b }
+        comparison(">=") { a, b -> a >= b }
+        arithmetic("+", 0) { a, b -> a + b }
+        arithmetic("-") { a, b -> a - b }
+        arithmetic("*", 1) { a, b -> a * b }
+        arithmetic("/") { a, b ->
+            if (b == 0) throw SchemeRuntimeException("/: division by zero")
+            a / b
         }
+        arithmetic("max") { a, b -> max(a, b) }
+        arithmetic("min") { a, b -> min(a, b) }
+        f1("abs") { abs(it.number("abs")) }
     }
 
     override fun define(name: String, value: Any) {
@@ -113,12 +105,12 @@ class GlobalEnvironment : Environment {
     }
 
     override fun set(name: String, value: Any) {
-        require(map.containsKey(name))
+        if (name !in map) throw SchemeNameException(name, "set!: $name is not defined")
         map[name] = value
     }
 
     override fun resolve(name: String): Any {
-        return map[name] ?: throw NoSuchElementException("$name not found")
+        return map[name] ?: throw SchemeNameException(name)
     }
 
     override fun intern(name: String) = symbols.computeIfAbsent(name, ::Symbol)

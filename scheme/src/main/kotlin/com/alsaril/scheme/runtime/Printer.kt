@@ -24,6 +24,7 @@ object Printer {
         }
         is Nil -> "()"
         is Unspecified -> "#<unspecified>"
+        is Function -> "#<procedure>"
         else -> throw IllegalArgumentException(value.toString())
     }
 }

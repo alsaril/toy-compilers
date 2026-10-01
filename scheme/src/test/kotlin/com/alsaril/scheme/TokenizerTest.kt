@@ -5,69 +5,26 @@ import com.alsaril.scheme.tokenizer.BracketToken.CloseBracketToken
 import com.alsaril.scheme.tokenizer.BracketToken.OpenBracketToken
 import com.alsaril.scheme.tokenizer.Tokenizer.tokenize
 import org.assertj.core.api.Assertions.assertThat
+import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.assertThrows
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.Arguments.arguments
 import org.junit.jupiter.params.provider.MethodSource
 
 class TokenizerTest {
     @ParameterizedTest
-    @MethodSource("simple")
-    fun `tokenizes simple expression`(input: String, expected: List<Token>) {
-        // when
-        val output = tokenize(input)
-
-        // then
-        assertThat(output).containsExactlyElementsOf(expected)
+    @MethodSource("simple", "negative numbers", "spaces", "unary", "symbols", "brackets")
+    fun `splits source into tokens`(input: String, expected: List<Token>) {
+        assertThat(tokenize(input)).containsExactlyElementsOf(expected)
     }
 
-    @ParameterizedTest
-    @MethodSource("negative numbers")
-    fun `tokenizes negative numbers`(input: String, expected: List<Token>) {
+    @Test
+    fun `rejects integers out of range`() {
         // when
-        val output = tokenize(input)
+        val exception = assertThrows<SchemeSyntaxException> { tokenize("(+ 99999999999 1)") }
 
         // then
-        assertThat(output).containsExactlyElementsOf(expected)
-    }
-
-    @ParameterizedTest
-    @MethodSource("spaces")
-    fun `correctly handles spaces`(input: String, expected: List<Token>) {
-        // when
-        val output = tokenize(input)
-
-        // then
-        assertThat(output).containsExactlyElementsOf(expected)
-    }
-
-    @ParameterizedTest
-    @MethodSource("unary")
-    fun `correctly handles unary plus and minus`(input: String, expected: List<Token>) {
-        // when
-        val output = tokenize(input)
-
-        // then
-        assertThat(output).containsExactlyElementsOf(expected)
-    }
-
-    @ParameterizedTest
-    @MethodSource("symbols")
-    fun `correctly handles symbol names`(input: String, expected: List<Token>) {
-        // when
-        val output = tokenize(input)
-
-        // then
-        assertThat(output).containsExactlyElementsOf(expected)
-    }
-
-    @ParameterizedTest
-    @MethodSource("brackets")
-    fun `correctly handles brackets`(input: String, expected: List<Token>) {
-        // when
-        val output = tokenize(input)
-
-        // then
-        assertThat(output).containsExactlyElementsOf(expected)
+        assertThat(exception.message).isEqualTo("integer 99999999999 is out of range")
     }
 
     companion object {

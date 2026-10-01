@@ -7,6 +7,7 @@ import com.alsaril.codegen.code.*
 import com.alsaril.codegen.code.ClassFileBuilder.Companion.classFile
 import com.alsaril.codegen.constantpool.ConstantMethodHandleInfo.ReferenceKind.INVOKE_STATIC
 import com.alsaril.codegen.instruction.*
+import com.alsaril.scheme.SchemeSyntaxException
 import com.alsaril.scheme.parser.*
 import com.alsaril.scheme.parser.Number
 import kotlin.LazyThreadSafetyMode.NONE
@@ -107,9 +108,11 @@ object ClassGenerator {
         )
     }
 
-    private fun collectArgs(args: Node): List<Node> {
-        val (list, rest) = collectUnproperArgs(args)
-        require(rest == null)
+    private fun syntaxError(form: Node, problem: String) = SchemeSyntaxException("$problem in ${form.source()}")
+
+    private fun operands(form: Cell): List<Node> {
+        val (list, rest) = collectUnproperArgs(form.second)
+        if (rest != null) throw syntaxError(form, "expected a proper list of operands")
         return list
     }
 
@@ -140,14 +143,16 @@ object ClassGenerator {
         exits.forEach { link(it, end()) }
     }
 
-    private fun CodeBuilder.special(name: String, args: Node, context: Context): Boolean {
+    private fun CodeBuilder.special(form: Cell, context: Context): Boolean {
+        val name = (form.first as? Symbol)?.name ?: return false
+        val args = form.second
+        val l = lazy(NONE) { operands(form) }
+
         if (name == "quote") {
-            require(args is Cell && args.second is Null)
-            list(args.first, resolve = false, exec = false, context)
+            if (l.value.size != 1) throw syntaxError(form, "quote: expected 1 operand, got ${l.value.size}")
+            list(l.value[0], resolve = false, exec = false, context)
             return true
         }
-
-        val l = lazy(NONE) { collectArgs(args) }
 
         if (name == "and") {
             boolTemplate(l.value, true, context)
@@ -161,24 +166,24 @@ object ClassGenerator {
 
         if (name == "define" && args is Cell && args.first is Cell) { // this is a lambda
             val head = args.first
-            require(head.first is Symbol)
-            val name = head.first.name
-            define(name, op = "define") {
-                lambda(collectArgs(Cell(head.second, args.second)), context)
+            val procedure = head.first as? Symbol
+                ?: throw syntaxError(form, "define: expected a symbol as the procedure name, got ${head.first.source()}")
+            define(procedure.name, op = "define") {
+                lambda(name, form, listOf(head.second) + l.value.drop(1), context)
             }
             return true
         }
 
         if (name == "define" || name == "set!") {
-            require(l.value.size == 2)
+            if (l.value.size != 2) throw syntaxError(form, "$name: expected 2 operands, got ${l.value.size}")
             val (key, def) = l.value
-            require(key is Symbol)
+            if (key !is Symbol) throw syntaxError(form, "$name: expected a symbol, got ${key.source()}")
             define(key.name, op = name) { list(def, resolve = true, exec = true, context) }
             return true
         }
 
         if (name == "if") {
-            require(l.value.size == 2 || l.value.size == 3)
+            if (l.value.size !in 2..3) throw syntaxError(form, "if: expected 2 or 3 operands, got ${l.value.size}")
             list(l.value[0], resolve = true, exec = true, context)
             boolean(false)
             val f = +if_acmpeq
@@ -200,7 +205,7 @@ object ClassGenerator {
         }
 
         if (name == "lambda") {
-            lambda(l.value, context)
+            lambda(name, form, l.value, context)
             return true
         }
 
@@ -225,21 +230,27 @@ object ClassGenerator {
         )
     }
 
-    private fun CodeBuilder.lambda(l: List<Node>, context: Context) {
-        require(l.size >= 2)
+    private fun CodeBuilder.lambda(keyword: String, form: Cell, l: List<Node>, context: Context) {
+        if (l.isEmpty()) throw syntaxError(form, "$keyword: expected parameters and a body")
+        if (l.size == 1) throw syntaxError(form, "$keyword: expected a body")
 
         val head = l.first()
         val nodes = l.drop(1)
         val (args, rest) = collectUnproperArgs(head)
         val argNames = args.map {
-            it as Symbol
-            it.name
+            (it as? Symbol)?.name ?: throw syntaxError(form, "$keyword: expected a symbol as a parameter, got ${it.source()}")
         }
-        require(rest is Symbol?)
-        require(argNames.size == argNames.toSet().size)
-        require(rest?.name !in argNames)
+        val restName = when (rest) {
+            null -> null
+            is Symbol -> rest.name
+            head -> throw syntaxError(form, "$keyword: expected a parameter list, got ${head.source()}")
+            else -> throw syntaxError(form, "$keyword: expected a symbol as the rest parameter, got ${rest.source()}")
+        }
+        (argNames + listOfNotNull(restName)).groupingBy { it }.eachCount().entries.firstOrNull { it.value > 1 }?.let {
+            throw syntaxError(form, "$keyword: parameter ${it.key} is declared more than once")
+        }
 
-        val lambda = generateLambda(argNames, rest?.name, nodes, context)
+        val lambda = generateLambda(argNames, restName, nodes, context)
         context.addClass(lambda)
 
         +new(clazz(lambda.first))
@@ -249,10 +260,15 @@ object ClassGenerator {
     }
 
     private fun CodeBuilder.call(cell: Cell, context: Context) {
+        if (special(cell, context)) return
+        operands(cell) // rejects a dotted argument list
         val (op, args) = cell
-        if (op is Symbol && special(op.name, args, context)) return
         list(op, resolve = true, exec = true, context)
-        +checkcast(clazz("com/alsaril/scheme/runtime/Function"))
+        invokestatic(
+            clazz("com/alsaril/scheme/runtime/Procedures"),
+            "procedure",
+            "(Ljava/lang/Object;)Lcom/alsaril/scheme/runtime/Function;"
+        )
         list(args, resolve = true, exec = false, context)
         invokeinterface(
             clazz("com/alsaril/scheme/runtime/Function"),
@@ -275,7 +291,7 @@ object ClassGenerator {
         }
         when (node) {
             is Null -> {
-                require(!exec)
+                if (exec) throw SchemeSyntaxException("() is not an expression, quote it as '() for the empty list")
                 `null`()
             }
             is Number -> number(node.value)

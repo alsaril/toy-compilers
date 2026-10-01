@@ -1,15 +1,15 @@
 package com.alsaril.scheme.compiler
 
-import com.alsaril.scheme.compiler.SchemeCompiler.compile
+import com.alsaril.scheme.assertRuntimeError
+import com.alsaril.scheme.assertSyntaxError
+import com.alsaril.scheme.execute
 import com.alsaril.scheme.runtime.GlobalEnvironment
-import com.alsaril.scheme.runtime.Printer.print
 import org.assertj.core.api.Assertions.assertThat
-import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.CsvSource
 
-class BooleansTest {
+class BooleanTest {
     @ParameterizedTest
     @CsvSource(
         "#t, #t",
@@ -26,23 +26,10 @@ class BooleansTest {
         "(not '()), #f",
         "(boolean? (not #f)), #t",
         "(boolean? (not 1)), #t",
-        "(= 1 1), #t",
-        "(= 0 1), #f",
-        "(< 1 1), #f",
-        "(< 1 10), #t",
-        "(> 1 1), #f",
-        "(> 10 1), #t",
         quoteCharacter = '$'
     )
-    fun `executes a simple expression`(input: String, expected: String) {
-        // given
-        val env = GlobalEnvironment()
-
-        // when
-        val result = compile(input).run(env).let(::print)
-
-        // then
-        assertThat(result).isEqualTo(expected)
+    fun `evaluates booleans, boolean? and not`(input: String, expected: String) {
+        assertThat(execute(input)).isEqualTo(expected)
     }
 
     @ParameterizedTest
@@ -69,57 +56,57 @@ class BooleansTest {
         "(or #f #t (1 2)), #t",
         quoteCharacter = '$'
     )
-    fun `executes and or`(input: String, expected: String) {
-        // given
-        val env = GlobalEnvironment()
-
-        // when
-        val result = compile(input).run(env).let(::print)
-
-        // then
-        assertThat(result).isEqualTo(expected)
+    fun `and and or return the deciding operand`(input: String, expected: String) {
+        assertThat(execute(input)).isEqualTo(expected)
     }
 
     @ParameterizedTest
     @CsvSource(
-        "(not)",
-        "(not #t #t)",
+        "(not) | not: expected 1 argument, got 0",
+        "(not #t #t) | not: expected 1 argument, got 2",
+        delimiter = '|',
         quoteCharacter = '$'
     )
-    fun `throws on invalid calls`(input: String) {
-        // given
-        val env = GlobalEnvironment()
+    fun `fails on wrong argument count to not`(input: String, message: String) {
+        assertRuntimeError(input, message)
+    }
 
-        // when / then
-        val program = compile(input)
-        assertThatThrownBy { program.run(env) }
+    @ParameterizedTest
+    @CsvSource(
+        "(and 1 . 2) | expected a proper list of operands in (and 1 . 2)",
+        "(or 1 . 2) | expected a proper list of operands in (or 1 . 2)",
+        delimiter = '|',
+        quoteCharacter = '$'
+    )
+    fun `rejects dotted and and or`(input: String, message: String) {
+        assertSyntaxError(input, message)
     }
 
     @Test
-    fun `and optimizes argument evaluation`() {
+    fun `and stops at the first false operand`() {
         // given
         val env = GlobalEnvironment()
+        execute("(define x 1)", env)
 
         // when
-        compile("(define x 1)").run(env)
-        compile("(and #f (set! x 2))").run(env)
+        execute("(and #f (set! x 2))", env)
 
         // then
-        assertThat(compile("x").run(env).let(::print)).isEqualTo("1")
-        assertThatThrownBy { compile("(and #t #t (1 2))").run(env) }
+        assertThat(execute("x", env)).isEqualTo("1")
+        assertRuntimeError("(and #t #t (1 2))", "1 is not a procedure")
     }
 
     @Test
-    fun `or optimizes argument evaluation`() {
+    fun `or stops at the first true operand`() {
         // given
         val env = GlobalEnvironment()
+        execute("(define x 1)", env)
 
         // when
-        compile("(define x 1)").run(env)
-        compile("(or #t (set! x 2))").run(env)
+        execute("(or #t (set! x 2))", env)
 
         // then
-        assertThat(compile("x").run(env).let(::print)).isEqualTo("1")
-        assertThatThrownBy { compile("(or #f #f (1 2))").run(env) }
+        assertThat(execute("x", env)).isEqualTo("1")
+        assertRuntimeError("(or #f #f (1 2))", "1 is not a procedure")
     }
 }

@@ -1,5 +1,6 @@
 package com.alsaril.scheme.tokenizer
 
+import com.alsaril.scheme.SchemeSyntaxException
 import com.alsaril.scheme.tokenizer.BracketToken.CloseBracketToken
 import com.alsaril.scheme.tokenizer.BracketToken.OpenBracketToken
 
@@ -30,7 +31,9 @@ object Tokenizer {
             if (isStartOfNumber(str, i)) {
                 val start = i++
                 while (i < str.length && str[i].isDigit()) i++
-                result.add(ConstantToken(str.substring(start, i).toInt()))
+                val text = str.substring(start, i)
+                val value = text.toIntOrNull() ?: throw SchemeSyntaxException("integer $text is out of range")
+                result.add(ConstantToken(value))
                 continue
             }
 
