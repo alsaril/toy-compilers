@@ -54,7 +54,7 @@ with 56 403 pool entries and load fine; twelve million exhaust the 65 535 entry 
 fail during generation with `65536 does not fit a u2`, raised as the `invokestatic` that
 ran out of room is constructed. That is the practical ceiling, and it is a `codegen`
 limit rather than a `bf` one — see its
-[width checks](../codegen/README.md#width-checks).
+[width checks](../codegen/README.md#other-details).
 
 Budgets are **measured from the emitters rather than hardcoded**, so they follow any
 change to the code they account for, and are computed once per compilation into

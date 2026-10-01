@@ -140,7 +140,7 @@ A body of several expressions pops every value but the last.
 ### Parameter names as a dynamic constant
 
 `Binder` needs the parameter names as a `List<String>` on every call. The list is a
-[dynamic constant](../codegen/README.md#dynamic-constants): computed the first time the `ldc`
+[dynamic constant](../codegen/README.md#dynamic-call-sites-and-constants): computed the first time the `ldc`
 runs and the same object on every run after, so a call allocates nothing for it and the
 class needs no static initializer:
 
