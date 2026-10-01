@@ -19,7 +19,7 @@ class LambdaTest {
         "((lambda (x y) (define z (+ x y)) (* x y z)) 5 -3), -30",
         quoteCharacter = '$'
     )
-    fun `returns value from if`(input: String, expected: String) {
+    fun `simple`(input: String, expected: String) {
         // given
         val env = GlobalEnvironment()
 

@@ -2,7 +2,7 @@ package com.alsaril.scheme.runtime
 
 object Binder {
     @JvmStatic
-    fun bind(args: Any, names: Array<String>, rest: String?, environment: Environment): Environment {
+    fun bind(args: Any, names: List<String>, rest: String?, environment: Environment): Environment {
         val local = LocalEnvironment(environment)
         var i = 0
         var arg = args

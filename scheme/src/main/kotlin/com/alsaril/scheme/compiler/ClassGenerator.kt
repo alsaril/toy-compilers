@@ -5,6 +5,7 @@ import com.alsaril.codegen.ClassGraph
 import com.alsaril.codegen.classfile.AccessFlag.*
 import com.alsaril.codegen.code.*
 import com.alsaril.codegen.code.ClassFileBuilder.Companion.classFile
+import com.alsaril.codegen.constantpool.ConstantMethodHandleInfo.ReferenceKind.INVOKE_STATIC
 import com.alsaril.codegen.instruction.*
 import com.alsaril.scheme.parser.*
 import com.alsaril.scheme.parser.Number
@@ -44,7 +45,7 @@ object ClassGenerator {
         args: List<String>,
         rest: String?,
         nodes: List<Node>,
-        context: Context
+        context: Context,
     ): Pair<String, ByteArray> =
         classFile("Lambda${lambdaCnt++}", parent = "java/lang/Object")
             .iface("com/alsaril/scheme/runtime/Function")
@@ -57,18 +58,7 @@ object ClassGenerator {
                 +putfield(field(self(), "scope", "Lcom/alsaril/scheme/runtime/Environment;"))
                 +`return`
             }
-            .method("buildArgs", "(${CBP})[Ljava/lang/String;", PRIVATE, STATIC, FINAL) {
-                +ldc(int(args.size))
-                +anewarray(clazz("java/lang/String"))
-                args.forEachIndexed { index, string ->
-                    +dup
-                    +ldc(int(index))
-                    +ldc(string(string))
-                    +aastore
-                }
-                +areturn
-            }
-            .generateLambdaBody(rest, nodes, context)
+            .generateLambdaBody(args, rest, nodes, context)
             .build()
 
     private fun CodeBuilder.resolveSymbol(name: String) {
@@ -314,10 +304,26 @@ object ClassGenerator {
             +areturn
         }
 
-    private fun ClassFileBuilder.generateLambdaBody(rest: String?, nodes: List<Node>, context: Context) =
+    private fun ClassFileBuilder.generateLambdaBody(
+        names: List<String>,
+        rest: String?,
+        nodes: List<Node>,
+        context: Context
+    ) =
         method("call", "(Ljava/lang/Object;)Ljava/lang/Object;", PUBLIC, FINAL) {
             +aload(1)
-            +ldc(constantDynamic(self(), "buildArgs", "(${CBP})[Ljava/lang/String;"))
+            val listOf = methodHandle(INVOKE_STATIC, clazz("java/util/List"), "of", "([Ljava/lang/Object;)Ljava/util/List;", onInterface = true)
+            val args = names.map(::string).toTypedArray()
+            +ldc(
+                constantDynamic(
+                    clazz("java/lang/invoke/ConstantBootstraps"),
+                    "invoke",
+                    "(${CBP}Ljava/lang/invoke/MethodHandle;[Ljava/lang/Object;)Ljava/lang/Object;",
+                    listOf,
+                    *args,
+                    constantType = "Ljava/util/List;",
+                )
+            )
             if (rest != null) {
                 +ldc(string(rest))
             } else {
@@ -325,7 +331,11 @@ object ClassGenerator {
             }
             +aload(0)
             +getfield(field(self(), "scope", "Lcom/alsaril/scheme/runtime/Environment;"))
-            invokestatic(clazz("com/alsaril/scheme/runtime/Binder"), "bind", "(Ljava/lang/Object;[Ljava/lang/String;Ljava/lang/String;Lcom/alsaril/scheme/runtime/Environment;)Lcom/alsaril/scheme/runtime/Environment;")
+            invokestatic(
+                clazz("com/alsaril/scheme/runtime/Binder"),
+                "bind",
+                "(Ljava/lang/Object;Ljava/util/List;Ljava/lang/String;Lcom/alsaril/scheme/runtime/Environment;)Lcom/alsaril/scheme/runtime/Environment;"
+            )
             +astore(1)
             nodes.forEachIndexed { index, node ->
                 list(node, resolve = true, exec = true, context)
