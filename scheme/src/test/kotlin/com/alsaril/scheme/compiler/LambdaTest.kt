@@ -44,6 +44,7 @@ class LambdaTest {
         "(define (f . xs) xs), (f 1 2), (1 2)",
         "(define (g a . xs) xs), (g 1 2 3), (2 3)",
         "(define (test x) (set! x (* x 2)) (+ 1 x)), (test 20), 41",
+        "(define (add+one x) (+ x 1)), (add+one 1), 2",
         quoteCharacter = '$'
     )
     fun `define with a parameter list defines a procedure`(definition: String, input: String, expected: String) {

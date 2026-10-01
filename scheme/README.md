@@ -32,7 +32,7 @@ syntax error: if: expected 2 or 3 operands, got 0 in (if)
 | builtins | `+ - * / max min abs`, `= < > <= >=`, `cons car cdr list list-ref list-tail`, `not`, `boolean? number? symbol? pair? null? list?` |
 
 Only `#f` is false; `0` and `'()` are true. Arithmetic wraps around like Java's `int`, and `/`
-truncates. A lambda takes its parameters as a proper list, a single symbol for all of them,
+truncates; given one argument, `-` negates it and `/` divides 1 by it. A lambda takes its parameters as a proper list, a single symbol for all of them,
 or a dotted list for a rest parameter — `(lambda (a . rest) …)`. Its body is any number of
 expressions, of which the last is the value; a `define` among them is local to the call.
 
@@ -42,7 +42,9 @@ expressions, of which the last is the value; a `define` among them is local to t
 "(+ 1 2)" ──> Tokenizer ──> Parser ──> Node ──> ClassGenerator ──> ClassGraph ──> Program
 ```
 
-- **`tokenizer/`** — numbers, symbols, brackets, `.` and `'`.
+- **`tokenizer/`** — brackets, `.` and `'`, and between them runs of any other characters:
+  a run that is a sign and digits is a number, anything else a symbol — `-5`, but `1+`,
+  `add+one` and `1abc`.
 - **`parser/`** — `Number`, `Symbol`, `Cell(first, second)` and `Null`: source as data, the
   way Scheme reads it. `'x` is read as `(quote x)`.
 - **`compiler/ClassGenerator`** — every class a line needs: the program and its lambdas.

@@ -36,7 +36,8 @@ class TokenizerTest {
             arguments("  123", listOf(ConstantToken(123))),
             arguments("hello", listOf(SymbolToken("hello"))),
             arguments(" world", listOf(SymbolToken("world"))),
-            arguments(" 4+)'.", listOf(ConstantToken(4), SymbolToken("+"), CloseBracketToken, QuoteToken, DotToken)),
+            arguments(" 4)'.", listOf(ConstantToken(4), CloseBracketToken, QuoteToken, DotToken)),
+            arguments(" 4+)'.", listOf(SymbolToken("4+"), CloseBracketToken, QuoteToken, DotToken)),
         )
 
         @JvmStatic
@@ -59,15 +60,23 @@ class TokenizerTest {
             arguments("+4", listOf(ConstantToken(4))),
             arguments("+67", listOf(ConstantToken(67))),
             arguments(
-                "+1 -  -2 ++3",
-                listOf(ConstantToken(1), SymbolToken("-"), ConstantToken(-2), SymbolToken("+"), ConstantToken(3))
+                "+1 -  -2 ++3 + 3",
+                listOf(ConstantToken(1), SymbolToken("-"), ConstantToken(-2), SymbolToken("++3"), SymbolToken("+"), ConstantToken(3))
             ),
         )
 
         @JvmStatic
         fun symbols() = listOf(
             arguments("foo bar zog-zog?", listOf(SymbolToken("foo"), SymbolToken("bar"), SymbolToken("zog-zog?"))),
-            arguments("baz-15 foo+15", listOf(SymbolToken("baz-15"), SymbolToken("foo"), ConstantToken(15))),
+            arguments("baz-15 foo+15", listOf(SymbolToken("baz-15"), SymbolToken("foo+15"))),
+            arguments(
+                "add+one a+b 1+ 1abc -5x +-1",
+                listOf("add+one", "a+b", "1+", "1abc", "-5x", "+-1").map(::SymbolToken)
+            ),
+            arguments("12'a 3(4)", listOf(
+                ConstantToken(12), QuoteToken, SymbolToken("a"),
+                ConstantToken(3), OpenBracketToken, ConstantToken(4), CloseBracketToken
+            )),
             arguments(
                 "<=> *42. #hash-tag' 'hi!.##", listOf(
                     SymbolToken("<=>"), SymbolToken("*42"), DotToken,
@@ -91,8 +100,7 @@ class TokenizerTest {
                 "(.-25##-15)'-8", listOf(
                     OpenBracketToken,
                     DotToken,
-                    ConstantToken(-25),
-                    SymbolToken("##-15"),
+                    SymbolToken("-25##-15"),
                     CloseBracketToken,
                     QuoteToken,
                     ConstantToken(-8)

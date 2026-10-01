@@ -98,6 +98,11 @@ class IntegerTest {
         "(+ 34 (/ -56 23) (* 1 2 (- 5 10))), 22",
         "(+), 0",
         "(*), 1",
+        "(- 5), -5",
+        "(- -5), 5",
+        "(/ 1), 1",
+        "(/ -1), -1",
+        "(/ 5), 0",
         quoteCharacter = '$'
     )
     fun `does integer arithmetic`(input: String, expected: String) {
@@ -114,6 +119,7 @@ class IntegerTest {
         "(-) | -: expected at least 1 argument, got 0",
         "(/ 1 0) | /: division by zero",
         "(/ 6 3 0) | /: division by zero",
+        "(/ 0) | /: division by zero",
         delimiter = '|',
         quoteCharacter = '$'
     )

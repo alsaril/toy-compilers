@@ -5,9 +5,7 @@ import com.alsaril.scheme.tokenizer.BracketToken.CloseBracketToken
 import com.alsaril.scheme.tokenizer.BracketToken.OpenBracketToken
 
 object Tokenizer {
-    private fun isStartOfNumber(str: String, pos: Int): Boolean {
-        return str[pos].isDigit() || (pos < str.length - 1 && str[pos + 1].isDigit() && (str[pos] == '-' || str[pos] == '+'))
-    }
+    private val integer = Regex("[+-]?[0-9]+")
 
     private fun parseSpecial(symbol: Char) = when (symbol) {
         '(' -> OpenBracketToken
@@ -15,6 +13,15 @@ object Tokenizer {
         '.' -> DotToken
         '\'' -> QuoteToken
         else -> null
+    }
+
+    private fun isDelimiter(symbol: Char) = symbol.isWhitespace() || parseSpecial(symbol) != null
+
+    // a run of characters is a number if it is one as a whole, and a symbol otherwise
+    private fun atom(text: String): Token {
+        if (!integer.matches(text)) return SymbolToken(text)
+        val value = text.toIntOrNull() ?: throw SchemeSyntaxException("integer $text is out of range")
+        return ConstantToken(value)
     }
 
     fun tokenize(str: String): List<Token> {
@@ -28,33 +35,15 @@ object Tokenizer {
                 continue
             }
 
-            if (isStartOfNumber(str, i)) {
-                val start = i++
-                while (i < str.length && str[i].isDigit()) i++
-                val text = str.substring(start, i)
-                val value = text.toIntOrNull() ?: throw SchemeSyntaxException("integer $text is out of range")
-                result.add(ConstantToken(value))
-                continue
-            }
-
             parseSpecial(symbol)?.let {
                 result.add(it)
                 i++
                 continue
             }
 
-            if (symbol == '+') {
-                result.add(SymbolToken("+"))
-                i++
-                continue
-            }
-
-            run { // symbols
-                val start = i
-                while (i < str.length && !str[i].isWhitespace() && str[i] != '+' && parseSpecial(str[i]) == null) i++
-                result.add(SymbolToken(str.substring(start, i)))
-                continue
-            }
+            val start = i
+            while (i < str.length && !isDelimiter(str[i])) i++
+            result.add(atom(str.substring(start, i)))
         }
 
         return result

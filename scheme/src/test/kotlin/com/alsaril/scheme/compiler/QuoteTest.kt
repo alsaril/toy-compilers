@@ -22,6 +22,7 @@ class QuoteTest {
         "'(1 2 . ()), (1 2)",
         "'(1 . (2 . ())), (1 2)",
         "''x, (quote x)",
+        "'(1+ 1abc a+b), (1+ 1abc a+b)",
         "'(and 1 2 'c '(f g)), (and 1 2 (quote c) (quote (f g)))",
         quoteCharacter = '$'
     )

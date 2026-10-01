@@ -35,10 +35,19 @@ class GlobalEnvironment : Environment {
         (it.asSequence() zip it.asSequence().drop(1)).fold(true) { acc, (a, b) -> acc && f(a, b) }
     }
 
-    private fun arithmetic(name: String, identity: Int? = null, f: (Int, Int) -> Int) =
+    private fun arithmetic(name: String, identity: Int? = null, unary: ((Int) -> Int)? = null, f: (Int, Int) -> Int) =
         fnumvar(name, if (identity == null) 1 else 0) {
-            if (it.isEmpty()) identity!! else it.asSequence().drop(1).fold(it.first(), f)
+            when {
+                it.isEmpty() -> identity!!
+                it.size == 1 && unary != null -> unary(it.single())
+                else -> it.asSequence().drop(1).fold(it.first(), f)
+            }
         }
+
+    private fun divide(a: Int, b: Int): Int {
+        if (b == 0) throw SchemeRuntimeException("/: division by zero")
+        return a / b
+    }
 
     private fun Any.number(name: String) =
         this as? Int ?: throw SchemeRuntimeException("$name: expected a number, got ${print(this)}")
@@ -89,12 +98,9 @@ class GlobalEnvironment : Environment {
         comparison("<=") { a, b -> a <= b }
         comparison(">=") { a, b -> a >= b }
         arithmetic("+", 0) { a, b -> a + b }
-        arithmetic("-") { a, b -> a - b }
+        arithmetic("-", unary = { -it }) { a, b -> a - b }
         arithmetic("*", 1) { a, b -> a * b }
-        arithmetic("/") { a, b ->
-            if (b == 0) throw SchemeRuntimeException("/: division by zero")
-            a / b
-        }
+        arithmetic("/", unary = { divide(1, it) }, f = ::divide)
         arithmetic("max") { a, b -> max(a, b) }
         arithmetic("min") { a, b -> min(a, b) }
         f1("abs") { abs(it.number("abs")) }
