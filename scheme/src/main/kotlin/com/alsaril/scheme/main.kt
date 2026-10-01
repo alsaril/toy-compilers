@@ -39,6 +39,8 @@ internal class SchemeCommand : CliktCommand(name = "scheme") {
             compile(line)
         } catch (e: SchemeSyntaxException) {
             return "syntax error: ${e.message}"
+        } catch (_: StackOverflowError) {
+            return "compile error: stack overflow"
         }
 
         return try {

@@ -86,6 +86,12 @@ object ClassGenerator {
         +getstatic(field(clazz("com/alsaril/scheme/runtime/Nil"), "INSTANCE", "Lcom/alsaril/scheme/runtime/Nil;"))
     }
 
+    private fun CodeBuilder.unspecified() {
+        +getstatic(
+            field(clazz("com/alsaril/scheme/runtime/Unspecified"), "INSTANCE", "Lcom/alsaril/scheme/runtime/Unspecified;")
+        )
+    }
+
     private fun CodeBuilder.boolean(value: Boolean) =
         +getstatic(
             field(
@@ -168,7 +174,7 @@ object ClassGenerator {
             val head = args.first
             val procedure = head.first as? Symbol
                 ?: throw syntaxError(form, "define: expected a symbol as the procedure name, got ${head.first.source()}")
-            define(procedure.name, op = "define") {
+            bind(procedure.name, Binding.DEFINE) {
                 lambda(name, form, listOf(head.second) + l.value.drop(1), context)
             }
             return true
@@ -178,7 +184,8 @@ object ClassGenerator {
             if (l.value.size != 2) throw syntaxError(form, "$name: expected 2 operands, got ${l.value.size}")
             val (key, def) = l.value
             if (key !is Symbol) throw syntaxError(form, "$name: expected a symbol, got ${key.source()}")
-            define(key.name, op = name) { list(def, resolve = true, exec = true, context) }
+            val binding = if (name == "define") Binding.DEFINE else Binding.SET
+            bind(key.name, binding) { list(def, resolve = true, exec = true, context) }
             return true
         }
 
@@ -190,15 +197,7 @@ object ClassGenerator {
             list(l.value[1], resolve = true, exec = true, context)
             val end = +goto
             link(f, end())
-            if (l.value.size == 2) {
-                +getstatic(
-                    field(
-                        clazz("com/alsaril/scheme/runtime/Unspecified"),
-                        "INSTANCE",
-                        "Lcom/alsaril/scheme/runtime/Unspecified;"
-                    )
-                )
-            } else list(l.value[2], resolve = true, exec = true, context)
+            if (l.value.size == 2) unspecified() else list(l.value[2], resolve = true, exec = true, context)
             link(end, end())
 
             return true
@@ -212,22 +211,18 @@ object ClassGenerator {
         return false
     }
 
-    private fun CodeBuilder.define(name: String, op: String, def: () -> Unit) {
+    private enum class Binding(val method: String) { DEFINE("define"), SET("set") }
+
+    private fun CodeBuilder.bind(name: String, binding: Binding, value: () -> Unit) {
         +aload(1)
         +ldc(string(name))
-        def()
+        value()
         invokeinterface(
             clazz("com/alsaril/scheme/runtime/Environment"),
-            if (op == "define") "define" else "set",
+            binding.method,
             "(Ljava/lang/String;Ljava/lang/Object;)V"
         )
-        +getstatic(
-            field(
-                clazz("com/alsaril/scheme/runtime/Unspecified"),
-                "INSTANCE",
-                "Lcom/alsaril/scheme/runtime/Unspecified;"
-            )
-        )
+        unspecified()
     }
 
     private fun CodeBuilder.lambda(keyword: String, form: Cell, l: List<Node>, context: Context) {

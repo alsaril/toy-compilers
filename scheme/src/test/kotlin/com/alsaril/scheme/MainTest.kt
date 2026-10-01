@@ -113,6 +113,14 @@ class MainTest {
         }
 
         @Test
+        fun `an expression nested too deeply to compile`() {
+            val nested = "(+ 1 ".repeat(20_000) + "0" + ")".repeat(20_000)
+
+            assertThat(scheme(input = "(define x 1)\n$nested\nx\n").printed)
+                .isEqualTo("compile error: stack overflow\n1\n")
+        }
+
+        @Test
         fun `and keeps reading, with the environment as the failed line left it`() {
             val result = scheme(input = "(define x 1)\n(car x)\n)\n(define y (car x))\ny\nx\n")
 

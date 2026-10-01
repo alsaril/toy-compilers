@@ -1,5 +1,6 @@
-package com.alsaril.codegen
+package com.alsaril.codegen.debug
 
+import com.alsaril.codegen.ByteClassLoader
 import java.io.PrintWriter
 import java.io.StringWriter
 import java.nio.file.Files
@@ -13,11 +14,12 @@ import kotlin.io.path.writeBytes
 import kotlin.io.path.writeText
 
 /**
- * Debug aid for a quick look at generated code, not part of the API. Set `-Dcodegen.dump=<dir>`
- * or `CODEGEN_DUMP=<dir>` — in an IDE's JUnit run configuration template, say — and every class
- * [ByteClassLoader] loads has its `javap -p -v` listing written there as `<n> <class>.javap.txt`,
- * before the JVM gets to reject it. The listings of the previous run are deleted first; nothing
- * else in the directory is touched. Needs a JDK, which is where `javap` lives.
+ * A local debugging aid, not part of the API: untested and undocumented on purpose, and nothing
+ * should depend on it. Set `-Dcodegen.dump=<dir>` or `CODEGEN_DUMP=<dir>` — in an IDE's JUnit
+ * run configuration template, say — and every class [ByteClassLoader] loads has its `javap -p -v`
+ * listing written there as `<n> <class>.javap.txt`, before the JVM gets to reject it. The
+ * listings of the previous run are deleted first; nothing else in the directory is touched.
+ * Needs a JDK, which is where `javap` lives.
  */
 internal object ClassDump {
     private val directory: Path? = (System.getProperty("codegen.dump") ?: System.getenv("CODEGEN_DUMP"))

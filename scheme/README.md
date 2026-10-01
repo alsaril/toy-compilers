@@ -177,16 +177,8 @@ The REPL creates one `GlobalEnvironment`, then reads a line at a time until the 
 out, compiling and running each. It prints the value, or nothing for an unspecified one, so
 a `define` is silent. An error is printed with its kind — `syntax error:`, `name error:`,
 `runtime error:` — and the next line is read with the environment as the failed one left
-it. A recursion that runs out of stack is reported as `runtime error: stack overflow`.
-
-## Inspecting generated code
-
-Set `CODEGEN_DUMP` (or `-Dcodegen.dump`) to a directory, and the `javap` listing of every
-class loaded is written there, numbered in load order:
-
-```bash
-CODEGEN_DUMP=/tmp/scheme-classes scheme/build/install/scheme/bin/scheme
-```
+it. A recursion that runs out of stack is reported as `runtime error: stack overflow`, and
+an expression the compiler runs out of stack on as `compile error: stack overflow`.
 
 ## Known limits
 
@@ -198,9 +190,9 @@ Measured, not estimated:
   refused by `codegen` with an `IllegalArgumentException`.
 - **About 2 100 levels of nesting.** The parser and the generator recurse, so an expression
   nested that deep overflows the stack while compiling.
-- **The REPL stops on either of those.** It catches the three Scheme exceptions and a stack
-  overflow while running, not a failure inside the compiler — and on the main thread's
-  stack a call of 8 000 operands overflows before it reaches the method limit.
+- **The REPL reports a stack overflow while compiling** as `compile error: stack overflow`
+  and keeps going — on the main thread's stack a call of 8 000 operands overflows before it
+  reaches the method limit. The method limit itself is not caught, and ends the REPL.
 - **About 10 000 calls of recursion.** There are no tail calls; every Scheme call is a JVM
   call, so recursion runs out of a default thread stack at around that depth.
 - **One expression per line.** The REPL compiles each line on its own, so a definition has

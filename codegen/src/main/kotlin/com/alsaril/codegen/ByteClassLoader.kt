@@ -1,5 +1,6 @@
 package com.alsaril.codegen
 
+import com.alsaril.codegen.debug.ClassDump
 
 class ByteClassLoader(deps: List<ClassDef> = emptyList()) : ClassLoader() {
     private val deps = deps.associate { (name, code) -> binaryName(name) to code }
