@@ -1052,6 +1052,13 @@ class GeneratedClassTest {
                 invokevirtual(clazz(handle), "invokeExact", "()I")
                 +ireturn
             }
+            .method("list", "()Ljava/lang/Object;", PUBLIC, STATIC) {
+                // List.of is static, but declared on an interface
+                +ldc(methodHandle(INVOKE_STATIC, clazz("java/util/List"), "of", "(Ljava/lang/Object;)Ljava/util/List;", onInterface = true))
+                +ldc(string("x"))
+                invokevirtual(clazz(handle), "invokeExact", "(Ljava/lang/Object;)Ljava/util/List;")
+                +areturn
+            }
             .method("built", "()Ljava/lang/Object;", PUBLIC, STATIC) {
                 +ldc(methodHandle(NEW_INVOKE_SPECIAL, clazz("java/lang/StringBuilder"), "<init>", "(Ljava/lang/String;)V"))
                 +ldc(string("sb"))
@@ -1065,6 +1072,7 @@ class GeneratedClassTest {
         assertThat(clazz.getDeclaredMethod("max").invoke(null)).isEqualTo(7)
         assertThat(clazz.getDeclaredMethod("length").invoke(null)).isEqualTo(4)
         assertThat(clazz.getDeclaredMethod("limit").invoke(null)).isEqualTo(Int.MAX_VALUE)
+        assertThat(clazz.getDeclaredMethod("list").invoke(null)).isEqualTo(listOf("x"))
         assertThat(clazz.getDeclaredMethod("built").invoke(null).toString()).isEqualTo("sb")
     }
 

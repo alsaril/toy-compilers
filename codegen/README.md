@@ -145,8 +145,10 @@ loadable constants, which `ldc` or `ldc2_w` load and a bootstrap method takes as
 that `ldc` loads as a `java/lang/invoke/MethodHandle`, or that a
 [dynamic constant](#dynamic-constants) takes as an argument. The `ReferenceKind` picks the
 ref it points at: a field ref for the four field kinds, an interface method ref for
-`INVOKE_INTERFACE`, and a method ref for the rest. `NEW_INVOKE_SPECIAL` names `<init>` and
-nothing else does; anything else is refused.
+`INVOKE_INTERFACE`, and a method ref for the rest — or an interface method ref for
+`INVOKE_STATIC` and `INVOKE_SPECIAL` too, given `onInterface = true`, as a static method an
+interface declares needs; no other kind can point into an interface. `NEW_INVOKE_SPECIAL`
+names `<init>` and nothing else does; anything else is refused.
 
 ## Instructions
 

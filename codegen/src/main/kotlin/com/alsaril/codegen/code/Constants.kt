@@ -25,14 +25,24 @@ fun CodeBuilder.double(value: Double) = DataPointer(cp.putDouble(value), DOUBLE)
 
 fun CodeBuilder.string(value: String) = DataPointer(cp.putString(value), ReferenceType("java/lang/String"))
 
-fun CodeBuilder.methodHandle(kind: ReferenceKind, classPointer: ClassPointer, name: String, descriptor: String): DataPointer {
+fun CodeBuilder.methodHandle(
+    kind: ReferenceKind,
+    classPointer: ClassPointer,
+    name: String,
+    descriptor: String,
+    onInterface: Boolean = false,
+): DataPointer {
     require((kind == NEW_INVOKE_SPECIAL) == (name == "<init>")) {
         "a $kind handle to $name: only NEW_INVOKE_SPECIAL refers to <init>, and it refers to nothing else"
+    }
+    require(!onInterface || kind == INVOKE_STATIC || kind == INVOKE_SPECIAL || kind == INVOKE_INTERFACE) {
+        "a $kind handle cannot refer to a method of an interface, only a static, a special or an interface one can"
     }
     val refType = when (kind) {
         GET_FIELD, GET_STATIC, PUT_FIELD, PUT_STATIC -> FIELD
         INVOKE_INTERFACE -> INTERFACE_METHOD
-        INVOKE_VIRTUAL, INVOKE_STATIC, INVOKE_SPECIAL, NEW_INVOKE_SPECIAL -> METHOD
+        INVOKE_STATIC, INVOKE_SPECIAL -> if (onInterface) INTERFACE_METHOD else METHOD
+        INVOKE_VIRTUAL, NEW_INVOKE_SPECIAL -> METHOD
     }
     val handle = cp.putConstantMethodHandleInfo(kind, cp.putRef(classPointer.index, name, descriptor, refType))
     return DataPointer(handle, ReferenceType("java/lang/invoke/MethodHandle"))

@@ -211,6 +211,61 @@ class ConstantsTest {
         }
 
         @Test
+        fun `refer to an interface method for a static or special handle on an interface`() {
+            listOf(INVOKE_STATIC, INVOKE_SPECIAL).forEach { kind ->
+                // given
+                val cp = UpdatableConstantPool()
+                val builder = builder(cp)
+
+                // when
+                builder.methodHandle(kind, builder.clazz("A"), "f", "()V", onInterface = true)
+
+                // then
+                assertThat(cp.build().entries.takeLast(2)).containsExactly(
+                    ConstantInterfaceMethodRefInfo(classNameIndex = 2, nameAndTypeIndex = 5),
+                    ConstantMethodHandleInfo(kind, referenceIndex = 6),
+                )
+            }
+        }
+
+        @Test
+        fun `keep handles to a method of a class and of an interface apart`() {
+            // given
+            val builder = builder()
+            val owner = builder.clazz("A")
+
+            // when
+            val onClass = builder.methodHandle(INVOKE_STATIC, owner, "f", "()V")
+            val onInterface = builder.methodHandle(INVOKE_STATIC, owner, "f", "()V", onInterface = true)
+
+            // then
+            assertThat(onInterface).isNotEqualTo(onClass)
+        }
+
+        @Test
+        fun `refuse an interface for any kind but static, special and interface`() {
+            listOf(GET_FIELD, GET_STATIC, PUT_FIELD, PUT_STATIC, INVOKE_VIRTUAL).forEach { kind ->
+                assertThatIllegalArgumentException()
+                    .isThrownBy { builder().run { methodHandle(kind, clazz("A"), "f", "()V", onInterface = true) } }
+                    .withMessage("a $kind handle cannot refer to a method of an interface, only a static, a special or an interface one can")
+            }
+            assertThatIllegalArgumentException()
+                .isThrownBy { builder().run { methodHandle(NEW_INVOKE_SPECIAL, clazz("A"), "<init>", "()V", onInterface = true) } }
+                .withMessage("a NEW_INVOKE_SPECIAL handle cannot refer to a method of an interface, only a static, a special or an interface one can")
+        }
+
+        @Test
+        fun `refer to an interface method for invokeinterface whether it is asked for or not`() {
+            // given
+            val builder = builder()
+            val owner = builder.clazz("A")
+
+            // then
+            assertThat(builder.methodHandle(INVOKE_INTERFACE, owner, "f", "()V", onInterface = true))
+                .isEqualTo(builder.methodHandle(INVOKE_INTERFACE, owner, "f", "()V"))
+        }
+
+        @Test
         fun `refer to the constructor for a new object`() {
             // given
             val cp = UpdatableConstantPool()
