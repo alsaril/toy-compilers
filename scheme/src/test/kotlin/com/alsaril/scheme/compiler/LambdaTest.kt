@@ -56,6 +56,30 @@ class LambdaTest {
         assertThat(execute(input, env)).isEqualTo(expected)
     }
 
+    @ParameterizedTest
+    @CsvSource(
+        // swapping f and g would give 7
+        "((lambda (f g) (f (g 3))) (lambda (x) (* x 2)) (lambda (x) (+ x 1))), 8",
+        "(list ((lambda () 1)) ((lambda () 2)) ((lambda () 3))), (1 2 3)",
+        "(((lambda (a) (lambda (b) (- a b))) 10) 3), 7",
+        "((((lambda (a) (lambda (b) (lambda (c) (list a b c)))) 1) 2) 3), (1 2 3)",
+        quoteCharacter = '$'
+    )
+    fun `runs every lambda on a line as its own`(input: String, expected: String) {
+        assertThat(execute(input)).isEqualTo(expected)
+    }
+
+    @Test
+    fun `keeps lambdas of different lines apart`() {
+        // given each line's first lambda, numbered the same in classes of its own
+        val env = GlobalEnvironment()
+        execute("(define (first) 'one)", env)
+        execute("(define (second) 'two)", env)
+
+        // when / then
+        assertThat(execute("(list (first) (second) ((lambda () 'three)))", env)).isEqualTo("(one two three)")
+    }
+
     @Test
     fun `define inside a body stays local`() {
         // given

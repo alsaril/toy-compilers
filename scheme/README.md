@@ -1,8 +1,8 @@
 # scheme
 
-A compiler for a small subset of Scheme, behind a REPL. Every line typed goes in, JVM
-classes come out — one for the expression and one for each lambda in it — and the JVM runs
-them; nothing is interpreted. Built on [`codegen`](../codegen/README.md).
+A compiler for a small subset of Scheme, behind a REPL. Every line typed goes in, a JVM
+class comes out — the expression and every lambda in it — and the JVM runs it; nothing is
+interpreted. Built on [`codegen`](../codegen/README.md).
 
 ```bash
 ./gradlew :scheme:installDist
@@ -47,13 +47,14 @@ expressions, of which the last is the value; a `define` among them is local to t
   `add+one` and `1abc`.
 - **`parser/`** — `Number`, `Symbol`, `Cell(first, second)` and `Null`: source as data, the
   way Scheme reads it. `'x` is read as `(quote x)`.
-- **`compiler/ClassGenerator`** — every class a line needs: the program and its lambdas.
+- **`compiler/ClassGenerator`** — the class a line compiles to: the program, and its lambdas
+  as methods of it.
 - **`compiler/SchemeCompiler`** — `compile(source)`, handing the parts to `codegen`'s pipeline.
 - **`runtime/`** — what the generated code calls: values, environments, builtins, `Binder`.
 
 ## Code generation
 
-A line compiles to a `ClassGraph`. Its root, `ImplN`, implements `Program`:
+A line compiles to a `ClassGraph` of one class, `Impl`, which implements `Program`:
 
 ```kotlin
 interface Program {
@@ -61,15 +62,15 @@ interface Program {
 }
 ```
 
-and every `lambda` in the line, nested ones included, becomes a class `LambdaN` of its own,
-listed in the graph's dependencies. Each line gets a class loader of its own, which defines
-a lambda's class when the JVM first asks for it. Classes from earlier lines stay alive as
-long as something in the environment still refers to one of their procedures.
+and every `lambda` in the line, nested ones included, becomes a private static method
+`lambdaN` of it. Each line gets a class loader of its own, so every line's class can be
+`Impl`. Classes from earlier lines stay alive as long as something in the environment still
+refers to one of their procedures.
 
 ### Expressions
 
 Every expression leaves exactly one `Object` on the stack, and the current environment is
-always in local slot 1 — `run` receives it there, and a lambda's `call` puts it there before
+always in local slot 1 — `run` receives it there, and a lambda's method puts it there before
 its body starts. So a single emitter serves the top level and every lambda body alike.
 
 | expression | code |
@@ -104,35 +105,44 @@ and `or` keep the value on the stack and jump out as soon as one decides the res
 
 ### Lambdas
 
-A lambda is a class with one field, the environment it was created in:
+A lambda is a private static method of the line's class, taking the environment it was
+created in and its arguments:
 
 ```
-LambdaN implements Function
-  private final Environment scope
-  <init>(Environment)          // stores scope
-  call(Object args) -> Object  // binds args, then runs the body
+Impl implements Program
+  run(Environment) -> Object
+  private static lambdaN(Environment scope, Object args) -> Object  // binds args, then runs the body
 ```
 
-Evaluating `(lambda …)` is `new LambdaN(environment)` — the whole current environment is
-captured, not a selection of free variables, which is what lets a closure both read and
-`set!` the variables around it. `(define (f …) …)` is the same thing bound to `f`.
+Evaluating `(lambda …)` is one `invokedynamic`, which captures the current environment and
+hands back a `Function` whose `call` runs `lambdaN` with it — the call site is bootstrapped
+by `LambdaMetafactory`, through codegen's
+[`lambdaBootstrap`](../codegen/README.md#dynamic-call-sites-and-constants):
 
-`call` starts by binding. `Binder.bind(args, names, rest, scope)` makes a `LocalEnvironment`
-whose parent is `scope`, defines each parameter from the front of the argument list, gives
-the rest parameter whatever is left, and throws on a count that does not fit. The result is
-stored over `args` in slot 1, and the body runs with it. For
+```
+aload_1                                       // the current environment
+invokedynamic call:(Environment)Function      // a Function running lambdaN
+```
+
+The whole current environment is captured, not a selection of free variables, which is what
+lets a closure both read and `set!` the variables around it. `(define (f …) …)` is the same
+thing bound to `f`.
+
+`lambdaN` starts by binding. `Binder.bind(args, names, rest, scope)` makes a
+`LocalEnvironment` whose parent is `scope`, defines each parameter from the front of the
+argument list, gives the rest parameter whatever is left, and throws on a count that does
+not fit. The result is stored over `args` in slot 1, and the body runs with it. For
 `(define (add a . rest) (+ a (car rest)))`:
 
 ```
  0: aload_1                     // args
  1: ldc       Dynamic _:List    // the parameter names, ["a"]
  3: ldc       "rest"            // the rest parameter, or aconst_null
- 5: aload_0
- 6: getfield  scope
- 9: invokestatic Binder.bind
-12: astore_1                    // slot 1 is now the call's environment
-13: …                           // (+ a (car rest))
-76: areturn
+ 5: aload_0                     // scope
+ 6: invokestatic Binder.bind
+ 9: astore_1                    // slot 1 is now the call's environment
+    …                           // (+ a (car rest))
+75: areturn
 ```
 
 A body of several expressions pops every value but the last.

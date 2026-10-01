@@ -1,6 +1,5 @@
 package com.alsaril.scheme.compiler
 
-import com.alsaril.codegen.ClassDef
 import com.alsaril.codegen.ClassGraph
 import com.alsaril.codegen.classfile.AccessFlag.*
 import com.alsaril.codegen.code.*
@@ -12,55 +11,25 @@ import com.alsaril.scheme.parser.*
 import com.alsaril.scheme.parser.Number
 import kotlin.LazyThreadSafetyMode.NONE
 
-object ClassGenerator {
-    private var implCnt = 0
+class ClassGenerator private constructor() {
+    companion object {
+        fun generate(node: Node): ClassGraph = ClassGenerator().generate(node)
+    }
+
     private var lambdaCnt = 0
 
-    private class Context {
-        private val classes = mutableListOf<ClassDef>()
-
-        fun addClass(classDef: ClassDef) {
-            classes.add(classDef)
+    private val classFileBuilder = classFile("Impl", parent = "java/lang/Object")
+        .iface("com/alsaril/scheme/runtime/Program")
+        .method("<init>", "()V", PUBLIC) {
+            +aload(0)
+            invokespecial(parent(), "<init>", "()V")
+            +`return`
         }
 
-        fun classes(): List<ClassDef> = classes
+    private fun generate(node: Node): ClassGraph {
+        val root = generateProcedure(node).build()
+        return ClassGraph(root)
     }
-
-    fun generate(node: Node): ClassGraph {
-        val context = Context()
-
-        val root = classFile("Impl${implCnt++}", parent = "java/lang/Object")
-            .iface("com/alsaril/scheme/runtime/Program")
-            .method("<init>", "()V", PUBLIC) {
-                +aload(0)
-                invokespecial(parent(), "<init>", "()V")
-                +`return`
-            }
-            .generateProcedure(node, context)
-            .build()
-
-        return ClassGraph(root, context.classes())
-    }
-
-    private fun generateLambda(
-        args: List<String>,
-        rest: String?,
-        nodes: List<Node>,
-        context: Context,
-    ): Pair<String, ByteArray> =
-        classFile("Lambda${lambdaCnt++}", parent = "java/lang/Object")
-            .iface("com/alsaril/scheme/runtime/Function")
-            .field("scope", "Lcom/alsaril/scheme/runtime/Environment;", PRIVATE, FINAL)
-            .method("<init>", "(Lcom/alsaril/scheme/runtime/Environment;)V", PUBLIC) {
-                +aload(0)
-                invokespecial(parent(), "<init>", "()V")
-                +aload(0)
-                +aload(1)
-                +putfield(field(self(), "scope", "Lcom/alsaril/scheme/runtime/Environment;"))
-                +`return`
-            }
-            .generateLambdaBody(args, rest, nodes, context)
-            .build()
 
     private fun CodeBuilder.resolveSymbol(name: String) {
         +aload(1)
@@ -88,7 +57,11 @@ object ClassGenerator {
 
     private fun CodeBuilder.unspecified() {
         +getstatic(
-            field(clazz("com/alsaril/scheme/runtime/Unspecified"), "INSTANCE", "Lcom/alsaril/scheme/runtime/Unspecified;")
+            field(
+                clazz("com/alsaril/scheme/runtime/Unspecified"),
+                "INSTANCE",
+                "Lcom/alsaril/scheme/runtime/Unspecified;"
+            )
         )
     }
 
@@ -117,12 +90,12 @@ object ClassGenerator {
     private fun syntaxError(form: Node, problem: String) = SchemeSyntaxException("$problem in ${form.source()}")
 
     private fun operands(form: Cell): List<Node> {
-        val (list, rest) = collectUnproperArgs(form.second)
+        val (list, rest) = collectImproperArgs(form.second)
         if (rest != null) throw syntaxError(form, "expected a proper list of operands")
         return list
     }
 
-    private fun collectUnproperArgs(args: Node): Pair<List<Node>, Node?> {
+    private fun collectImproperArgs(args: Node): Pair<List<Node>, Node?> {
         var i = args
         val result = mutableListOf<Node>()
         while (i is Cell) {
@@ -132,41 +105,41 @@ object ClassGenerator {
         return result to (if (i is Null) null else i)
     }
 
-    private fun CodeBuilder.boolTemplate(l: List<Node>, identity: Boolean, context: Context) {
+    private fun CodeBuilder.boolTemplate(l: List<Node>, identity: Boolean) {
         if (l.isEmpty()) {
             boolean(identity)
             return
         }
         val exits = l.dropLast(1).map {
-            list(it, resolve = true, exec = true, context)
+            list(it, resolve = true, exec = true)
             +dup
             boolean(false)
             val exit = if (identity) +if_acmpeq else +if_acmpne
             +pop
             exit
         }
-        list(l.last(), resolve = true, exec = true, context)
+        list(l.last(), resolve = true, exec = true)
         exits.forEach { link(it, end()) }
     }
 
-    private fun CodeBuilder.special(form: Cell, context: Context): Boolean {
+    private fun CodeBuilder.special(form: Cell): Boolean {
         val name = (form.first as? Symbol)?.name ?: return false
         val args = form.second
         val l = lazy(NONE) { operands(form) }
 
         if (name == "quote") {
             if (l.value.size != 1) throw syntaxError(form, "quote: expected 1 operand, got ${l.value.size}")
-            list(l.value[0], resolve = false, exec = false, context)
+            list(l.value[0], resolve = false, exec = false)
             return true
         }
 
         if (name == "and") {
-            boolTemplate(l.value, true, context)
+            boolTemplate(l.value, true)
             return true
         }
 
         if (name == "or") {
-            boolTemplate(l.value, false, context)
+            boolTemplate(l.value, false)
             return true
         }
 
@@ -175,7 +148,7 @@ object ClassGenerator {
             val procedure = head.first as? Symbol
                 ?: throw syntaxError(form, "define: expected a symbol as the procedure name, got ${head.first.source()}")
             bind(procedure.name, Binding.DEFINE) {
-                lambda(name, form, listOf(head.second) + l.value.drop(1), context)
+                lambda(name, form, listOf(head.second) + l.value.drop(1))
             }
             return true
         }
@@ -185,26 +158,26 @@ object ClassGenerator {
             val (key, def) = l.value
             if (key !is Symbol) throw syntaxError(form, "$name: expected a symbol, got ${key.source()}")
             val binding = if (name == "define") Binding.DEFINE else Binding.SET
-            bind(key.name, binding) { list(def, resolve = true, exec = true, context) }
+            bind(key.name, binding) { list(def, resolve = true, exec = true) }
             return true
         }
 
         if (name == "if") {
             if (l.value.size !in 2..3) throw syntaxError(form, "if: expected 2 or 3 operands, got ${l.value.size}")
-            list(l.value[0], resolve = true, exec = true, context)
+            list(l.value[0], resolve = true, exec = true)
             boolean(false)
             val f = +if_acmpeq
-            list(l.value[1], resolve = true, exec = true, context)
+            list(l.value[1], resolve = true, exec = true)
             val end = +goto
             link(f, end())
-            if (l.value.size == 2) unspecified() else list(l.value[2], resolve = true, exec = true, context)
+            if (l.value.size == 2) unspecified() else list(l.value[2], resolve = true, exec = true)
             link(end, end())
 
             return true
         }
 
         if (name == "lambda") {
-            lambda(name, form, l.value, context)
+            lambda(name, form, l.value)
             return true
         }
 
@@ -225,13 +198,13 @@ object ClassGenerator {
         unspecified()
     }
 
-    private fun CodeBuilder.lambda(keyword: String, form: Cell, l: List<Node>, context: Context) {
+    private fun CodeBuilder.lambda(keyword: String, form: Cell, l: List<Node>) {
         if (l.isEmpty()) throw syntaxError(form, "$keyword: expected parameters and a body")
         if (l.size == 1) throw syntaxError(form, "$keyword: expected a body")
 
         val head = l.first()
         val nodes = l.drop(1)
-        val (args, rest) = collectUnproperArgs(head)
+        val (args, rest) = collectImproperArgs(head)
         val argNames = args.map {
             (it as? Symbol)?.name ?: throw syntaxError(form, "$keyword: expected a symbol as a parameter, got ${it.source()}")
         }
@@ -245,26 +218,27 @@ object ClassGenerator {
             throw syntaxError(form, "$keyword: parameter ${it.key} is declared more than once")
         }
 
-        val lambda = generateLambda(argNames, restName, nodes, context)
-        context.addClass(lambda)
-
-        +new(clazz(lambda.first))
-        +dup
+        val lambda = generateLambda(argNames, restName, nodes)
+        val bootstrap = lambdaBootstrap(
+            "(Ljava/lang/Object;)Ljava/lang/Object;",
+            methodHandle(INVOKE_STATIC, self(), lambda, "(Lcom/alsaril/scheme/runtime/Environment;Ljava/lang/Object;)Ljava/lang/Object;"),
+            "(Ljava/lang/Object;)Ljava/lang/Object;",
+        )
         +aload(1)
-        invokespecial(clazz(lambda.first), "<init>", "(Lcom/alsaril/scheme/runtime/Environment;)V")
+        invokedynamic("call", "(Lcom/alsaril/scheme/runtime/Environment;)Lcom/alsaril/scheme/runtime/Function;", bootstrap)
     }
 
-    private fun CodeBuilder.call(cell: Cell, context: Context) {
-        if (special(cell, context)) return
+    private fun CodeBuilder.call(cell: Cell) {
+        if (special(cell)) return
         operands(cell) // rejects a dotted argument list
         val (op, args) = cell
-        list(op, resolve = true, exec = true, context)
+        list(op, resolve = true, exec = true)
         invokestatic(
             clazz("com/alsaril/scheme/runtime/Procedures"),
             "procedure",
             "(Ljava/lang/Object;)Lcom/alsaril/scheme/runtime/Function;"
         )
-        list(args, resolve = true, exec = false, context)
+        list(args, resolve = true, exec = false)
         invokeinterface(
             clazz("com/alsaril/scheme/runtime/Function"),
             "call",
@@ -272,14 +246,14 @@ object ClassGenerator {
         )
     }
 
-    private fun CodeBuilder.list(node: Node, resolve: Boolean, exec: Boolean, context: Context) {
+    private fun CodeBuilder.list(node: Node, resolve: Boolean, exec: Boolean) {
         if (node is Cell) {
             if (exec) {
-                call(node, context)
+                call(node)
             } else {
                 val (first, second) = node
-                list(first, resolve = resolve, exec = resolve, context)
-                list(second, resolve = resolve, exec = false, context)
+                list(first, resolve = resolve, exec = resolve)
+                list(second, resolve = resolve, exec = false)
                 pair()
             }
             return
@@ -298,20 +272,27 @@ object ClassGenerator {
         }
     }
 
-    private fun ClassFileBuilder.generateProcedure(node: Node, context: Context) =
-        method("run", "(Lcom/alsaril/scheme/runtime/Environment;)Ljava/lang/Object;", PUBLIC, FINAL) {
-            list(node, resolve = true, exec = true, context)
+    private fun generateProcedure(node: Node) =
+        classFileBuilder.method("run", "(Lcom/alsaril/scheme/runtime/Environment;)Ljava/lang/Object;", PUBLIC, FINAL) {
+            list(node, resolve = true, exec = true)
             +areturn
         }
 
-    private fun ClassFileBuilder.generateLambdaBody(
+    private fun generateLambda(
         names: List<String>,
         rest: String?,
         nodes: List<Node>,
-        context: Context
-    ) = method("call", "(Ljava/lang/Object;)Ljava/lang/Object;", PUBLIC, FINAL) {
+    ): String {
+        val name = "lambda${lambdaCnt++}"
+        classFileBuilder.method(name, "(Lcom/alsaril/scheme/runtime/Environment;Ljava/lang/Object;)Ljava/lang/Object;", PRIVATE, STATIC, FINAL) {
             +aload(1)
-            val listOf = methodHandle(INVOKE_STATIC, clazz("java/util/List"), "of", "([Ljava/lang/Object;)Ljava/util/List;", onInterface = true)
+            val listOf = methodHandle(
+                INVOKE_STATIC,
+                clazz("java/util/List"),
+                "of",
+                "([Ljava/lang/Object;)Ljava/util/List;",
+                onInterface = true
+            )
             val args = names.map(::string).toTypedArray()
             val invoke = methodHandle(
                 INVOKE_STATIC,
@@ -326,15 +307,16 @@ object ClassGenerator {
                 +aconst_null
             }
             +aload(0)
-            +getfield(field(self(), "scope", "Lcom/alsaril/scheme/runtime/Environment;"))
             invokestatic(
                 clazz("com/alsaril/scheme/runtime/Binder"),
                 "bind",
                 "(Ljava/lang/Object;Ljava/util/List;Ljava/lang/String;Lcom/alsaril/scheme/runtime/Environment;)Lcom/alsaril/scheme/runtime/Environment;"
             )
             +astore(1)
+            +aconst_null // the outer scope stays reachable only through the new environment
+            +astore(0)
             nodes.forEachIndexed { index, node ->
-                list(node, resolve = true, exec = true, context)
+                list(node, resolve = true, exec = true)
                 if (index == nodes.size - 1) {
                     +areturn
                 } else {
@@ -342,4 +324,6 @@ object ClassGenerator {
                 }
             }
         }
+        return name
+    }
 }
