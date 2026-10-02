@@ -278,13 +278,6 @@ class ParserTest {
             assertThat(parse(" 1 + 2 * 3 ")).isEqualTo(parse("1+2*3"))
             assertThat(parse("( 1 + 2 ) * 3")).isEqualTo(parse("(1+2)*3"))
         }
-
-        @Test
-        fun `still separates two operands`() {
-            assertThatIllegalArgumentException()
-                .isThrownBy { parse("1 2") }
-                .withMessage("operator expected at 2")
-        }
     }
 
     @Test

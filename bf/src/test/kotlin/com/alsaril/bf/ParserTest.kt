@@ -186,6 +186,20 @@ class ParserTest {
         }
 
         @Test
+        fun `an unclosed nested bracket`() {
+            assertThatIllegalArgumentException()
+                .isThrownBy { parse("[[]") }
+                .withMessage("']' expected at 3")
+        }
+
+        @Test
+        fun `a bracket past a comment, counting the characters skipped`() {
+            assertThatIllegalArgumentException()
+                .isThrownBy { parse("+ hey ]") }
+                .withMessage("unexpected ']' at 6")
+        }
+
+        @Test
         fun `a bracket past a newline, counting every character in the index`() {
             assertThatIllegalArgumentException()
                 .isThrownBy { parse("+++\n++]") }

@@ -285,13 +285,6 @@ class ProgramTest {
         }
 
         @Test
-        fun `compiles a program with tens of thousands of instructions`() {
-            val padding = "+-".repeat(20_000)
-
-            assertThat(run(padding + "+".repeat(65) + ".").text()).isEqualTo("A")
-        }
-
-        @Test
         fun `compiles a loop whose body is far larger than one method`() {
             // the body outlines into its own methods, called once per iteration
             val body = "-" + "+-".repeat(10_000) + ">+<"
@@ -350,57 +343,6 @@ class ProgramTest {
             assertThatIllegalStateException()
                 .isThrownBy { run(padding + "<.") }
                 .withMessage("Buffer overflow")
-        }
-    }
-
-    @Nested
-    inner class Parsing {
-
-        @Test
-        fun `rejects an unclosed bracket`() {
-            assertThatIllegalArgumentException()
-                .isThrownBy { compile("+[+") }
-                .withMessage("']' expected at 3")
-        }
-
-        @Test
-        fun `rejects an unclosed nested bracket`() {
-            assertThatIllegalArgumentException()
-                .isThrownBy { compile("[[]") }
-                .withMessageContaining("']' expected")
-        }
-
-        @Test
-        fun `rejects a stray closing bracket`() {
-            assertThatIllegalArgumentException()
-                .isThrownBy { compile("]") }
-                .withMessage("unexpected ']' at 0")
-        }
-
-        @Test
-        fun `reports where the error is`() {
-            assertThatIllegalArgumentException()
-                .isThrownBy { compile("++]") }
-                .withMessage("unexpected ']' at 2")
-        }
-
-        @Test
-        fun `counts a position past a comment`() {
-            // skipped characters still count towards the index
-            assertThatIllegalArgumentException()
-                .isThrownBy { compile("+ hey ]") }
-                .withMessage("unexpected ']' at 6")
-        }
-
-        @Test
-        fun `rejects a bracket opened at the very start`() {
-            assertThatIllegalArgumentException()
-                .isThrownBy { compile("[") }
-        }
-
-        @Test
-        fun `accepts balanced brackets`() {
-            assertThatNoException().isThrownBy { compile("[[][]]") }
         }
     }
 

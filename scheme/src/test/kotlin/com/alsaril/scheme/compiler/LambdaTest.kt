@@ -24,6 +24,11 @@ class LambdaTest {
         assertThat(execute(input)).isEqualTo(expected)
     }
 
+    @Test
+    fun `evaluates to a procedure`() {
+        assertThat(execute("(lambda (x) x)")).isEqualTo("#<procedure>")
+    }
+
     @ParameterizedTest
     @CsvSource(
         "((lambda args args) 1 2 3), (1 2 3)",

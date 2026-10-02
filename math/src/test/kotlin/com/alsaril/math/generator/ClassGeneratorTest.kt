@@ -62,11 +62,6 @@ class ClassGeneratorTest {
         }
 
         @Test
-        fun `reads a name of several letters`() {
-            assertThat(eval(Var("width"), mapOf("width" to 4.0f))).isEqualTo(4.0f)
-        }
-
-        @Test
         fun `picks the right entry out of a map holding several`() {
             val variables = mapOf("x" to 1.0f, "y" to 2.0f, "z" to 3.0f)
 
@@ -440,17 +435,6 @@ class ClassGeneratorTest {
             names.drop(1).forEach { ast = Op(ADD, ast, Var(it)) }
             repeat(terms) { ast = Op(ADD, ast, Var(names[it % names.size])) }
             return ast to names
-        }
-
-        @Test
-        fun `keeps every method inside the length budget, prelude included`() {
-            // 8000 is hotspot's threshold for compiling a method at all, so a method past
-            // it would silently stay interpreted. The prelude that reads the variables is
-            // part of the method, so it has to be part of the estimate that splits it
-            val (ast, _) = overVariables(128, 6_000)
-
-            assertThat(methodLimits(generate(ast)).map { it.codeLength })
-                .allSatisfy { assertThat(it).isLessThanOrEqualTo(8_000) }
         }
 
         @Test

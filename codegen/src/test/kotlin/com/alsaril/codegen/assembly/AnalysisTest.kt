@@ -51,7 +51,7 @@ class AnalysisTest {
     fun `refuses code that runs past its last instruction`() {
         assertThatIllegalStateException()
             .isThrownBy { method { +nop } }
-            .withMessageContaining("past the last instruction")
+            .withMessage("nop at 0 continues to 1, which is past the last instruction")
     }
 
     @Test
@@ -436,13 +436,5 @@ class AnalysisTest {
             }
             .withMessageContaining("expects ReferenceType(descriptor=java/lang/Object) on the stack")
             .withMessageContaining("finds ReferenceType(descriptor=java/lang/String)")
-    }
-
-    @Test
-    fun `names the instruction a complaint is about`() {
-        // the message has to identify which instruction, not just that one was wrong
-        assertThatIllegalStateException()
-            .isThrownBy { method { +nop } }
-            .withMessageContaining("nop at 0")
     }
 }
