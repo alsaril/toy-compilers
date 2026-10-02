@@ -31,12 +31,12 @@ class ClassFileBuilderTest {
     }
 
     @Test
-    fun `starts with the magic number and the java 21 version`() {
+    fun `starts with the magic number and the java 25 version`() {
         // when
         val bytes = classFile("Header", "java/lang/Object").build()
 
         // then
-        assertThat(bytes).startsWith(*bytesOf(0xCA, 0xFE, 0xBA, 0xBE, 0x00, 0x00, 0x00, 0x41))
+        assertThat(bytes).startsWith(*bytesOf(0xCA, 0xFE, 0xBA, 0xBE, 0x00, 0x00, 0x00, 0x45))
     }
 
     @Test

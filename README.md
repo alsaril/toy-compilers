@@ -17,7 +17,7 @@ nothing but build class files.
 
 ## Build
 
-Kotlin, JDK 21, Gradle wrapper. Generated classes target Java 8 (major version 52).
+Kotlin, JDK 25, Gradle wrapper. Generated classes target Java 25 (major version 69).
 
 ```bash
 ./gradlew build            # compile and test everything

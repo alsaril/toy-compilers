@@ -579,7 +579,7 @@ class ClassFileSerializationTest {
                 *bytesOf(
                     0xCA, 0xFE, 0xBA, 0xBE,  // magic
                     0x00, 0x00,              // minor_version
-                    0x00, 0x41,              // major_version: java 21
+                    0x00, 0x45,              // major_version: java 25
                     0x00, 0x01,              // constant_pool_count
                     0x00, 0x11,              // access_flags: public final
                     0x00, 0x01,              // this_class
@@ -675,7 +675,7 @@ class ClassFileSerializationTest {
             assertThat(file.serialized()).startsWith(
                 *bytesOf(
                     0xCA, 0xFE, 0xBA, 0xBE,
-                    0x00, 0x00, 0x00, 0x41,
+                    0x00, 0x00, 0x00, 0x45,
                     0x00, 0x02,                    // constant_pool_count
                     0x03, 0x00, 0x00, 0x00, 0x01,  // the single integer entry
                     0x00, 0x11,                    // access_flags follow the pool

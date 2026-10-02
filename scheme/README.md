@@ -39,7 +39,7 @@ expressions, of which the last is the value; a `define` among them is local to t
 ## Pipeline
 
 ```
-"(+ 1 2)" ──> Tokenizer ──> Parser ──> Node ──> ClassGenerator ──> ClassGraph ──> Program
+"(+ 1 2)" ──> Tokenizer ──> Parser ──> Node ──> ClassGenerator ──> class bytes ──> Program
 ```
 
 - **`tokenizer/`** — brackets, `.` and `'`, and between them runs of any other characters:
@@ -54,7 +54,7 @@ expressions, of which the last is the value; a `define` among them is local to t
 
 ## Code generation
 
-A line compiles to a `ClassGraph` of one class, `Impl`, which implements `Program`:
+A line compiles to one class, `Impl`, which implements `Program`:
 
 ```kotlin
 interface Program {
@@ -63,9 +63,9 @@ interface Program {
 ```
 
 and every `lambda` in the line, nested ones included, becomes a private static method
-`lambdaN` of it. Each line gets a class loader of its own, so every line's class can be
-`Impl`. Classes from earlier lines stay alive as long as something in the environment still
-refers to one of their procedures.
+`lambdaN` of it. Each line's class is defined as a hidden class, in the compiler's package,
+so every line's class can be `Impl`. Classes from earlier lines stay alive as long as
+something in the environment still refers to one of their procedures.
 
 ### Expressions
 

@@ -23,8 +23,8 @@ data class ClassFile(
         // magic
         u1(0xca); u1(0xfe); u1(0xba); u1(0xbe)
 
-        // minor_version, major_version: 21
-        u2(0); u2(65)
+        // minor_version, major_version: 25
+        u2(0); u2(69)
 
         // constant_pool_count, constant_pool
         write(constantPool)
