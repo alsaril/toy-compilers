@@ -17,7 +17,7 @@ object ClassGenerator {
         .iface("com/alsaril/bf/Program")
         .method("<init>", "()V", PUBLIC) {
             +aload(0)
-            invokespecial(parent(), "<init>", "()V")
+            +invokespecial(parent(), "<init>", "()V")
             +`return`
         }
         .method("guard", "(II)V", PRIVATE, FINAL, STATIC) {

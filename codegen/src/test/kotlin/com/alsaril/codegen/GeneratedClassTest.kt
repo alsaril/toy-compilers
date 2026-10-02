@@ -26,7 +26,7 @@ class GeneratedClassTest {
         PUBLIC,
     ) {
         +aload(0)
-        invokespecial(parent(), "<init>", "()V")
+        +invokespecial(parent(), "<init>", "()V")
         +`return`
     }
 
@@ -165,7 +165,7 @@ class GeneratedClassTest {
             .field("value", "Ljava/lang/Object;", PRIVATE, FINAL)
             .method("<init>", "(Ljava/lang/Object;)V", PUBLIC) {
                 +aload(0)
-                invokespecial(parent(), "<init>", "()V")
+                +invokespecial(parent(), "<init>", "()V")
                 +aload(0)
                 +aload(1)
                 +putfield(field(self(), "value", "Ljava/lang/Object;"))
@@ -593,7 +593,7 @@ class GeneratedClassTest {
             .method("run", "()V", PUBLIC) {
                 val guarded = +new(clazz("java/lang/IllegalStateException"))
                 +dup
-                invokespecial(clazz("java/lang/IllegalStateException"), "<init>", "()V")
+                +invokespecial(clazz("java/lang/IllegalStateException"), "<init>", "()V")
                 +athrow
 
                 val caught = +astore(1)
@@ -667,7 +667,7 @@ class GeneratedClassTest {
                 +iload(1)
                 val jump = +ifeq
                 +aload(0)
-                invokevirtual(clazz("java/lang/String"), "length", "()I")
+                +invokevirtual(clazz("java/lang/String"), "length", "()I")
                 +istore(2)
 
                 val target = +iload(2)
@@ -690,7 +690,7 @@ class GeneratedClassTest {
             .method("f", "(Ljava/lang/Object;)I", PUBLIC, STATIC) {
                 +aload(0)
                 +checkcast(clazz("java/util/List"))
-                invokeinterface(clazz("java/util/List"), "size", "()I")
+                +invokeinterface(clazz("java/util/List"), "size", "()I")
                 +ireturn
             }
             .build()
@@ -787,8 +787,8 @@ class GeneratedClassTest {
                 val done = +goto
 
                 link(otherwise, +ldc(string("no")))
-                link(done, invokespecial(clazz(builder), "<init>", "(Ljava/lang/String;)V"))
-                invokevirtual(clazz(builder), "toString", "()Ljava/lang/String;")
+                link(done, +invokespecial(clazz(builder), "<init>", "(Ljava/lang/String;)V"))
+                +invokevirtual(clazz(builder), "toString", "()Ljava/lang/String;")
                 +areturn
             }
             .build()
@@ -808,7 +808,7 @@ class GeneratedClassTest {
                 +iload(1)
                 val skip = +ifeq
                 +nop
-                link(skip, invokespecial(parent(), "<init>", "()V"))
+                link(skip, +invokespecial(parent(), "<init>", "()V"))
                 +`return`
             }
             .build()
@@ -825,7 +825,7 @@ class GeneratedClassTest {
         val bytes = classFile("GenNestedNew", "java/lang/Object")
             .method("<init>", "()V", PUBLIC) {
                 +aload(0)
-                invokespecial(parent(), "<init>", "()V")
+                +invokespecial(parent(), "<init>", "()V")
                 constructDefault(clazz("java/lang/Object"))
                 +astore(1)
                 +`return`
@@ -880,7 +880,7 @@ class GeneratedClassTest {
                 +iload(0)
                 val otherwise = +ifeq
                 +iconst(1)
-                invokestatic(clazz("java/lang/Integer"), "valueOf", "(I)Ljava/lang/Integer;")
+                +invokestatic(clazz("java/lang/Integer"), "valueOf", "(I)Ljava/lang/Integer;")
                 val done = +goto
 
                 link(otherwise, +ldc(string("s")))
@@ -900,17 +900,17 @@ class GeneratedClassTest {
         val bytes = classFile("GenAssignable", "java/lang/Object")
             .method("hash", "()I", PUBLIC, STATIC) {
                 +ldc(string("abc"))
-                invokestatic(clazz("java/util/Objects"), "hashCode", "(Ljava/lang/Object;)I")
+                +invokestatic(clazz("java/util/Objects"), "hashCode", "(Ljava/lang/Object;)I")
                 +ireturn
             }
             .method("length", "()I", PUBLIC, STATIC) {
                 +ldc(string("abc"))
-                invokeinterface(clazz("java/lang/CharSequence"), "length", "()I")
+                +invokeinterface(clazz("java/lang/CharSequence"), "length", "()I")
                 +ireturn
             }
             .method("hashNull", "()I", PUBLIC, STATIC) {
                 +aconst_null
-                invokestatic(clazz("java/util/Objects"), "hashCode", "(Ljava/lang/Object;)I")
+                +invokestatic(clazz("java/util/Objects"), "hashCode", "(Ljava/lang/Object;)I")
                 +ireturn
             }
             .build()
@@ -957,7 +957,7 @@ class GeneratedClassTest {
         val bytes = classFile("GenLongConstant", "java/lang/Object")
             .method("f", "()Ljava/lang/Object;", PUBLIC, STATIC) {
                 +lconst(1)
-                invokestatic(clazz("java/lang/Long"), "valueOf", "(J)Ljava/lang/Long;")
+                +invokestatic(clazz("java/lang/Long"), "valueOf", "(J)Ljava/lang/Long;")
                 +areturn
             }
             .build()
@@ -1013,12 +1013,12 @@ class GeneratedClassTest {
         val bytes = classFile("GenLdc2w", "java/lang/Object")
             .method("long", "()Ljava/lang/Object;", PUBLIC, STATIC) {
                 +ldc2_w(long(1L shl 40))
-                invokestatic(clazz("java/lang/Long"), "valueOf", "(J)Ljava/lang/Long;")
+                +invokestatic(clazz("java/lang/Long"), "valueOf", "(J)Ljava/lang/Long;")
                 +areturn
             }
             .method("double", "()Ljava/lang/Object;", PUBLIC, STATIC) {
                 +ldc2_w(double(2.5))
-                invokestatic(clazz("java/lang/Double"), "valueOf", "(D)Ljava/lang/Double;")
+                +invokestatic(clazz("java/lang/Double"), "valueOf", "(D)Ljava/lang/Double;")
                 +areturn
             }
             .build()
@@ -1053,31 +1053,31 @@ class GeneratedClassTest {
                 +ldc(methodHandle(INVOKE_STATIC, clazz("java/lang/Math"), "max", "(II)I"))
                 +iconst(3)
                 +iconst(7)
-                invokevirtual(clazz(handle), "invokeExact", "(II)I")
+                +invokevirtual(clazz(handle), "invokeExact", "(II)I")
                 +ireturn
             }
             .method("length", "()I", PUBLIC, STATIC) {
                 +ldc(methodHandle(INVOKE_VIRTUAL, clazz("java/lang/String"), "length", "()I"))
                 +ldc(string("abcd"))
-                invokevirtual(clazz(handle), "invokeExact", "(Ljava/lang/String;)I")
+                +invokevirtual(clazz(handle), "invokeExact", "(Ljava/lang/String;)I")
                 +ireturn
             }
             .method("limit", "()I", PUBLIC, STATIC) {
                 +ldc(methodHandle(GET_STATIC, clazz("java/lang/Integer"), "MAX_VALUE", "I"))
-                invokevirtual(clazz(handle), "invokeExact", "()I")
+                +invokevirtual(clazz(handle), "invokeExact", "()I")
                 +ireturn
             }
             .method("list", "()Ljava/lang/Object;", PUBLIC, STATIC) {
                 // List.of is static, but declared on an interface
                 +ldc(methodHandle(INVOKE_STATIC, clazz("java/util/List"), "of", "(Ljava/lang/Object;)Ljava/util/List;", onInterface = true))
                 +ldc(string("x"))
-                invokevirtual(clazz(handle), "invokeExact", "(Ljava/lang/Object;)Ljava/util/List;")
+                +invokevirtual(clazz(handle), "invokeExact", "(Ljava/lang/Object;)Ljava/util/List;")
                 +areturn
             }
             .method("built", "()Ljava/lang/Object;", PUBLIC, STATIC) {
                 +ldc(methodHandle(NEW_INVOKE_SPECIAL, clazz("java/lang/StringBuilder"), "<init>", "(Ljava/lang/String;)V"))
                 +ldc(string("sb"))
-                invokevirtual(clazz(handle), "invokeExact", "(Ljava/lang/String;)Ljava/lang/StringBuilder;")
+                +invokevirtual(clazz(handle), "invokeExact", "(Ljava/lang/String;)Ljava/lang/StringBuilder;")
                 +areturn
             }
             .build()
@@ -1107,8 +1107,8 @@ class GeneratedClassTest {
             .method("long", "()Ljava/lang/Object;", PUBLIC, STATIC) {
                 +lconst(1)
                 +dup2
-                invokestatic(clazz("java/lang/Long"), "sum", "(JJ)J")
-                invokestatic(clazz("java/lang/Long"), "valueOf", "(J)Ljava/lang/Long;")
+                +invokestatic(clazz("java/lang/Long"), "sum", "(JJ)J")
+                +invokestatic(clazz("java/lang/Long"), "valueOf", "(J)Ljava/lang/Long;")
                 +areturn
             }
             .build()
@@ -1147,13 +1147,13 @@ class GeneratedClassTest {
             .method("secret", "()I", PRIVATE) { +iconst(42); +ireturn }
             .method("viaPrivate", "()I", PUBLIC) {
                 +aload(0)
-                invokespecial(self(), "secret", "()I")
+                +invokespecial(self(), "secret", "()I")
                 +ireturn
             }
             .method("toString", "()Ljava/lang/String;", PUBLIC) { +ldc(string("overridden")); +areturn }
             .method("viaParent", "()Ljava/lang/String;", PUBLIC) {
                 +aload(0)
-                invokespecial(parent(), "toString", "()Ljava/lang/String;")
+                +invokespecial(parent(), "toString", "()Ljava/lang/String;")
                 +areturn
             }
             .build()
@@ -1174,7 +1174,7 @@ class GeneratedClassTest {
                 +new(clazz("java/lang/Object"))
                 +astore(0)
                 +aload(0)
-                invokespecial(clazz("java/lang/Object"), "<init>", "()V")
+                +invokespecial(clazz("java/lang/Object"), "<init>", "()V")
                 +aload(0)
                 +areturn
             }
@@ -1230,7 +1230,7 @@ class GeneratedClassTest {
             .storeEither("f") { +aconst_null }
             .storeEither("g") {
                 +iconst(1)
-                invokestatic(clazz("java/lang/Integer"), "valueOf", "(I)Ljava/lang/Integer;")
+                +invokestatic(clazz("java/lang/Integer"), "valueOf", "(I)Ljava/lang/Integer;")
             }
             .build()
         val clazz = load(bytes)
@@ -1255,10 +1255,10 @@ class GeneratedClassTest {
                 +dup
                 +ldc(string("boom"))
                 constructDefault(clazz("java/io/IOException"))
-                invokespecial(clazz(unchecked), "<init>", "(Ljava/lang/String;Ljava/io/IOException;)V")
+                +invokespecial(clazz(unchecked), "<init>", "(Ljava/lang/String;Ljava/io/IOException;)V")
                 +athrow
 
-                val caught = invokevirtual(clazz(unchecked), "getCause", "()Ljava/io/IOException;")
+                val caught = +invokevirtual(clazz(unchecked), "getCause", "()Ljava/io/IOException;")
                 `catch`(guarded, to = caught, handler = caught, type = clazz(unchecked))
                 +areturn
             }
@@ -1305,7 +1305,7 @@ class GeneratedClassTest {
                 +new(clazz("java/lang/Object"))
                 +astore(0)
                 +aload(0)
-                val guarded = invokespecial(clazz("java/lang/Object"), "<init>", "()V")
+                val guarded = +invokespecial(clazz("java/lang/Object"), "<init>", "()V")
                 val end = +`return`
 
                 val caught = +`return`

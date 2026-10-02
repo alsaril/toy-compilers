@@ -183,7 +183,7 @@ class FramesTest {
             val frames = derived(static = false, constructor = true) {
                 jumpOver()
                 +aload(0) // 3
-                invokespecial(parent(), "<init>", "()V")
+                +invokespecial(parent(), "<init>", "()V")
                 +`return`
             }
 
@@ -196,7 +196,7 @@ class FramesTest {
             // given
             val frames = derived(static = false, constructor = true) {
                 +aload(0)
-                invokespecial(parent(), "<init>", "()V")
+                +invokespecial(parent(), "<init>", "()V")
                 jumpOver()
                 +`return` // 5
             }
@@ -245,7 +245,7 @@ class FramesTest {
                 +astore(0)
                 jumpOver()
                 +aload(0) // 5
-                invokespecial(clazz("java/lang/Object"), "<init>", "()V")
+                +invokespecial(clazz("java/lang/Object"), "<init>", "()V")
                 jumpOver()
                 +`return` // 10
             }
@@ -314,7 +314,7 @@ class FramesTest {
 
         private val integer: CodeBuilder.() -> Unit = {
             +iconst(1)
-            invokestatic(clazz("java/lang/Integer"), "valueOf", "(I)Ljava/lang/Integer;")
+            +invokestatic(clazz("java/lang/Integer"), "valueOf", "(I)Ljava/lang/Integer;")
             +astore(1)
         }
 
@@ -421,7 +421,7 @@ class FramesTest {
                 +new(clazz("java/lang/Object"))
                 +astore(0)
                 +aload(0)
-                val guarded = invokespecial(clazz("java/lang/Object"), "<init>", "()V")
+                val guarded = +invokespecial(clazz("java/lang/Object"), "<init>", "()V")
                 val end = +`return`
                 val caught = +`return` // 5
                 `catch`(guarded, to = end, handler = caught, type = null)
@@ -592,7 +592,7 @@ class FramesTest {
             val frames = derived("(I)Ljava/lang/Object;", hierarchy = hierarchy) {
                 choose(
                     { +ldc(string("s")) },
-                    { +iconst(1); invokestatic(clazz("java/lang/Integer"), "valueOf", "(I)Ljava/lang/Integer;") },
+                    { +iconst(1); +invokestatic(clazz("java/lang/Integer"), "valueOf", "(I)Ljava/lang/Integer;") },
                 )
             }
 
@@ -609,7 +609,7 @@ class FramesTest {
             val frames = derived("(I)Ljava/lang/Object;") {
                 choose(
                     { +ldc(string("s")) },
-                    { +iconst(1); invokestatic(clazz("java/lang/Integer"), "valueOf", "(I)Ljava/lang/Integer;") },
+                    { +iconst(1); +invokestatic(clazz("java/lang/Integer"), "valueOf", "(I)Ljava/lang/Integer;") },
                 )
             }
 
@@ -627,7 +627,7 @@ class FramesTest {
                 +iconst(0)
                 val jump = +ifeq
                 +nop
-                val target = invokespecial(clazz("java/lang/Object"), "<init>", "()V") // 5
+                val target = +invokespecial(clazz("java/lang/Object"), "<init>", "()V") // 5
                 link(jump, target)
                 +`return`
             }
@@ -644,7 +644,7 @@ class FramesTest {
             val frames = derived {
                 +new(clazz("java/lang/Object"))
                 +dup
-                invokespecial(clazz("java/lang/Object"), "<init>", "()V")
+                +invokespecial(clazz("java/lang/Object"), "<init>", "()V")
                 +iconst(0)
                 val jump = +ifeq
                 +nop
@@ -706,7 +706,7 @@ class FramesTest {
                 +iconst(0)
                 val jump = +ifeq
                 +nop
-                link(jump, invokespecial(clazz("java/lang/Object"), "<init>", "()V")) // byte 12
+                link(jump, +invokespecial(clazz("java/lang/Object"), "<init>", "()V")) // byte 12
                 +`return`
             }
 

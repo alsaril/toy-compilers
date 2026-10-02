@@ -24,7 +24,7 @@ class InvokeDynamicTest {
             method("call", "(I)Ljava/lang/Object;", PUBLIC, STATIC) {
                 +iload(0)
                 val impl = methodHandle(INVOKE_STATIC, self(), "impl", "(I)Ljava/lang/String;")
-                invokedynamic("_", "(I)Ljava/lang/Object;", bootstrap(methodHandle(INVOKE_STATIC, self(), "bind", bind), impl))
+                +invokedynamic("_", "(I)Ljava/lang/Object;", bootstrap(methodHandle(INVOKE_STATIC, self(), "bind", bind), impl))
                 +areturn
             }
             .method("bind", bind, PRIVATE, STATIC) {
@@ -32,14 +32,14 @@ class InvokeDynamicTest {
                 +dup
                 +aload(3)
                 +aload(2)
-                invokevirtual(clazz("java/lang/invoke/MethodHandle"), "asType", "(Ljava/lang/invoke/MethodType;)Ljava/lang/invoke/MethodHandle;")
-                invokespecial(clazz("java/lang/invoke/ConstantCallSite"), "<init>", "(Ljava/lang/invoke/MethodHandle;)V")
+                +invokevirtual(clazz("java/lang/invoke/MethodHandle"), "asType", "(Ljava/lang/invoke/MethodType;)Ljava/lang/invoke/MethodHandle;")
+                +invokespecial(clazz("java/lang/invoke/ConstantCallSite"), "<init>", "(Ljava/lang/invoke/MethodHandle;)V")
                 +areturn
             }
             .method("impl", "(I)Ljava/lang/String;", PRIVATE, STATIC) {
                 +ldc(string("Hello, world!"))
                 +iload(0)
-                invokevirtual(clazz("java/lang/String"), "substring", "(I)Ljava/lang/String;")
+                +invokevirtual(clazz("java/lang/String"), "substring", "(I)Ljava/lang/String;")
                 +areturn
             }
         }
@@ -53,7 +53,7 @@ class InvokeDynamicTest {
         val result = call(42) {
             method("call", "(I)I", PUBLIC, STATIC) {
                 +ldc(int(10))
-                invokedynamic(
+                +invokedynamic(
                     "apply",
                     "(I)Ljava/util/function/Function;",
                     lambdaBootstrap(
@@ -63,10 +63,10 @@ class InvokeDynamicTest {
                     ),
                 )
                 +iload(0)
-                invokestatic(clazz("java/lang/Integer"), "valueOf", "(I)Ljava/lang/Integer;")
-                invokeinterface(clazz("java/util/function/Function"), "apply", "(Ljava/lang/Object;)Ljava/lang/Object;")
+                +invokestatic(clazz("java/lang/Integer"), "valueOf", "(I)Ljava/lang/Integer;")
+                +invokeinterface(clazz("java/util/function/Function"), "apply", "(Ljava/lang/Object;)Ljava/lang/Object;")
                 +checkcast(clazz("java/lang/Integer"))
-                invokevirtual(clazz("java/lang/Integer"), "intValue", "()I")
+                +invokevirtual(clazz("java/lang/Integer"), "intValue", "()I")
                 +ireturn
             }
             .method("impl", "(II)I", PRIVATE, STATIC) {

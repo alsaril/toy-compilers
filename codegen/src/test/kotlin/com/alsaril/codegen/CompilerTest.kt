@@ -40,7 +40,7 @@ class CompilerTest {
         PUBLIC,
     ) {
         +aload(0)
-        invokespecial(parent(), "<init>", "()V")
+        +invokespecial(parent(), "<init>", "()V")
         +`return`
     }
 

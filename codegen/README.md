@@ -30,7 +30,7 @@ val bytes = classFile("Counter", parent = "java/lang/Object")
     .field("count", "I", PRIVATE)
     .method("<init>", "()V", PUBLIC) {
         +aload(0)
-        invokespecial(parent(), "<init>", "()V")
+        +invokespecial(parent(), "<init>", "()V")
         +`return`
     }
     .method("getAsInt", "()I", PUBLIC) {
@@ -79,19 +79,21 @@ the one escaped. An instruction picks its own encoding from its operand: a local
 re-encodes it. `iconst` reaches a `short`, `fconst` 0 to 2 and `lconst` 0 and 1; past that a
 constant comes from the pool, as `ldc(int(…))`, `ldc(float(…))` or `ldc2_w(long(…))`.
 
-Around `+` sit the helpers that register what an instruction refers to and hand back a
-typed pointer to it:
+Around `+` sit the helpers that register what an instruction refers to in the constant
+pool. Most hand back a typed pointer for an instruction to take:
 
 - **classes** — `clazz(name)`, `self()`, `parent()`, giving a `ClassPointer`;
 - **constants** — `int`, `float`, `long`, `double`, `string`, `methodType`,
   `methodHandle(kind, clazz, name, descriptor)` and [`constantDynamic`](#dynamic-call-sites-and-constants),
   giving a `DataPointer` that `ldc` loads — `ldc2_w` for a long or a double;
 - **fields** — `field(clazz, name, descriptor)`, giving the `FieldDescriptor` that
-  `getfield`, `putfield` and `getstatic` take;
-- **calls** — `invokevirtual`, `invokespecial`, `invokestatic` and `invokeinterface`, each
-  taking the owner, the name and the descriptor and emitting the call, and
-  [`invokedynamic`](#dynamic-call-sites-and-constants);
-- `constructDefault(clazz)` — `new`, `dup` and the no-argument constructor.
+  `getfield`, `putfield` and `getstatic` take.
+
+The calls hand back the instruction itself, for `+` to emit: `invokevirtual`,
+`invokespecial`, `invokestatic` and `invokeinterface` take the owner, the name and the
+descriptor, and [`invokedynamic`](#dynamic-call-sites-and-constants) a name, a descriptor and
+a bootstrap method. `constructDefault(clazz)` is the one helper that emits by itself: `new`,
+`dup` and the no-argument constructor.
 
 Covered so far: `int` arithmetic, `iinc`, comparisons and `int[]`, `byte[]` and `boolean[]`
 access; `float` arithmetic; `long` and `double` constants and `long` stores; objects, arrays
@@ -139,14 +141,15 @@ Both dynamic forms take that pointer, with a name and a type:
 
 ```kotlin
 val bind = methodHandle(INVOKE_STATIC, self(), "bind", "(${IDP}Ljava/lang/invoke/MethodHandle;)Ljava/lang/invoke/CallSite;")
-invokedynamic("_", "(I)I", bootstrap(bind, methodHandle(INVOKE_STATIC, self(), "impl", "(I)I")))
++invokedynamic("_", "(I)I", bootstrap(bind, methodHandle(INVOKE_STATIC, self(), "impl", "(I)I")))
 
 val read = methodHandle(INVOKE_STATIC, clazz("java/lang/invoke/ConstantBootstraps"), "getStaticFinal", "(${CBP})Ljava/lang/Object;")
 +ldc(constantDynamic("MAX_VALUE", "I", bootstrap(read)))
 ```
 
-- `invokedynamic(name, descriptor, bootstrap)` emits a call site of that method descriptor,
-  taking its arguments with no receiver. Equal call sites share a pool entry.
+- `invokedynamic(name, descriptor, bootstrap)` hands back a call site of that method
+  descriptor, for `+` to emit, taking its arguments with no receiver. Equal call sites share
+  a pool entry.
 - `constantDynamic(name, type, bootstrap)` registers a constant of that field type and hands
   back its `DataPointer`, which `ldc` loads and another bootstrap method can take as an
   argument. A `void` type is refused.

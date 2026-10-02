@@ -221,7 +221,7 @@ class ClassFileBuilderTest {
             // the call replaces the receiver with its int result, so the body is one deep
             assertThat(stack("(Ljava/lang/String;)I", STATIC) {
                 +aload(0)
-                invokevirtual(clazz("java/lang/String"), "length", "()I")
+                +invokevirtual(clazz("java/lang/String"), "length", "()I")
                 +ireturn
             }).isOne()
         }
@@ -287,7 +287,7 @@ class ClassFileBuilderTest {
         @Test
         fun `leaves nothing behind for a call that returns void`() {
             assertThat(stack("()V", STATIC) {
-                invokestatic(clazz("java/lang/System"), "gc", "()V")
+                +invokestatic(clazz("java/lang/System"), "gc", "()V")
                 +`return`
             }).isZero()
         }

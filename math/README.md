@@ -151,10 +151,9 @@ lines[0] * min(k, 3)  +  lines[1] * clamp(k - 3, 0, 252)  +  lines[2] * max(k - 
 ```
 
 The three are measured by emitting a line rather than predicting its length, so they follow
-any change to the emitter — the same reason [`bf`](../bf/README.md) measures its own
-budgets. Only the `ldc` is predicted, and only by a byte: it widens once a name's constant
-pool index passes 255, so the line is measured against the first name — whose index is the
-lowest — and one byte is added for the wide form the rest may need.
+any change to the emitter. Only the `ldc` is predicted, and only by a byte: it widens once a
+name's constant pool index passes 255, so the line is measured against the first name — whose
+index is the lowest — and one byte is added for the wide form the rest may need.
 
 **The budget is under 8000, and the difference is an allowance rather than slack.** A merge
 checks `length(left) + length(right)`, which is not the merged length. Two halves may share
@@ -220,8 +219,8 @@ that will not compile stops the run. Given `--interactive` there is always a nex
 everything short of running out of input is reported and asked again, including an
 expression that will not compile.
 
-Argument parsing is [Clikt](https://github.com/ajalt/clikt), as in
-[`bf`](../bf/README.md); the compiler behind it pulls in nothing.
+Argument parsing is [Clikt](https://github.com/ajalt/clikt); the compiler behind it pulls in
+nothing.
 
 ## Known limits
 

@@ -187,7 +187,7 @@ class AnalysisTest {
             .isThrownBy {
                 method("()I") {
                     +iconst(1)
-                    invokestatic(clazz("java/util/Objects"), "hashCode", "(Ljava/lang/Object;)I")
+                    +invokestatic(clazz("java/util/Objects"), "hashCode", "(Ljava/lang/Object;)I")
                     +ireturn
                 }
             }
@@ -411,7 +411,7 @@ class AnalysisTest {
             .isThrownBy {
                 method("(Ljava/lang/Object;)V") {
                     +aload(0)
-                    invokespecial(clazz("java/lang/Object"), "<init>", "()V")
+                    +invokespecial(clazz("java/lang/Object"), "<init>", "()V")
                     +`return`
                 }
             }
@@ -431,7 +431,7 @@ class AnalysisTest {
             .isThrownBy {
                 method("()I", strict) {
                     +ldc(string("s"))
-                    invokestatic(clazz("java/util/Objects"), "hashCode", "(Ljava/lang/Object;)I")
+                    +invokestatic(clazz("java/util/Objects"), "hashCode", "(Ljava/lang/Object;)I")
                     +ireturn
                 }
             }

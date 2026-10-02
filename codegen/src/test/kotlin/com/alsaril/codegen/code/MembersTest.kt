@@ -13,8 +13,9 @@ import com.alsaril.codegen.classfile.PrimitiveType as ElementType
 
 /**
  * The helpers that turn a class, a name and a descriptor into constant pool refs and the
- * instructions that use them. A call helper emits its instruction straight away, so what it
- * did is read off the instruction: the ref it points at and the types it takes and leaves.
+ * instructions that use them. A call helper hands back its instruction for `+` to emit, like
+ * every other instruction, so what it did is read off the instruction: the ref it points at
+ * and the types it takes and leaves.
  */
 class MembersTest {
 
@@ -26,16 +27,16 @@ class MembersTest {
     inner class Calls {
 
         @Test
-        fun `emit invokevirtual against a method ref, taking the owner as the receiver`() {
+        fun `make invokevirtual against a method ref, taking the owner as the receiver`() {
             // given
             val cp = UpdatableConstantPool()
             val builder = builder(cp)
 
             // when
-            builder.invokevirtual(builder.clazz("A"), "f", "(I)V")
+            val call = builder.invokevirtual(builder.clazz("A"), "f", "(I)V")
 
             // then the receiver is on the stack under the arguments, so it is an operand too
-            assertThat(builder.emitted()).containsExactly(invokevirtual(6, listOf(a, INTEGER), VOID))
+            assertThat(call).isEqualTo(invokevirtual(6, listOf(a, INTEGER), VOID))
             assertThat(cp.build().entries).containsExactly(
                 ConstantUtf8Info("A"),
                 ConstantClassInfo(nameIndex = 1),
@@ -47,47 +48,45 @@ class MembersTest {
         }
 
         @Test
-        fun `emit invokeinterface against an interface method ref`() {
+        fun `make invokeinterface against an interface method ref`() {
             // given
             val cp = UpdatableConstantPool()
             val builder = builder(cp)
 
             // when
-            builder.invokeinterface(builder.clazz("A"), "f", "(I)V")
+            val call = builder.invokeinterface(builder.clazz("A"), "f", "(I)V")
 
             // then
-            assertThat(builder.emitted()).containsExactly(invokeinterface(6, listOf(a, INTEGER), VOID))
+            assertThat(call).isEqualTo(invokeinterface(6, listOf(a, INTEGER), VOID))
             assertThat(cp.build().entries).last()
                 .isEqualTo(ConstantInterfaceMethodRefInfo(classNameIndex = 2, nameAndTypeIndex = 5))
         }
 
         @Test
-        fun `emit invokestatic with no receiver among its operands`() {
+        fun `make invokestatic with no receiver among its operands`() {
             // given
             val builder = builder()
 
             // when
-            builder.invokestatic(builder.clazz("A"), "f", "(I)V")
+            val call = builder.invokestatic(builder.clazz("A"), "f", "(I)V")
 
             // then
-            assertThat(builder.emitted()).containsExactly(invokestatic(6, listOf(INTEGER), VOID))
+            assertThat(call).isEqualTo(invokestatic(6, listOf(INTEGER), VOID))
         }
 
         @Test
-        fun `emit invokespecial marked with the class a constructor builds`() {
+        fun `make invokespecial marked with the class a constructor builds`() {
             // given
             val builder = builder()
             val owner = builder.clazz("A")
 
             // when a constructor is called, and then a method that is not one
-            builder.invokespecial(owner, "<init>", "()V")
-            builder.invokespecial(owner, "helper", "()V")
+            val constructor = builder.invokespecial(owner, "<init>", "()V")
+            val helper = builder.invokespecial(owner, "helper", "()V")
 
             // then only <init> initialises what it is called on
-            assertThat(builder.emitted()).containsExactly(
-                invokespecial(6, listOf(a), VOID, constructorFor = a),
-                invokespecial(9, listOf(a), VOID, constructorFor = null),
-            )
+            assertThat(constructor).isEqualTo(invokespecial(6, listOf(a), VOID, constructorFor = a))
+            assertThat(helper).isEqualTo(invokespecial(9, listOf(a), VOID, constructorFor = null))
         }
 
         @Test
@@ -96,10 +95,10 @@ class MembersTest {
             val builder = builder()
 
             // when
-            builder.invokestatic(builder.clazz("A"), "f", "(IJLjava/lang/String;[I)F")
+            val call = builder.invokestatic(builder.clazz("A"), "f", "(IJLjava/lang/String;[I)F")
 
             // then
-            assertThat(builder.emitted()).containsExactly(
+            assertThat(call).isEqualTo(
                 invokestatic(6, listOf(INTEGER, LONG, ReferenceType("java/lang/String"), ReferenceType("[I")), FLOAT),
             )
         }
@@ -112,14 +111,12 @@ class MembersTest {
             val clazz = builder.clazz("A")
 
             // when
-            builder.invokevirtual(clazz, "f", "()V")
-            builder.invokeinterface(clazz, "f", "()V")
+            val method = builder.invokevirtual(clazz, "f", "()V")
+            val interfaceMethod = builder.invokeinterface(clazz, "f", "()V")
 
             // then the two refs differ while sharing one name-and-type
-            assertThat(builder.emitted()).containsExactly(
-                invokevirtual(6, listOf(a), VOID),
-                invokeinterface(7, listOf(a), VOID),
-            )
+            assertThat(method).isEqualTo(invokevirtual(6, listOf(a), VOID))
+            assertThat(interfaceMethod).isEqualTo(invokeinterface(7, listOf(a), VOID))
             assertThat(cp.build().entries).endsWith(
                 ConstantMethodRefInfo(classNameIndex = 2, nameAndTypeIndex = 5),
                 ConstantInterfaceMethodRefInfo(classNameIndex = 2, nameAndTypeIndex = 5),
@@ -133,28 +130,25 @@ class MembersTest {
             val builder = builder(cp)
 
             // when
-            builder.invokevirtual(builder.clazz("A"), "f", "()V")
-            builder.invokevirtual(builder.clazz("A"), "f", "()V")
+            val first = builder.invokevirtual(builder.clazz("A"), "f", "()V")
+            val second = builder.invokevirtual(builder.clazz("A"), "f", "()V")
 
             // then
-            assertThat(builder.emitted()).containsExactly(
-                invokevirtual(6, listOf(a), VOID),
-                invokevirtual(6, listOf(a), VOID),
-            )
+            assertThat(first).isEqualTo(invokevirtual(6, listOf(a), VOID)).isEqualTo(second)
             assertThat(cp.build().entries).hasSize(6)
         }
 
         @Test
-        fun `emit invokedynamic against a call site entry, with no receiver among its operands`() {
+        fun `make invokedynamic against a call site entry, with no receiver among its operands`() {
             // given
             val cp = UpdatableConstantPool()
             val builder = builder(cp)
 
             // when
-            builder.invokedynamic("make", "(IJ)LA;", BootstrapPointer(3))
+            val call = builder.invokedynamic("make", "(IJ)LA;", BootstrapPointer(3))
 
             // then the arguments alone, and the result
-            assertThat(builder.emitted()).containsExactly(invokedynamic(4, listOf(INTEGER, LONG), a))
+            assertThat(call).isEqualTo(invokedynamic(4, listOf(INTEGER, LONG), a))
             assertThat(cp.build().entries).containsExactly(
                 ConstantUtf8Info("make"),
                 ConstantUtf8Info("(IJ)LA;"),
@@ -164,14 +158,16 @@ class MembersTest {
         }
 
         @Test
-        fun `emit one invokedynamic per call, sharing the pool entry of an equal call site`() {
+        fun `emit one invokedynamic per add, sharing the pool entry of an equal call site`() {
             // given
             val cp = UpdatableConstantPool()
             val builder = builder(cp)
 
             // when
-            builder.invokedynamic("make", "()V", BootstrapPointer(0))
-            builder.invokedynamic("make", "()V", BootstrapPointer(0))
+            with(builder) {
+                +invokedynamic("make", "()V", BootstrapPointer(0))
+                +invokedynamic("make", "()V", BootstrapPointer(0))
+            }
 
             // then the JVM links each instruction on its own, so the entry is all they share
             assertThat(builder.emitted()).containsExactly(invokedynamic(4, emptyList(), VOID), invokedynamic(4, emptyList(), VOID))
@@ -184,31 +180,31 @@ class MembersTest {
             val builder = builder()
 
             // when
-            builder.invokedynamic("make", "()V", BootstrapPointer(0))
-            builder.invokedynamic("make", "()V", BootstrapPointer(1))
+            val first = builder.invokedynamic("make", "()V", BootstrapPointer(0))
+            val second = builder.invokedynamic("make", "()V", BootstrapPointer(1))
 
             // then
-            assertThat(builder.emitted().map { (it as invokedynamic).index }).doesNotHaveDuplicates()
+            assertThat(first.index).isNotEqualTo(second.index)
         }
 
         @Test
-        fun `hand back the label of the call they emit`() {
-            // given one instruction ahead of every call, so each lands at index 1
-            val calls = listOf<CodeBuilder.(ClassPointer) -> Label>(
-                { invokevirtual(it, "f", "()V") },
-                { invokespecial(it, "f", "()V") },
-                { invokestatic(it, "f", "()V") },
-                { invokeinterface(it, "f", "()V") },
-                { invokedynamic("f", "()V", BootstrapPointer(0)) },
-            )
+        fun `emit nothing until the instruction is added`() {
+            // given
+            val builder = builder()
+            val owner = builder.clazz("A")
+            with(builder) { +nop }
 
-            // then like every other emitter, so a call can be a branch target or open a guarded range
-            calls.forEach { call ->
-                val builder = builder()
-                with(builder) { +nop }
-                val label = builder.call(builder.clazz("A"))
-                assertThat(builder.indexOf(label)).isOne()
+            // when every helper is called without its instruction being added
+            with(builder) {
+                invokevirtual(owner, "f", "()V")
+                invokespecial(owner, "f", "()V")
+                invokestatic(owner, "f", "()V")
+                invokeinterface(owner, "f", "()V")
+                invokedynamic("f", "()V", BootstrapPointer(0))
             }
+
+            // then
+            assertThat(builder.emitted()).containsExactly(nop)
         }
     }
 

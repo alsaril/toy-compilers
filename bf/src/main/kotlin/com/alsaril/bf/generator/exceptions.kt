@@ -8,7 +8,7 @@ fun CodeBuilder.raise(message: String): Label {
     val start = +new(exceptionClass)
     +dup
     +ldc(string(message))
-    invokespecial(exceptionClass, "<init>", "(Ljava/lang/String;)V")
+    +invokespecial(exceptionClass, "<init>", "(Ljava/lang/String;)V")
     +athrow
     return start
 }

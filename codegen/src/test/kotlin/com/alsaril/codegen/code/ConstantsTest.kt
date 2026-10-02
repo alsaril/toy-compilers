@@ -482,7 +482,7 @@ class ConstantsTest {
                             +iconst(1)
                             +aload(4)
                             +aastore
-                            invokestatic(clazz("java/lang/String"), "format", "(Ljava/lang/String;[Ljava/lang/Object;)Ljava/lang/String;")
+                            +invokestatic(clazz("java/lang/String"), "format", "(Ljava/lang/String;[Ljava/lang/Object;)Ljava/lang/String;")
                             +areturn
                         }
                     },
@@ -507,7 +507,7 @@ class ConstantsTest {
                             .withBootstrap("tail", tail) {
                                 +ldc(string("Hello, world!"))
                                 +iload(3)
-                                invokevirtual(clazz("java/lang/String"), "substring", "(I)Ljava/lang/String;")
+                                +invokevirtual(clazz("java/lang/String"), "substring", "(I)Ljava/lang/String;")
                                 +areturn
                             }
                     },
@@ -540,7 +540,7 @@ class ConstantsTest {
 
                 val result = call("()I", { withBootstrap("boot", boot) { +ldc(string("abc")); +areturn } }) {
                     +ldc(constantDynamic("_", "Ljava/lang/String;", own("boot", boot)))
-                    invokevirtual(clazz("java/lang/String"), "length", "()I")
+                    +invokevirtual(clazz("java/lang/String"), "length", "()I")
                     +ireturn
                 }
 

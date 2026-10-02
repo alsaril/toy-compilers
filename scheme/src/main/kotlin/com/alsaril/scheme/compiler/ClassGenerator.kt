@@ -24,7 +24,7 @@ class ClassGenerator private constructor() {
         .iface("com/alsaril/scheme/runtime/Program")
         .method("<init>", "()V", PUBLIC) {
             +aload(0)
-            invokespecial(parent(), "<init>", "()V")
+            +invokespecial(parent(), "<init>", "()V")
             +`return`
         }
 
@@ -33,7 +33,7 @@ class ClassGenerator private constructor() {
     private fun CodeBuilder.resolveSymbol(name: String) {
         +aload(1)
         +ldc(string(name))
-        invokeinterface(
+        +invokeinterface(
             clazz("com/alsaril/scheme/runtime/Environment"),
             "resolve",
             "(Ljava/lang/String;)Ljava/lang/Object;"
@@ -43,7 +43,7 @@ class ClassGenerator private constructor() {
     private fun CodeBuilder.rawSymbol(name: String) {
         +aload(1)
         +ldc(string(name))
-        invokeinterface(
+        +invokeinterface(
             clazz("com/alsaril/scheme/runtime/Environment"),
             "intern",
             "(Ljava/lang/String;)Lcom/alsaril/scheme/runtime/Symbol;"
@@ -75,11 +75,11 @@ class ClassGenerator private constructor() {
 
     private fun CodeBuilder.number(value: Int) {
         +ldc(int(value))
-        invokestatic(clazz("java/lang/Integer"), "valueOf", "(I)Ljava/lang/Integer;")
+        +invokestatic(clazz("java/lang/Integer"), "valueOf", "(I)Ljava/lang/Integer;")
     }
 
     private fun CodeBuilder.pair() {
-        invokestatic(
+        +invokestatic(
             clazz("com/alsaril/scheme/runtime/Cons"),
             "of",
             "(Ljava/lang/Object;Ljava/lang/Object;)Lcom/alsaril/scheme/runtime/Cons;"
@@ -189,7 +189,7 @@ class ClassGenerator private constructor() {
         +aload(1)
         +ldc(string(name))
         value()
-        invokeinterface(
+        +invokeinterface(
             clazz("com/alsaril/scheme/runtime/Environment"),
             binding.method,
             "(Ljava/lang/String;Ljava/lang/Object;)V"
@@ -224,7 +224,7 @@ class ClassGenerator private constructor() {
             "(Ljava/lang/Object;)Ljava/lang/Object;",
         )
         +aload(1)
-        invokedynamic("call", "(Lcom/alsaril/scheme/runtime/Environment;)Lcom/alsaril/scheme/runtime/Function;", bootstrap)
+        +invokedynamic("call", "(Lcom/alsaril/scheme/runtime/Environment;)Lcom/alsaril/scheme/runtime/Function;", bootstrap)
     }
 
     private fun CodeBuilder.call(cell: Cell) {
@@ -232,13 +232,13 @@ class ClassGenerator private constructor() {
         operands(cell) // rejects a dotted argument list
         val (op, args) = cell
         list(op, resolve = true, exec = true)
-        invokestatic(
+        +invokestatic(
             clazz("com/alsaril/scheme/runtime/Procedures"),
             "procedure",
             "(Ljava/lang/Object;)Lcom/alsaril/scheme/runtime/Function;"
         )
         list(args, resolve = true, exec = false)
-        invokeinterface(
+        +invokeinterface(
             clazz("com/alsaril/scheme/runtime/Function"),
             "call",
             "(Ljava/lang/Object;)Ljava/lang/Object;"
@@ -306,7 +306,7 @@ class ClassGenerator private constructor() {
                 +aconst_null
             }
             +aload(0)
-            invokestatic(
+            +invokestatic(
                 clazz("com/alsaril/scheme/runtime/Binder"),
                 "bind",
                 "(Ljava/lang/Object;Ljava/util/List;Ljava/lang/String;Lcom/alsaril/scheme/runtime/Environment;)Lcom/alsaril/scheme/runtime/Environment;"
