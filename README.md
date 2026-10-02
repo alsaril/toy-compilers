@@ -10,7 +10,7 @@ bytecode backend plus one language front end per module.
 | [`codegen`](codegen/README.md) | JVM class file writer: constant pool, exception handlers, a bytecode DSL, and an analysis that type-checks each method like the JVM verifier and derives `max_stack`, `max_locals` and the stack map frames | [README](codegen/README.md) |
 | [`bf`](bf/README.md) | Brainfuck compiler — parses to an instruction tree and generates a `Program` class | [README](bf/README.md) |
 | [`math`](math/README.md) | Arithmetic expression compiler — parses to an expression tree and generates a `Program` class | [README](math/README.md) |
-| [`scheme`](scheme/README.md) | Scheme subset behind a REPL — compiles each line to a `Program` class and every lambda to a class of its own | [README](scheme/README.md) |
+| [`scheme`](scheme/README.md) | Scheme subset behind a REPL — compiles each line to one hidden `Program` class, with every lambda a method of it | [README](scheme/README.md) |
 
 `codegen` knows nothing about any source language; a front end depends on it and does
 nothing but build class files.
