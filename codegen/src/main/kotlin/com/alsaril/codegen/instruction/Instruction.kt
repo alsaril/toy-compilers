@@ -1,3 +1,5 @@
+@file:MustUseReturnValues
+
 package com.alsaril.codegen.instruction
 
 import com.alsaril.codegen.ClassWriter

@@ -27,6 +27,10 @@ on them.
 - An instruction gets into a method only through `+`. Helpers that build an instruction —
   `invokevirtual`, `invokespecial`, `invokestatic`, `invokeinterface`, `invokedynamic` —
   return it for `+` to emit; `constructDefault` is the one helper that emits by itself.
+  The compiler enforces this: `Instruction.kt` and `Members.kt` are `@file:MustUseReturnValues`,
+  and the root build turns an unused return value or expression into an error. Where an
+  instruction is built on purpose without being emitted, as in a test of its constructor,
+  write `val _ = …`.
 
 ## Tests
 

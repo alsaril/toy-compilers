@@ -152,10 +152,10 @@ class InstructionTest {
         @Test
         fun `refuses a long or a double, which ldc2_w loads`() {
             assertThatIllegalArgumentException()
-                .isThrownBy { ldc(DataPointer(1, LONG)) }
+                .isThrownBy { val _ = ldc(DataPointer(1, LONG)) }
                 .withMessage("ldc loads a one slot constant, but LONG takes 2, ldc2_w should be used")
             assertThatIllegalArgumentException()
-                .isThrownBy { ldc(DataPointer(1, DOUBLE)) }
+                .isThrownBy { val _ = ldc(DataPointer(1, DOUBLE)) }
                 .withMessage("ldc loads a one slot constant, but DOUBLE takes 2, ldc2_w should be used")
         }
 
@@ -169,17 +169,17 @@ class InstructionTest {
         @Test
         fun `refuses ldc2_w of a one slot constant, which ldc loads`() {
             assertThatIllegalArgumentException()
-                .isThrownBy { ldc2_w(DataPointer(1, INTEGER)) }
+                .isThrownBy { val _ = ldc2_w(DataPointer(1, INTEGER)) }
                 .withMessage("ldc2_w loads a two slot constant, but INTEGER takes 1, ldc should be used")
             assertThatIllegalArgumentException()
-                .isThrownBy { ldc2_w(DataPointer(1, ReferenceType("java/lang/String"))) }
+                .isThrownBy { val _ = ldc2_w(DataPointer(1, ReferenceType("java/lang/String"))) }
                 .withMessage("ldc2_w loads a two slot constant, but ReferenceType(descriptor=java/lang/String) takes 1, ldc should be used")
         }
 
         @Test
         fun `refuses ldc2_w past a two byte index`() {
             assertThatIllegalArgumentException()
-                .isThrownBy { ldc2_w(DataPointer(65536, LONG)) }
+                .isThrownBy { val _ = ldc2_w(DataPointer(65536, LONG)) }
                 .withMessage("65536 does not fit a u2")
         }
     }

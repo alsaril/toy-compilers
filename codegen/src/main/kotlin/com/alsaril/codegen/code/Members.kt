@@ -1,3 +1,5 @@
+@file:MustUseReturnValues
+
 package com.alsaril.codegen.code
 
 import com.alsaril.codegen.classfile.Type

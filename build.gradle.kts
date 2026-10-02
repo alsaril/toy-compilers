@@ -24,6 +24,15 @@ subprojects {
         "testRuntimeOnly"("org.junit.platform:junit-platform-launcher")
     }
 
+    extensions.configure<org.jetbrains.kotlin.gradle.dsl.KotlinJvmProjectExtension> {
+        compilerOptions.freeCompilerArgs.addAll(
+            "-Xreturn-value-checker=check",
+            "-Xwarning-level=RETURN_VALUE_NOT_USED:error",
+            "-Xwarning-level=RETURN_VALUE_NOT_USED_COERCION:error",
+            "-Xwarning-level=UNUSED_EXPRESSION:error",
+        )
+    }
+
     tasks.withType<Test>().configureEach {
         useJUnitPlatform()
     }

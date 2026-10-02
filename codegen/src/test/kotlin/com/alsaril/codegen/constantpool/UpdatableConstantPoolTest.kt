@@ -779,7 +779,7 @@ class UpdatableConstantPoolTest {
             val built = pool.build()
 
             // when
-            runCatching { pool.putUtf8("b") }
+            assertThatIllegalStateException().isThrownBy { pool.putUtf8("b") }.withMessage("built")
 
             // then
             assertThat(built.entries).containsExactly(ConstantUtf8Info("a"))

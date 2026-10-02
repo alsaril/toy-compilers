@@ -147,11 +147,11 @@ class MembersTest {
 
             // when every helper is called without its instruction being added
             with(builder) {
-                invokevirtual(owner, "f", "()V")
-                invokespecial(owner, "f", "()V")
-                invokestatic(owner, "f", "()V")
-                invokeinterface(owner, "f", "()V")
-                invokedynamic("f", "()V", BootstrapPointer(0))
+                val _ = invokevirtual(owner, "f", "()V")
+                val _ = invokespecial(owner, "f", "()V")
+                val _ = invokestatic(owner, "f", "()V")
+                val _ = invokeinterface(owner, "f", "()V")
+                val _ = invokedynamic("f", "()V", BootstrapPointer(0))
             }
 
             // then
@@ -215,7 +215,7 @@ class MembersTest {
         @Test
         fun `refuses invokedynamic past a two byte index`() {
             assertThatIllegalArgumentException()
-                .isThrownBy { invokedynamic(65536, emptyList(), VOID) }
+                .isThrownBy { val _ = invokedynamic(65536, emptyList(), VOID) }
                 .withMessage("65536 does not fit a u2")
         }
 
