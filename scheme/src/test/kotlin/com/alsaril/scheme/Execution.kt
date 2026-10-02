@@ -4,14 +4,14 @@ import com.alsaril.scheme.compiler.SchemeCompiler.compile
 import com.alsaril.scheme.runtime.Environment
 import com.alsaril.scheme.runtime.GlobalEnvironment
 import com.alsaril.scheme.runtime.Printer.print
-import org.assertj.core.api.Assertions.assertThatThrownBy
+import org.assertj.core.api.Assertions.assertThatExceptionOfType
 
 fun execute(source: String, env: Environment = GlobalEnvironment()): String = print(compile(source).run(env))
 
 fun assertSyntaxError(source: String, message: String) {
-    assertThatThrownBy { compile(source) }
-        .isInstanceOf(SchemeSyntaxException::class.java)
-        .hasMessage(message)
+    assertThatExceptionOfType(SchemeSyntaxException::class.java)
+        .isThrownBy { compile(source) }
+        .withMessage(message)
 }
 
 fun assertNameError(source: String, message: String, env: Environment = GlobalEnvironment()) =
@@ -22,7 +22,7 @@ fun assertRuntimeError(source: String, message: String, env: Environment = Globa
 
 private fun assertFailsOnRun(type: Class<out Throwable>, source: String, message: String, env: Environment) {
     val program = compile(source)
-    assertThatThrownBy { program.run(env) }
-        .isInstanceOf(type)
-        .hasMessage(message)
+    assertThatExceptionOfType(type)
+        .isThrownBy { program.run(env) }
+        .withMessage(message)
 }

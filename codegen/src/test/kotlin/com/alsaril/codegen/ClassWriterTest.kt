@@ -1,7 +1,6 @@
 package com.alsaril.codegen
 
 import org.assertj.core.api.Assertions.assertThat
-import org.assertj.core.api.Assertions.assertThatExceptionOfType
 import org.assertj.core.api.Assertions.assertThatIllegalArgumentException
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
@@ -99,42 +98,42 @@ class ClassWriterTest {
     inner class Overflow {
 
         @Test
-        fun `byte rejects a value wider than a u1`() {
-            assertThatExceptionOfType(IllegalArgumentException::class.java)
+        fun `byte refuses a value wider than a u1`() {
+            assertThatIllegalArgumentException()
                 .isThrownBy { toBytes { u1(0x1FF) } }
                 .withMessageContaining("does not fit a u1")
 
-            assertThatExceptionOfType(IllegalArgumentException::class.java)
+            assertThatIllegalArgumentException()
                 .isThrownBy { toBytes { u1(-1) } }
         }
 
         @Test
-        fun `short rejects a value wider than a u2`() {
-            assertThatExceptionOfType(IllegalArgumentException::class.java)
+        fun `short refuses a value wider than a u2`() {
+            assertThatIllegalArgumentException()
                 .isThrownBy { toBytes { u2(65536) } }
                 .withMessageContaining("does not fit a u2")
 
-            assertThatExceptionOfType(IllegalArgumentException::class.java)
+            assertThatIllegalArgumentException()
                 .isThrownBy { toBytes { u2(-1) } }
         }
 
         @Test
-        fun `s1 rejects a value wider than an s1`() {
-            assertThatExceptionOfType(IllegalArgumentException::class.java)
+        fun `s1 refuses a value wider than an s1`() {
+            assertThatIllegalArgumentException()
                 .isThrownBy { toBytes { s1(128) } }
                 .withMessageContaining("does not fit an s1")
 
-            assertThatExceptionOfType(IllegalArgumentException::class.java)
+            assertThatIllegalArgumentException()
                 .isThrownBy { toBytes { s1(-129) } }
         }
 
         @Test
-        fun `s2 rejects a value wider than an s2`() {
-            assertThatExceptionOfType(IllegalArgumentException::class.java)
+        fun `s2 refuses a value wider than an s2`() {
+            assertThatIllegalArgumentException()
                 .isThrownBy { toBytes { s2(32768) } }
                 .withMessageContaining("does not fit an s2")
 
-            assertThatExceptionOfType(IllegalArgumentException::class.java)
+            assertThatIllegalArgumentException()
                 .isThrownBy { toBytes { s2(-32769) } }
         }
 

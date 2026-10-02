@@ -1,11 +1,10 @@
-package com.alsaril.scheme
+package com.alsaril.scheme.parser
 
-import com.alsaril.scheme.parser.*
-import com.alsaril.scheme.parser.Number
+import com.alsaril.scheme.SchemeSyntaxException
 import com.alsaril.scheme.parser.Parser.parse
 import com.alsaril.scheme.tokenizer.Tokenizer.tokenize
 import org.assertj.core.api.Assertions.assertThat
-import org.junit.jupiter.api.assertThrows
+import org.assertj.core.api.Assertions.assertThatExceptionOfType
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.Arguments.arguments
 import org.junit.jupiter.params.provider.CsvSource
@@ -45,11 +44,9 @@ class ParserTest {
         quoteCharacter = '$'
     )
     fun `rejects malformed input`(input: String, message: String) {
-        // when
-        val exception = assertThrows<SchemeSyntaxException> { parse(tokenize(input)) }
-
-        // then
-        assertThat(exception.message).isEqualTo(message)
+        assertThatExceptionOfType(SchemeSyntaxException::class.java)
+            .isThrownBy { parse(tokenize(input)) }
+            .withMessage(message)
     }
 
     companion object {

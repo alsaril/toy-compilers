@@ -5,7 +5,6 @@ import com.alsaril.codegen.code.ClassFileBuilder.Companion.classFile
 import com.alsaril.codegen.classfile.AccessFlag.STATIC
 import com.alsaril.codegen.classfile.PrimitiveType as ElementType
 import com.alsaril.codegen.classfile.attributes.ExceptionHandler
-import org.assertj.core.api.Assertions.assertThatExceptionOfType
 import org.assertj.core.api.Assertions.assertThatIllegalArgumentException
 import org.assertj.core.api.Assertions.assertThatIllegalStateException
 import org.assertj.core.api.Assertions.assertThatNoException
@@ -442,7 +441,7 @@ class AnalysisTest {
     @Test
     fun `names the instruction a complaint is about`() {
         // the message has to identify which instruction, not just that one was wrong
-        assertThatExceptionOfType(IllegalStateException::class.java)
+        assertThatIllegalStateException()
             .isThrownBy { method { +nop } }
             .withMessageContaining("nop at 0")
     }

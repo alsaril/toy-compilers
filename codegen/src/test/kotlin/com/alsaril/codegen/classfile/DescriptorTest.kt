@@ -137,7 +137,7 @@ class DescriptorTest {
      * it went wrong, so a caller can report a position without knowing which rule broke.
      */
     @Nested
-    inner class Rejects {
+    inner class Refuses {
 
         @Test
         fun `a letter that is not a descriptor`() {

@@ -257,7 +257,7 @@ class GeneratedClassTest {
             .newInstance() as Runnable
 
         // then the pool entries named the class the body meant, and new/<init> verified
-        assertThatExceptionOfType(IllegalStateException::class.java).isThrownBy { instance.run() }
+        assertThatIllegalStateException().isThrownBy { instance.run() }
     }
 
     @Test
@@ -605,7 +605,7 @@ class GeneratedClassTest {
             .newInstance() as Runnable
 
         // then catch_type keeps the handler out of the way
-        assertThatExceptionOfType(IllegalStateException::class.java).isThrownBy { instance.run() }
+        assertThatIllegalStateException().isThrownBy { instance.run() }
     }
 
     /**

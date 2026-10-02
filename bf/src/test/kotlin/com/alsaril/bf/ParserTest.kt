@@ -8,7 +8,7 @@ import com.alsaril.bf.Command.OUT
 import com.alsaril.bf.Command.RIGHT
 import com.alsaril.bf.Parser.parse
 import org.assertj.core.api.Assertions.assertThat
-import org.assertj.core.api.Assertions.assertThatExceptionOfType
+import org.assertj.core.api.Assertions.assertThatIllegalArgumentException
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
@@ -162,32 +162,32 @@ class ParserTest {
     }
 
     @Nested
-    inner class Errors {
+    inner class Rejects {
 
         @Test
-        fun `rejects a stray closing bracket`() {
-            assertThatExceptionOfType(IllegalArgumentException::class.java)
+        fun `a stray closing bracket`() {
+            assertThatIllegalArgumentException()
                 .isThrownBy { parse("+]") }
                 .withMessage("unexpected ']' at 1")
         }
 
         @Test
-        fun `rejects a closing bracket that outnumbers the opening ones`() {
-            assertThatExceptionOfType(IllegalArgumentException::class.java)
+        fun `a closing bracket that outnumbers the opening ones`() {
+            assertThatIllegalArgumentException()
                 .isThrownBy { parse("[]]") }
                 .withMessage("unexpected ']' at 2")
         }
 
         @Test
-        fun `rejects an unclosed bracket`() {
-            assertThatExceptionOfType(IllegalArgumentException::class.java)
+        fun `an unclosed bracket`() {
+            assertThatIllegalArgumentException()
                 .isThrownBy { parse("+[+") }
                 .withMessage("']' expected at 3")
         }
 
         @Test
-        fun `counts every character in the index, newlines included`() {
-            assertThatExceptionOfType(IllegalArgumentException::class.java)
+        fun `a bracket past a newline, counting every character in the index`() {
+            assertThatIllegalArgumentException()
                 .isThrownBy { parse("+++\n++]") }
                 .withMessage("unexpected ']' at 6")
         }

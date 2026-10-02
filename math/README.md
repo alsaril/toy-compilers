@@ -272,12 +272,12 @@ the order the names first appeared, an expression using each name equally is loo
 to right, which is what most of those tests read as.
 
 Two things there are invisible from running a class, so they are read back out of the
-bytes by `GeneratedMethods`:
+bytes by `methodLimits`, a test fixture of [`codegen`](../codegen/README.md):
 
 | | |
 |---|---|
 | `maxLocals` | that a method's slots are numbered from the variables it uses, with no gaps |
-| `codeLengths` | that no method passes 8000 once the preamble is counted |
+| `codeLength` | that no method passes 8000 once the preamble is counted |
 
 The last is sized deliberately: at 300 variables a wrong store width still fits inside the
 load factor's allowance, so the test uses 600, where it cannot. A tolerance-based assertion

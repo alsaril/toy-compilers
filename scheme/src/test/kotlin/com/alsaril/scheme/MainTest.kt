@@ -137,17 +137,21 @@ class MainTest {
     }
 
     @Nested
+    inner class Rejects {
+
+        @Test
+        fun `an unknown option`() {
+            assertThat(scheme("--verbose").error).contains("no such option", "--verbose")
+        }
+    }
+
+    @Nested
     inner class Help {
 
         @Test
         fun `says what the command does`() {
             assertThat(SchemeCommand().test("--help").output)
                 .contains("Read Scheme expressions a line at a time")
-        }
-
-        @Test
-        fun `rejects an unknown option`() {
-            assertThat(scheme("--verbose").error).contains("no such option", "--verbose")
         }
     }
 }

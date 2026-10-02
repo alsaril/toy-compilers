@@ -62,7 +62,7 @@ class InstructionTest {
         }
 
         @Test
-        fun `rejects a float constant that needs a constant pool entry`() {
+        fun `refuses a float constant that needs a constant pool entry`() {
             assertThatIllegalArgumentException().isThrownBy { bytecode { +fconst(3) } }
             assertThatIllegalArgumentException().isThrownBy { bytecode { +fconst(-1) } }
         }
@@ -78,7 +78,7 @@ class InstructionTest {
         }
 
         @Test
-        fun `rejects a long constant that needs a constant pool entry`() {
+        fun `refuses a long constant that needs a constant pool entry`() {
             assertThatIllegalArgumentException()
                 .isThrownBy { bytecode { +lconst(2) } }
                 .withMessage("2 is out of range for lconst, ldc2_w should be used")
@@ -126,7 +126,7 @@ class InstructionTest {
         }
 
         @Test
-        fun `rejects a value that needs a constant pool entry`() {
+        fun `refuses a value that needs a constant pool entry`() {
             assertThatIllegalArgumentException().isThrownBy { bytecode { +iconst(32768) } }
             assertThatIllegalArgumentException().isThrownBy { bytecode { +iconst(-32769) } }
         }
@@ -241,7 +241,7 @@ class InstructionTest {
         }
 
         @Test
-        fun `rejects an index past what a local slot can hold`() {
+        fun `refuses an index past what a local slot can hold`() {
             assertThatIllegalArgumentException()
                 .isThrownBy { bytecode { +iload(65536) } }
                 .withMessageContaining("does not fit a u2")
@@ -278,7 +278,7 @@ class InstructionTest {
         }
 
         @Test
-        fun `rejects a constant beyond the wide form`() {
+        fun `refuses a constant beyond the wide form`() {
             assertThatIllegalArgumentException().isThrownBy { bytecode { +iinc(0, 32768) } }
             assertThatIllegalArgumentException().isThrownBy { bytecode { +iinc(0, -32769) } }
         }
@@ -397,15 +397,15 @@ class InstructionTest {
         }
 
         @Test
-        fun `rejects a branch offset past a signed short`() {
-            assertThatExceptionOfType(IllegalArgumentException::class.java)
+        fun `refuses a branch offset past a signed short`() {
+            assertThatIllegalArgumentException()
                 .isThrownBy { bytecode { val target = +nop; repeat(40_000) { +nop }; link(+goto, target) } }
                 .withMessageContaining("does not fit an s2")
         }
 
         @Test
-        fun `rejects a patched branch offset past a signed short`() {
-            assertThatExceptionOfType(IllegalArgumentException::class.java)
+        fun `refuses a patched branch offset past a signed short`() {
+            assertThatIllegalArgumentException()
                 .isThrownBy { bytecode { val jump = +goto; repeat(40_000) { +nop }; link(jump, +nop) } }
                 .withMessageContaining("does not fit an s2")
         }

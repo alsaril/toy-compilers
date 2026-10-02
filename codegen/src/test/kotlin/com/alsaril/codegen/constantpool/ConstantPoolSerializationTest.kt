@@ -54,7 +54,7 @@ class ConstantPoolSerializationTest {
         }
 
         @Test
-        fun `rejects a value whose encoded form exceeds the two-byte length`() {
+        fun `refuses a value whose encoded form exceeds the two-byte length`() {
             assertThatExceptionOfType(UTFDataFormatException::class.java)
                 .isThrownBy { ConstantUtf8Info("x".repeat(65536)).serialized() }
         }

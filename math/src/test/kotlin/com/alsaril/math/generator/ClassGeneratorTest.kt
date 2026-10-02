@@ -1,7 +1,13 @@
-package com.alsaril.math
+package com.alsaril.math.generator
 
+import com.alsaril.codegen.methodLimits
 import com.alsaril.math.BinaryKind.*
-import com.alsaril.math.generator.ClassGenerator
+import com.alsaril.math.Neg
+import com.alsaril.math.Node
+import com.alsaril.math.Op
+import com.alsaril.math.Program
+import com.alsaril.math.Value
+import com.alsaril.math.Var
 import com.alsaril.math.generator.ClassGenerator.generate
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatExceptionOfType
@@ -330,13 +336,13 @@ class ClassGeneratorTest {
 
         @Test
         fun `keeps a body that fits in one method`() {
-            assertThat(methodNames(generate(Op(MUL, Var("a"), Value(2.0f)))))
+            assertThat(methodLimits(generate(Op(MUL, Var("a"), Value(2.0f)))).map { it.name })
                 .containsExactly("<init>", "getFloat", "f0", "eval")
         }
 
         @Test
         fun `outlines a body that does not fit`() {
-            val names = methodNames(generate(chain(5_000)))
+            val names = methodLimits(generate(chain(5_000))).map { it.name }
 
             assertThat(names).startsWith("<init>", "getFloat").endsWith("eval")
             assertThat(names.filter { it.startsWith("f") }).hasSizeGreaterThan(1)
@@ -371,10 +377,9 @@ class ClassGeneratorTest {
 
         /** the slots the body methods declare, entry method last */
         private fun bodySlots(ast: Node): List<Int> {
-            val bytes = generate(ast)
-            return methodNames(bytes).zip(maxLocals(bytes))
-                .filter { (name, _) -> name.startsWith("f") }
-                .map { (_, slots) -> slots }
+            return methodLimits(generate(ast))
+                .filter { it.name.startsWith("f") }
+                .map { it.maxLocals }
         }
 
         @Test
@@ -444,7 +449,7 @@ class ClassGeneratorTest {
             // part of the method, so it has to be part of the estimate that splits it
             val (ast, _) = overVariables(128, 6_000)
 
-            assertThat(codeLengths(generate(ast)))
+            assertThat(methodLimits(generate(ast)).map { it.codeLength })
                 .allSatisfy { assertThat(it).isLessThanOrEqualTo(8_000) }
         }
 
@@ -455,7 +460,7 @@ class ClassGeneratorTest {
             // them that getting the width wrong outgrows the slack rather than hiding in it
             val (ast, _) = overVariables(600, 6_000)
 
-            assertThat(codeLengths(generate(ast)))
+            assertThat(methodLimits(generate(ast)).map { it.codeLength })
                 .allSatisfy { assertThat(it).isLessThanOrEqualTo(8_000) }
         }
 
@@ -469,7 +474,7 @@ class ClassGeneratorTest {
 
         @Test
         fun `reads the map through one accessor however many methods there are`() {
-            assertThat(methodNames(generate(chain(5_000))).filter { it == "getFloat" })
+            assertThat(methodLimits(generate(chain(5_000))).filter { it.name == "getFloat" })
                 .hasSize(1)
         }
     }

@@ -1,5 +1,6 @@
-package com.alsaril.scheme
+package com.alsaril.scheme.runtime
 
+import com.alsaril.scheme.execute
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.CsvSource

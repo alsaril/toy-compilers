@@ -32,9 +32,8 @@ import com.alsaril.codegen.constantpool.ConstantIntegerInfo
 import com.alsaril.codegen.constantpool.StaticConstantPool
 import com.alsaril.codegen.serialized
 import org.assertj.core.api.Assertions.assertThat
-import org.assertj.core.api.Assertions.assertThatNoException
-import org.assertj.core.api.Assertions.assertThatExceptionOfType
 import org.assertj.core.api.Assertions.assertThatIllegalArgumentException
+import org.assertj.core.api.Assertions.assertThatNoException
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
@@ -157,8 +156,8 @@ class ClassFileSerializationTest {
          * JVMS caps a method at 1..65535 bytes and only the attribute itself knows that.
          */
         @Test
-        fun `rejects a method past the 65535 byte limit`() {
-            assertThatExceptionOfType(IllegalArgumentException::class.java)
+        fun `refuses a method past the 65535 byte limit`() {
+            assertThatIllegalArgumentException()
                 .isThrownBy {
                     CodeAttribute(
                         nameIndex = 1,
@@ -177,10 +176,10 @@ class ClassFileSerializationTest {
         }
 
         @Test
-        fun `rejects a method with no code at all`() {
+        fun `refuses a method with no code at all`() {
             // the jvm rejects this at load time with a ClassFormatError, far from the
             // emitter that produced it, so the attribute refuses it at construction
-            assertThatExceptionOfType(IllegalArgumentException::class.java)
+            assertThatIllegalArgumentException()
                 .isThrownBy {
                     CodeAttribute(
                         nameIndex = 1,
@@ -253,7 +252,7 @@ class ClassFileSerializationTest {
         }
 
         @Test
-        fun `rejects a same frame outside the single byte range`() {
+        fun `refuses a same frame outside the single byte range`() {
             assertThatIllegalArgumentException().isThrownBy { SameFrame(64) }
             assertThatIllegalArgumentException().isThrownBy { SameFrame(-1) }
         }
@@ -286,7 +285,7 @@ class ClassFileSerializationTest {
         }
 
         @Test
-        fun `rejects a compact stack frame outside the single byte range`() {
+        fun `refuses a compact stack frame outside the single byte range`() {
             assertThatIllegalArgumentException()
                 .isThrownBy { SameLocals1StackItemFrameShort(64, IntegerVariableInfo) }
             assertThatIllegalArgumentException()
@@ -320,14 +319,14 @@ class ClassFileSerializationTest {
         }
 
         @Test
-        fun `rejects an append frame with more than three locals`() {
+        fun `refuses an append frame with more than three locals`() {
             assertThatIllegalArgumentException().isThrownBy {
                 AppendFrame(0, List(4) { IntegerVariableInfo })
             }
         }
 
         @Test
-        fun `rejects an append frame with no locals`() {
+        fun `refuses an append frame with no locals`() {
             assertThatIllegalArgumentException().isThrownBy { AppendFrame(0, emptyList()) }
         }
 
@@ -456,15 +455,15 @@ class ClassFileSerializationTest {
         }
 
         @Test
-        fun `rejects a location past a u2`() {
-            // the range itself is well formed, so the width is what is left to reject
+        fun `refuses a location past a u2`() {
+            // the range itself is well formed, so the width is what is left to refuse
             assertThatIllegalArgumentException()
                 .isThrownBy { ExceptionHandler(0x10000, 0x10001, 0, null).serialized() }
                 .withMessageContaining("does not fit a u2")
         }
 
         @Test
-        fun `rejects a range covering no instruction`() {
+        fun `refuses a range covering no instruction`() {
             // a location the jvm would refuse at load time, which no u2 check can see
             assertThatIllegalArgumentException()
                 .isThrownBy { ExceptionHandler(4, 4, 8, null) }

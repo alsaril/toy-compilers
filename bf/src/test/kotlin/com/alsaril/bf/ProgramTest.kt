@@ -2,6 +2,7 @@ package com.alsaril.bf
 
 import com.alsaril.bf.BfCompiler.compile
 import com.alsaril.bf.generator.ClassGenerator.generate
+import com.alsaril.codegen.methodLimits
 import org.assertj.core.api.Assertions.*
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
@@ -99,7 +100,7 @@ class ProgramTest {
 
         @Test
         fun `keeps the bounds check across a split pointer move`() {
-            assertThatExceptionOfType(IllegalStateException::class.java)
+            assertThatIllegalStateException()
                 .isThrownBy { run("<".repeat(70_000) + ".") }
                 .withMessage("Buffer overflow")
         }
@@ -157,14 +158,14 @@ class ProgramTest {
 
         @Test
         fun `rejects moving the pointer before the tape`() {
-            assertThatExceptionOfType(IllegalStateException::class.java)
+            assertThatIllegalStateException()
                 .isThrownBy { run("<.") }
                 .withMessage("Buffer overflow")
         }
 
         @Test
         fun `rejects moving the pointer past the tape`() {
-            assertThatExceptionOfType(IllegalStateException::class.java)
+            assertThatIllegalStateException()
                 .isThrownBy { run(">.", memsize = 1) }
                 .withMessage("Buffer overflow")
         }
@@ -195,7 +196,7 @@ class ProgramTest {
 
         @Test
         fun `stops one iteration short of the limit`() {
-            assertThatExceptionOfType(IllegalStateException::class.java)
+            assertThatIllegalStateException()
                 .isThrownBy { run(threeIterations, cycles = 2) }
                 .withMessage("Cycles overflow")
         }
@@ -208,7 +209,7 @@ class ProgramTest {
 
         @Test
         fun `bounds a program that would otherwise never end`() {
-            assertThatExceptionOfType(IllegalStateException::class.java)
+            assertThatIllegalStateException()
                 .isThrownBy { run("+[]", cycles = 1_000) }
                 .withMessage("Cycles overflow")
         }
@@ -309,7 +310,7 @@ class ProgramTest {
             // which grew the method count with the square of the program
             val bytes = generate(Parser.parse("+-".repeat(2_500)))
 
-            assertThat(methodCodeLengths(bytes)).hasSizeLessThan(50)
+            assertThat(methodLimits(bytes)).hasSizeLessThan(50)
         }
 
         @Test
@@ -328,7 +329,7 @@ class ProgramTest {
             sources.forEach { source ->
                 val bytes = generate(Parser.parse(source))
 
-                assertThat(methodCodeLengths(bytes))
+                assertThat(methodLimits(bytes).map { it.codeLength })
                     .allSatisfy { assertThat(it).isLessThanOrEqualTo(8000) }
             }
         }
@@ -337,7 +338,7 @@ class ProgramTest {
         fun `keeps the cycle limit working across a split`() {
             val padding = "+-".repeat(400)
 
-            assertThatExceptionOfType(IllegalStateException::class.java)
+            assertThatIllegalStateException()
                 .isThrownBy { run(padding + "+[]", cycles = 100) }
                 .withMessage("Cycles overflow")
         }
@@ -346,7 +347,7 @@ class ProgramTest {
         fun `keeps the bounds check working across a split`() {
             val padding = "+-".repeat(400)
 
-            assertThatExceptionOfType(IllegalStateException::class.java)
+            assertThatIllegalStateException()
                 .isThrownBy { run(padding + "<.") }
                 .withMessage("Buffer overflow")
         }
@@ -357,28 +358,28 @@ class ProgramTest {
 
         @Test
         fun `rejects an unclosed bracket`() {
-            assertThatExceptionOfType(IllegalArgumentException::class.java)
+            assertThatIllegalArgumentException()
                 .isThrownBy { compile("+[+") }
                 .withMessage("']' expected at 3")
         }
 
         @Test
         fun `rejects an unclosed nested bracket`() {
-            assertThatExceptionOfType(IllegalArgumentException::class.java)
+            assertThatIllegalArgumentException()
                 .isThrownBy { compile("[[]") }
                 .withMessageContaining("']' expected")
         }
 
         @Test
         fun `rejects a stray closing bracket`() {
-            assertThatExceptionOfType(IllegalArgumentException::class.java)
+            assertThatIllegalArgumentException()
                 .isThrownBy { compile("]") }
                 .withMessage("unexpected ']' at 0")
         }
 
         @Test
         fun `reports where the error is`() {
-            assertThatExceptionOfType(IllegalArgumentException::class.java)
+            assertThatIllegalArgumentException()
                 .isThrownBy { compile("++]") }
                 .withMessage("unexpected ']' at 2")
         }
@@ -386,14 +387,14 @@ class ProgramTest {
         @Test
         fun `counts a position past a comment`() {
             // skipped characters still count towards the index
-            assertThatExceptionOfType(IllegalArgumentException::class.java)
+            assertThatIllegalArgumentException()
                 .isThrownBy { compile("+ hey ]") }
                 .withMessage("unexpected ']' at 6")
         }
 
         @Test
         fun `rejects a bracket opened at the very start`() {
-            assertThatExceptionOfType(IllegalArgumentException::class.java)
+            assertThatIllegalArgumentException()
                 .isThrownBy { compile("[") }
         }
 
@@ -472,7 +473,7 @@ class ProgramTest {
             val out = LateStream()
 
             // when the pointer walks off the tape after printing
-            assertThatExceptionOfType(IllegalStateException::class.java)
+            assertThatIllegalStateException()
                 .isThrownBy { runInto(out, printsA + "<.") }
                 .withMessage("Buffer overflow")
 
@@ -487,7 +488,7 @@ class ProgramTest {
             val out = LateStream()
 
             // when
-            assertThatExceptionOfType(IllegalStateException::class.java)
+            assertThatIllegalStateException()
                 .isThrownBy { runInto(out, printsA + "+[]", cycles = 100) }
                 .withMessage("Cycles overflow")
 
@@ -503,7 +504,7 @@ class ProgramTest {
             val padding = "+-".repeat(400)
 
             // when
-            assertThatExceptionOfType(IllegalStateException::class.java)
+            assertThatIllegalStateException()
                 .isThrownBy { runInto(out, padding + printsA + padding + "<.") }
                 .withMessage("Buffer overflow")
 

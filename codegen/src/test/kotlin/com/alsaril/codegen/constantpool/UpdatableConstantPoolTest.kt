@@ -740,7 +740,7 @@ class UpdatableConstantPoolTest {
         }
 
         @Test
-        fun `rejects a new entry after building`() {
+        fun `refuses a new entry after building`() {
             // given
             pool.build()
 

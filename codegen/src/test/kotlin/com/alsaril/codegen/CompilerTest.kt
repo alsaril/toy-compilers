@@ -10,6 +10,7 @@ import com.alsaril.codegen.instruction.*
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatExceptionOfType
 import org.assertj.core.api.Assertions.assertThatIllegalArgumentException
+import org.assertj.core.api.Assertions.assertThatIllegalStateException
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import java.lang.invoke.MethodHandles
@@ -150,7 +151,7 @@ class CompilerTest {
     }
 
     @Nested
-    inner class Rejects {
+    inner class Refuses {
 
         @Test
         fun `a class that does not implement the declared interface`() {
@@ -269,7 +270,7 @@ class CompilerTest {
 
         @Test
         fun `let a backend failure through`() {
-            assertThatExceptionOfType(IllegalStateException::class.java)
+            assertThatIllegalStateException()
                 .isThrownBy {
                     pipeline<Counter, Int>(
                         "",
@@ -283,7 +284,7 @@ class CompilerTest {
         }
 
         @Test
-        fun `reject bytes the jvm will not load`() {
+        fun `refuse bytes the jvm will not load`() {
             assertThatExceptionOfType(ClassFormatError::class.java)
                 .isThrownBy {
                     pipeline<Counter, Int>(

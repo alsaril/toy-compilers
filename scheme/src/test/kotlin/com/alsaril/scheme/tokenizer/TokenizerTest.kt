@@ -1,30 +1,28 @@
-package com.alsaril.scheme
+package com.alsaril.scheme.tokenizer
 
-import com.alsaril.scheme.tokenizer.*
+import com.alsaril.scheme.SchemeSyntaxException
 import com.alsaril.scheme.tokenizer.BracketToken.CloseBracketToken
 import com.alsaril.scheme.tokenizer.BracketToken.OpenBracketToken
 import com.alsaril.scheme.tokenizer.Tokenizer.tokenize
 import org.assertj.core.api.Assertions.assertThat
+import org.assertj.core.api.Assertions.assertThatExceptionOfType
 import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.assertThrows
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.Arguments.arguments
 import org.junit.jupiter.params.provider.MethodSource
 
 class TokenizerTest {
     @ParameterizedTest
-    @MethodSource("simple", "negative numbers", "spaces", "unary", "symbols", "brackets")
+    @MethodSource("simple", "negatives", "spaces", "unary", "symbols", "brackets")
     fun `splits source into tokens`(input: String, expected: List<Token>) {
         assertThat(tokenize(input)).containsExactlyElementsOf(expected)
     }
 
     @Test
     fun `rejects integers out of range`() {
-        // when
-        val exception = assertThrows<SchemeSyntaxException> { tokenize("(+ 99999999999 1)") }
-
-        // then
-        assertThat(exception.message).isEqualTo("integer 99999999999 is out of range")
+        assertThatExceptionOfType(SchemeSyntaxException::class.java)
+            .isThrownBy { tokenize("(+ 99999999999 1)") }
+            .withMessage("integer 99999999999 is out of range")
     }
 
     companion object {
@@ -41,7 +39,7 @@ class TokenizerTest {
         )
 
         @JvmStatic
-        fun `negative numbers`() = listOf(
+        fun negatives() = listOf(
             arguments("-2", listOf(ConstantToken(-2))),
             arguments("-2345", listOf(ConstantToken(-2345))),
             arguments("-53 - -123", listOf(ConstantToken(-53), SymbolToken("-"), ConstantToken(-123))),
