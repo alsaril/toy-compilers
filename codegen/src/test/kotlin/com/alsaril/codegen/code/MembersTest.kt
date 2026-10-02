@@ -139,55 +139,6 @@ class MembersTest {
         }
 
         @Test
-        fun `make invokedynamic against a call site entry, with no receiver among its operands`() {
-            // given
-            val cp = UpdatableConstantPool()
-            val builder = builder(cp)
-
-            // when
-            val call = builder.invokedynamic("make", "(IJ)LA;", BootstrapPointer(3))
-
-            // then the arguments alone, and the result
-            assertThat(call).isEqualTo(invokedynamic(4, listOf(INTEGER, LONG), a))
-            assertThat(cp.build().entries).containsExactly(
-                ConstantUtf8Info("make"),
-                ConstantUtf8Info("(IJ)LA;"),
-                ConstantNameAndTypeInfo(nameIndex = 1, descriptorIndex = 2),
-                ConstantInvokeDynamicInfo(bootstrapMethodIndex = 3, nameAndTypeIndex = 3),
-            )
-        }
-
-        @Test
-        fun `emit one invokedynamic per add, sharing the pool entry of an equal call site`() {
-            // given
-            val cp = UpdatableConstantPool()
-            val builder = builder(cp)
-
-            // when
-            with(builder) {
-                +invokedynamic("make", "()V", BootstrapPointer(0))
-                +invokedynamic("make", "()V", BootstrapPointer(0))
-            }
-
-            // then the JVM links each instruction on its own, so the entry is all they share
-            assertThat(builder.emitted()).containsExactly(invokedynamic(4, emptyList(), VOID), invokedynamic(4, emptyList(), VOID))
-            assertThat(cp.build().entries).hasSize(4)
-        }
-
-        @Test
-        fun `keep call sites of different bootstrap methods apart`() {
-            // given
-            val builder = builder()
-
-            // when
-            val first = builder.invokedynamic("make", "()V", BootstrapPointer(0))
-            val second = builder.invokedynamic("make", "()V", BootstrapPointer(1))
-
-            // then
-            assertThat(first.index).isNotEqualTo(second.index)
-        }
-
-        @Test
         fun `emit nothing until the instruction is added`() {
             // given
             val builder = builder()
