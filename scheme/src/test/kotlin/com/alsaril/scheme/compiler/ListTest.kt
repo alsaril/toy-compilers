@@ -25,6 +25,7 @@ class ListTest {
         "(1) | 1 is not a procedure",
         "(1 2 3) | 1 is not a procedure",
         "('f 1) | f is not a procedure",
+        "(#t 1) | #t is not a procedure",
         delimiter = '|',
         quoteCharacter = '$'
     )

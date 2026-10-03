@@ -20,6 +20,8 @@ class SymbolTest {
         "(symbol? #t), #f",
         "(symbol? ''x), #f",
         "(symbol? 'symbol?), #t",
+        "(symbol? 'if), #t",
+        "(symbol? '#t), #f",
         quoteCharacter = '$'
     )
     fun `symbol? recognizes symbols`(input: String, expected: String) {
@@ -74,10 +76,26 @@ class SymbolTest {
         "(set! 1) | set!: expected 2 operands, got 1 in (set! 1)",
         "(set! x 1 2) | set!: expected 2 operands, got 3 in (set! x 1 2)",
         "(set! 1 2) | set!: expected a symbol, got 1 in (set! 1 2)",
+        "(define if 1) | define: expected a symbol, got if in (define if 1)",
+        "(define #t 1) | define: expected a symbol, got #t in (define #t 1)",
+        "(set! and 1) | set!: expected a symbol, got and in (set! and 1)",
         delimiter = '|',
         quoteCharacter = '$'
     )
     fun `rejects malformed define and set!`(input: String, message: String) {
+        assertSyntaxError(input, message)
+    }
+
+    @ParameterizedTest
+    @CsvSource(
+        "if | if is a special form, not a value",
+        "(list lambda) | lambda is a special form, not a value",
+        "(define x set!) | set! is a special form, not a value",
+        "(if #t quote 1) | quote is a special form, not a value",
+        delimiter = '|',
+        quoteCharacter = '$'
+    )
+    fun `rejects a special form name as a value`(input: String, message: String) {
         assertSyntaxError(input, message)
     }
 }

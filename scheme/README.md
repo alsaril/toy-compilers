@@ -45,8 +45,9 @@ expressions, of which the last is the value; a `define` among them is local to t
 - **`tokenizer/`** — brackets, `.` and `'`, and between them runs of any other characters:
   a run that is a sign and digits is a number, anything else a symbol — `-5`, but `1+`,
   `add+one` and `1abc`.
-- **`parser/`** — `Number`, `Symbol`, `Cell(first, second)` and `Null`: source as data, the
-  way Scheme reads it. `'x` is read as `(quote x)`.
+- **`parser/`** — `Number`, `Symbol`, `Special`, `Cell(first, second)` and `Null`: source as
+  data, the way Scheme reads it. `#t`, `#f` and the names of the special forms are read as
+  `Special`, every other name as `Symbol`. `'x` is read as `(quote x)`.
 - **`compiler/ClassGenerator`** — the class a line compiles to: the program, and its lambdas
   as methods of it.
 - **`compiler/SchemeCompiler`** — `compile(source)`, handing the parts to `codegen`'s pipeline.
@@ -206,9 +207,9 @@ Measured, not estimated:
   call, so recursion runs out of a default thread stack at around that depth.
 - **One expression per line.** The REPL compiles each line on its own, so a definition has
   to fit on one.
-- **Special forms and `#t`/`#f` are recognized by name.** A variable named `if` can be read
-  but not called — `(if 1)` is still the special form — and one named `#t` or `#f` cannot be
-  read at all.
+- **Special form names and `#t`/`#f` are reserved.** None of them can be defined, `set!` or
+  taken as a parameter, and a special form's name is refused as a value — `(list if)` is a
+  syntax error. Quoted, `'if` is the symbol `if` and `'#t` is `#t`.
 - **No strings, characters, floats, comments, `begin`, `let`, `cond` or `eq?`.**
 
 ## Tests

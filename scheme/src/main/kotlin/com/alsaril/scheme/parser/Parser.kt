@@ -10,6 +10,7 @@ import com.alsaril.scheme.tokenizer.SymbolToken
 import com.alsaril.scheme.tokenizer.Token
 
 object Parser {
+    private val specials = setOf("#f", "#t", "define", "set!", "if", "and", "or", "quote", "lambda")
 
     fun parse(tokens: List<Token>): Node {
         val (node, next) = parseNode(tokens, 0)
@@ -22,12 +23,12 @@ object Parser {
 
         return when (val token = tokens[start]) {
             is ConstantToken -> Number(token.value) to start + 1
-            is SymbolToken -> Symbol(token.name) to start + 1
+            is SymbolToken -> (if (token.name in specials) Special(token.name) else Symbol(token.name)) to start + 1
             OpenBracketToken -> processList(tokens, start + 1)
             CloseBracketToken -> throw SchemeSyntaxException("unexpected ')' at index $start")
             QuoteToken -> {
                 val (arg, next) = parseNode(tokens, start + 1)
-                Cell(Symbol("quote"), Cell(arg, Null)) to next
+                Cell(Special("quote"), Cell(arg, Null)) to next
             }
             DotToken -> throw SchemeSyntaxException("unexpected '.' at index $start")
         }

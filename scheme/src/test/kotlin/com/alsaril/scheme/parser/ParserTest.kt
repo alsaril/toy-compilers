@@ -63,6 +63,18 @@ class ParserTest {
             arguments(" #foo", Symbol("#foo")),
             arguments("bar! ", Symbol("bar!")),
             arguments(" baz-baz ", Symbol("baz-baz")),
+            arguments("#t", Special("#t")),
+            arguments("#f", Special("#f")),
+            arguments("define", Special("define")),
+            arguments("set!", Special("set!")),
+            arguments("if", Special("if")),
+            arguments("and", Special("and")),
+            arguments("or", Special("or")),
+            arguments("quote", Special("quote")),
+            arguments("lambda", Special("lambda")),
+            arguments("#true", Symbol("#true")),
+            arguments("if?", Symbol("if?")),
+            arguments("set", Symbol("set")),
         )
 
         @JvmStatic
@@ -118,6 +130,9 @@ class ParserTest {
                 "(1 2 (3 . 4) 5)",
                 properList(Number(1), Number(2), dottedList(Number(3), tail = Number(4)), Number(5))
             ),
+            arguments("'x", properList(Special("quote"), Symbol("x"))),
+            arguments("(quote x)", properList(Special("quote"), Symbol("x"))),
+            arguments("'(if #f)", properList(Special("quote"), properList(Special("if"), Special("#f")))),
         )
     }
 }

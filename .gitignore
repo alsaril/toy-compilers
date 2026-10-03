@@ -40,3 +40,8 @@ bin/
 
 ### Mac OS ###
 .DS_Store
+
+### ClassDump output ###
+dump/
+!**/src/main/**/dump/
+!**/src/test/**/dump/

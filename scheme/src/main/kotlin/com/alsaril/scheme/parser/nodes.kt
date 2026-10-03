@@ -6,6 +6,8 @@ data class Number(val value: Int): Node
 
 data class Symbol(val name: String): Node
 
+data class Special(val name: String): Node
+
 data class Cell(val first: Node, val second: Node): Node
 
 data object Null: Node
@@ -14,6 +16,7 @@ data object Null: Node
 fun Node.source(): String = when (this) {
     is Number -> value.toString()
     is Symbol -> name
+    is Special -> name
     Null -> "()"
     is Cell -> buildString {
         append('(').append(first.source())

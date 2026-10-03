@@ -122,7 +122,7 @@ class ClassGenerator private constructor() {
     }
 
     private fun CodeBuilder.special(form: Cell): Boolean {
-        val name = (form.first as? Symbol)?.name ?: return false
+        val name = (form.first as? Special)?.name ?: return false
         val args = form.second
         val l = lazy(NONE) { operands(form) }
 
@@ -263,10 +263,14 @@ class ClassGenerator private constructor() {
                 `null`()
             }
             is Number -> number(node.value)
-            is Symbol -> when (node.name) {
+            is Symbol -> if (resolve) resolveSymbol(node.name) else rawSymbol(node.name)
+            is Special -> when (node.name) {
                 "#f" -> boolean(false)
                 "#t" -> boolean(true)
-                else -> if (resolve) resolveSymbol(node.name) else rawSymbol(node.name)
+                else -> {
+                    if (resolve) throw SchemeSyntaxException("${node.name} is a special form, not a value")
+                    rawSymbol(node.name)
+                }
             }
         }
     }

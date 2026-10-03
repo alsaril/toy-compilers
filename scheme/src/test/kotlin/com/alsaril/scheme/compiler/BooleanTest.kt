@@ -18,6 +18,7 @@ class BooleanTest {
         "(boolean? #f), #t",
         "(boolean? 1), #f",
         "(boolean? '()), #f",
+        "(boolean? '#t), #t",
         "(boolean? ''#f), #f",
         "(not #f), #t",
         "(not #t), #f",
