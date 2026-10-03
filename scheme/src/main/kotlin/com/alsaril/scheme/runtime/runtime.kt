@@ -1,5 +1,7 @@
 package com.alsaril.scheme.runtime
 
+import java.util.concurrent.ConcurrentHashMap
+
 data class Cons(val first: Any, val second: Any) {
     companion object {
         @JvmStatic
@@ -8,7 +10,13 @@ data class Cons(val first: Any, val second: Any) {
 }
 
 data object Nil
-data class Symbol(val name: String)
+class Symbol private constructor(val name: String) {
+    companion object {
+        private val symbols = ConcurrentHashMap<String, Symbol>()
+
+        fun of(name: String): Symbol = symbols.computeIfAbsent(name, ::Symbol)
+    }
+}
 
 object Unspecified
 

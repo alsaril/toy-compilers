@@ -65,7 +65,7 @@ interface Program {
 
 and every `lambda` in the line, nested ones included, becomes a private static method
 `lambdaN` of it. Each line's class is defined as a hidden class, in the compiler's package,
-so every line's class can be `Impl`. Classes from earlier lines stay alive as long as
+so every line's class can be `Impl`, and with class data holding the line's quoted data. Classes from earlier lines stay alive as long as
 something in the environment still refers to one of their procedures.
 
 ### Expressions
@@ -79,16 +79,19 @@ its body starts. So a single emitter serves the top level and every lambda body 
 | `42` | `ldc 42; Integer.valueOf` |
 | `#t`, `#f` | `getstatic Boolean.TRUE` / `Boolean.FALSE` |
 | `x` | `aload_1; ldc "x"; Environment.resolve` |
-| `'x` | `aload_1; ldc "x"; Environment.intern` |
-| `'(1 x)` | the elements, then `Nil.INSTANCE`, then `Cons.of` once per element |
-| `(f a b)` | `f`, `Procedures.procedure`, then the argument list as above, then `Function.call` |
+| `'x`, `'(1 x)` | `ldc` of a dynamic constant, the datum's entry in the class data |
+| `(f a b)` | `f`, `Procedures.procedure`, then the arguments, `Nil.INSTANCE` and `Cons.of` once per argument, then `Function.call` |
 
 **Variables are looked up by name when they run.** `resolve` walks from the innermost
 environment out to the global one, so a procedure can call another that is defined after
 it, and a redefinition is seen by everything already compiled.
 
-**A quoted datum is rebuilt each time it is evaluated**: `'(1 2)` is three `Cons.of` calls,
-not a constant. Its symbols go through `intern`, which keeps one `Symbol` per name.
+**A quoted datum is built once, while compiling.** The generator turns it into runtime
+values — `Cons`, `Nil`, `Integer`, `Boolean` and `Symbol` — and adds it to the class data, a
+list with one entry per quote on the line. Its `ldc` loads that entry through
+`MethodHandles.classDataAt`, so a quote evaluates to the same object every time it runs.
+Symbols come from `Symbol.of`, which keeps one `Symbol` per name for the whole process, so
+`'x` is the same object on every line.
 
 **A call is checked before it is made.** The operator goes through `Procedures.procedure`,
 which casts it to `Function` or throws `5 is not a procedure`; the arguments are then
@@ -194,15 +197,17 @@ an expression the compiler runs out of stack on as `compile error: stack overflo
 
 Measured, not estimated:
 
-- **About 7 300 operands per list.** A call's arguments and a quoted list's elements all
-  stay on the operand stack until the list is consed, and every expression is one method,
-  so a single call or quoted list of ~7 300 numbers reaches the 64 KB method limit and is
-  refused by `codegen` with an `IllegalArgumentException`.
-- **About 2 100 levels of nesting.** The parser and the generator recurse, so an expression
-  nested that deep overflows the stack while compiling.
+- **8 186 operands per call.** A call's arguments all stay on the operand stack until the
+  list is consed, and every expression is one method, so `(list 1 1 …)` with one number
+  more reaches the 64 KB method limit and is refused by `codegen` with an
+  `IllegalArgumentException`.
+- **2 184 levels of nested calls.** `(+ 1 (+ 1 … 0))` one level deeper reaches the same
+  method limit.
+- **9 750 elements per quoted list, 5 082 levels of nested quoted lists.** The generator
+  recurses down a quoted datum to build it, so a longer or deeper one overflows the stack
+  while compiling.
 - **The REPL reports a stack overflow while compiling** as `compile error: stack overflow`
-  and keeps going — on the main thread's stack a call of 8 000 operands overflows before it
-  reaches the method limit. The method limit itself is not caught, and ends the REPL.
+  and keeps going. The method limit is not caught, and ends the REPL.
 - **About 10 000 calls of recursion.** There are no tail calls; every Scheme call is a JVM
   call, so recursion runs out of a default thread stack at around that depth.
 - **One expression per line.** The REPL compiles each line on its own, so a definition has
@@ -223,5 +228,5 @@ compilation alone, so the test also shows it is caught before anything runs.
 
 `TokenizerTest` and `ParserTest` cover the front of the pipeline on their own, including
 every malformed input the parser reports. `PrinterTest` covers how each kind of value is
-written, and `MainTest` drives the REPL with a scripted standard input: prompts, values,
+written, `runtime/SymbolTest` that a name has one `Symbol`, and `MainTest` drives the REPL with a scripted standard input: prompts, values,
 silence for unspecified results, each kind of error, and recovery after one.

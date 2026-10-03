@@ -22,8 +22,11 @@ on them.
 
 ## Code
 
-- No KDoc on small functions whose name and signature already say what they do, in main and
-  test code alike. Don't strip comments that are already there.
+- No KDoc or comment that restates what a name and signature already say — on functions,
+  classes and properties alike, in main and test code. A one-line doc such as "a generated
+  class's bytes, and its class data" over `class ClassOutput(bytes, classData)` is noise.
+  Comment only what the code cannot say: why, an invariant, a non-obvious consequence.
+  Don't strip comments that are already there.
 - An instruction gets into a method only through `+`. Helpers that build an instruction —
   `invokevirtual`, `invokespecial`, `invokestatic`, `invokeinterface`, `invokedynamic` —
   return it for `+` to emit; `constructDefault` is the one helper that emits by itself.

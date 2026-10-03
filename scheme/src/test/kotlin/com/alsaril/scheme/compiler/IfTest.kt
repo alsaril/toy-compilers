@@ -18,6 +18,7 @@ class IfTest {
         "(if (= 2 3) (+ 1 10) 5), 5",
         "(if 0 1 2), 1",
         "(if '() 1 2), 1",
+        "(if '#f 1 2), 2",
         quoteCharacter = '$'
     )
     fun `returns the value of the branch taken`(input: String, expected: String) {

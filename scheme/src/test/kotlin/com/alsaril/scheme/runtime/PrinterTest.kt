@@ -25,7 +25,7 @@ class PrinterTest {
             arguments(true, "#t"),
             arguments(false, "#f"),
             arguments(-5, "-5"),
-            arguments(Symbol("x"), "x"),
+            arguments(Symbol.of("x"), "x"),
             arguments(Nil, "()"),
             arguments(list(1, 2, 3), "(1 2 3)"),
             arguments(list(Nil, Nil), "(() ())"),

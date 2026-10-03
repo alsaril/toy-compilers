@@ -9,7 +9,6 @@ import kotlin.math.min
 
 class GlobalEnvironment : Environment {
     private val map = mutableMapOf<String, Any>()
-    private val symbols = mutableMapOf<String, Symbol>()
 
     private fun fvar(name: String, f: (List<Any>) -> Any) {
         map[name] = object : Function {
@@ -118,6 +117,4 @@ class GlobalEnvironment : Environment {
     override fun resolve(name: String): Any {
         return map[name] ?: throw SchemeNameException(name)
     }
-
-    override fun intern(name: String) = symbols.computeIfAbsent(name, ::Symbol)
 }

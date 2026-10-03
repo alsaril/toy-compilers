@@ -20,7 +20,7 @@ Dependencies run one way, top to bottom:
 | `classfile` | the class file records and their attributes, and descriptor parsing |
 | `constantpool` | the pool and the typed indices into it |
 | `verification` | the types the analysis tracks, and what an instruction expects of its operands |
-| *(root)* | `ClassWriter` and `DosWriter`, which every record writes through; `Compiler` |
+| *(root)* | `ClassWriter` and `DosWriter`, which every record writes through; `Compiler` and `ClassOutput` |
 
 ## Building a class
 
@@ -228,7 +228,8 @@ never reached. Code that runs off its end and paths that cannot meet raise
   each instruction as it is constructed, so a bad operand fails at the `+`. A branch offset
   is checked once layout knows it, and a method's code must be 1 to 65535 bytes.
 - **Loading** — `Compiler.pipeline(source, parse, generate, iface, lookup)` parses the
-  source, generates the class's bytes and defines them as a hidden class through `lookup`,
+  source, generates a `ClassOutput` — the class's bytes and, optionally, its class data —
+  and defines it as a hidden class through `lookup`, with the class data when there is any,
   so the class must be named in the lookup's package. It then checks the class implements
   `iface` and instantiates it through its no-argument constructor. Every call defines a
   class of its own, so the same name can be generated again.

@@ -27,7 +27,7 @@ class ClassGeneratorTest {
         }
     }
 
-    private fun define(ast: Node) = ClassGenerator.lookup.defineHiddenClass(generate(ast), true).lookupClass()
+    private fun define(ast: Node) = ClassGenerator.lookup.defineHiddenClass(generate(ast).bytes, true).lookupClass()
 
     private fun program(ast: Node) = define(ast).getDeclaredConstructor().newInstance() as Program
 
@@ -331,13 +331,13 @@ class ClassGeneratorTest {
 
         @Test
         fun `keeps a body that fits in one method`() {
-            assertThat(methodLimits(generate(Op(MUL, Var("a"), Value(2.0f)))).map { it.name })
+            assertThat(methodLimits(generate(Op(MUL, Var("a"), Value(2.0f))).bytes).map { it.name })
                 .containsExactly("<init>", "getFloat", "f0", "eval")
         }
 
         @Test
         fun `outlines a body that does not fit`() {
-            val names = methodLimits(generate(chain(5_000))).map { it.name }
+            val names = methodLimits(generate(chain(5_000)).bytes).map { it.name }
 
             assertThat(names).startsWith("<init>", "getFloat").endsWith("eval")
             assertThat(names.filter { it.startsWith("f") }).hasSizeGreaterThan(1)
@@ -372,7 +372,7 @@ class ClassGeneratorTest {
 
         /** the slots the body methods declare, entry method last */
         private fun bodySlots(ast: Node): List<Int> {
-            return methodLimits(generate(ast))
+            return methodLimits(generate(ast).bytes)
                 .filter { it.name.startsWith("f") }
                 .map { it.maxLocals }
         }
@@ -444,7 +444,7 @@ class ClassGeneratorTest {
             // them that getting the width wrong outgrows the slack rather than hiding in it
             val (ast, _) = overVariables(600, 6_000)
 
-            assertThat(methodLimits(generate(ast)).map { it.codeLength })
+            assertThat(methodLimits(generate(ast).bytes).map { it.codeLength })
                 .allSatisfy { assertThat(it).isLessThanOrEqualTo(8_000) }
         }
 
@@ -458,7 +458,7 @@ class ClassGeneratorTest {
 
         @Test
         fun `reads the map through one accessor however many methods there are`() {
-            assertThat(methodLimits(generate(chain(5_000))).filter { it.name == "getFloat" })
+            assertThat(methodLimits(generate(chain(5_000)).bytes).filter { it.name == "getFloat" })
                 .hasSize(1)
         }
     }
@@ -489,8 +489,8 @@ class ClassGeneratorTest {
 
         @Test
         fun `builds the same bytes for the same tree`() {
-            assertThat(generate(Op(ADD, Var("x"), Value(2.0f))))
-                .isEqualTo(generate(Op(ADD, Var("x"), Value(2.0f))))
+            assertThat(generate(Op(ADD, Var("x"), Value(2.0f))).bytes)
+                .isEqualTo(generate(Op(ADD, Var("x"), Value(2.0f))).bytes)
         }
     }
 }

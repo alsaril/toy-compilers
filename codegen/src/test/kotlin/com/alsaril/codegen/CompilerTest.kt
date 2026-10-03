@@ -6,6 +6,7 @@ import com.alsaril.codegen.code.ClassFileBuilder.Companion.classFile
 import com.alsaril.codegen.classfile.AccessFlag.FINAL
 import com.alsaril.codegen.classfile.AccessFlag.PUBLIC
 import com.alsaril.codegen.code.*
+import com.alsaril.codegen.constantpool.ConstantMethodHandleInfo.ReferenceKind.INVOKE_STATIC
 import com.alsaril.codegen.instruction.*
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatExceptionOfType
@@ -56,11 +57,13 @@ class CompilerTest {
     }
 
     /** the backend a well behaved frontend would bring */
-    private fun counter(value: Int, name: String = "GenCounter") = classFile(inPackage(name), "java/lang/Object")
-        .iface(counterIface)
-        .withConstructor()
-        .withCount(value)
-        .build()
+    private fun counter(value: Int, name: String = "GenCounter") = ClassOutput(
+        classFile(inPackage(name), "java/lang/Object")
+            .iface(counterIface)
+            .withConstructor()
+            .withCount(value)
+            .build()
+    )
 
     /** counts the characters of the source, standing in for a real frontend */
     private fun parse(source: String) = source.length
@@ -121,6 +124,38 @@ class CompilerTest {
         }
 
         @Test
+        fun `defines the class with the class data the backend gave`() {
+            val program = pipeline(
+                "",
+                ::parse,
+                {
+                    ClassOutput(
+                        classFile(inPackage("GenData"), "java/lang/Object")
+                            .iface(counterIface)
+                            .withConstructor()
+                            .method("count", "()I", PUBLIC, FINAL) {
+                                val classData = methodHandle(
+                                    INVOKE_STATIC,
+                                    clazz("java/lang/invoke/MethodHandles"),
+                                    "classData",
+                                    "(${CBP})Ljava/lang/Object;",
+                                )
+                                +ldc(constantDynamic("_", "Ljava/lang/Integer;", bootstrap(classData)))
+                                +invokevirtual(clazz("java/lang/Integer"), "intValue", "()I")
+                                +ireturn
+                            }
+                            .build(),
+                        classData = 42,
+                    )
+                },
+                Counter::class.java,
+                lookup,
+            )
+
+            assertThat(program.count()).isEqualTo(42)
+        }
+
+        @Test
         fun `gives every call its own class, even for the same source`() {
             // a hidden class each time, so the same name does not clash
             val first = compile("ab")
@@ -136,11 +171,13 @@ class CompilerTest {
                 "",
                 ::parse,
                 {
-                    classFile(inPackage("GenRunnable"), "java/lang/Object")
-                        .iface("java/lang/Runnable")
-                        .withConstructor()
-                        .method("run", "()V", PUBLIC) { +`return` }
-                        .build()
+                    ClassOutput(
+                        classFile(inPackage("GenRunnable"), "java/lang/Object")
+                            .iface("java/lang/Runnable")
+                            .withConstructor()
+                            .method("run", "()V", PUBLIC) { +`return` }
+                            .build()
+                    )
                 },
                 Runnable::class.java,
                 lookup,
@@ -161,10 +198,12 @@ class CompilerTest {
                         "",
                         ::parse,
                         {
-                            classFile(inPackage("GenBare"), "java/lang/Object")
-                                .withConstructor()
-                                .withCount(it)
-                                .build()
+                            ClassOutput(
+                                classFile(inPackage("GenBare"), "java/lang/Object")
+                                    .withConstructor()
+                                    .withCount(it)
+                                    .build()
+                            )
                         },
                         Counter::class.java,
                         lookup,
@@ -182,11 +221,13 @@ class CompilerTest {
                         "",
                         ::parse,
                         {
-                            classFile(inPackage("GenOther"), "java/lang/Object")
-                                .iface("java/lang/Runnable")
-                                .withConstructor()
-                                .method("run", "()V", PUBLIC) { +`return` }
-                                .build()
+                            ClassOutput(
+                                classFile(inPackage("GenOther"), "java/lang/Object")
+                                    .iface("java/lang/Runnable")
+                                    .withConstructor()
+                                    .method("run", "()V", PUBLIC) { +`return` }
+                                    .build()
+                            )
                         },
                         Counter::class.java,
                         lookup,
@@ -202,7 +243,7 @@ class CompilerTest {
                     pipeline(
                         "",
                         ::parse,
-                        { classFile("GenElsewhere", "java/lang/Object").iface(counterIface).withConstructor().withCount(it).build() },
+                        { ClassOutput(classFile("GenElsewhere", "java/lang/Object").iface(counterIface).withConstructor().withCount(it).build()) },
                         Counter::class.java,
                         lookup,
                     )
@@ -218,10 +259,12 @@ class CompilerTest {
                         "",
                         ::parse,
                         {
-                            classFile(inPackage("GenNoCtor"), "java/lang/Object")
-                                .iface(counterIface)
-                                .withCount(it)
-                                .build()
+                            ClassOutput(
+                                classFile(inPackage("GenNoCtor"), "java/lang/Object")
+                                    .iface(counterIface)
+                                    .withCount(it)
+                                    .build()
+                            )
                         },
                         Counter::class.java,
                         lookup,
@@ -272,7 +315,7 @@ class CompilerTest {
         fun `let a backend failure through`() {
             assertThatIllegalStateException()
                 .isThrownBy {
-                    pipeline<Counter, Int>(
+                    pipeline(
                         "",
                         ::parse,
                         { throw IllegalStateException("cannot generate") },
@@ -287,10 +330,10 @@ class CompilerTest {
         fun `refuse bytes the jvm will not load`() {
             assertThatExceptionOfType(ClassFormatError::class.java)
                 .isThrownBy {
-                    pipeline<Counter, Int>(
+                    pipeline(
                         "",
                         ::parse,
-                        { bytesOf(0xCA, 0xFE, 0xBA, 0xBE) },
+                        { ClassOutput(bytesOf(0xCA, 0xFE, 0xBA, 0xBE)) },
                         Counter::class.java,
                         lookup,
                     )

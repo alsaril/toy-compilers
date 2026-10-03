@@ -16,6 +16,4 @@ class LocalEnvironment(val parent: Environment) : Environment {
     }
 
     override fun resolve(name: String) = map[name] ?: parent.resolve(name)
-
-    override fun intern(name: String) = parent.intern(name)
 }

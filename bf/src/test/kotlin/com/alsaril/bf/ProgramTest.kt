@@ -301,7 +301,7 @@ class ProgramTest {
         fun `splits a large program into a proportional number of methods`() {
             // the chunker once added the fragment count rather than the fragment size,
             // which grew the method count with the square of the program
-            val bytes = generate(Parser.parse("+-".repeat(2_500)))
+            val bytes = generate(Parser.parse("+-".repeat(2_500))).bytes
 
             assertThat(methodLimits(bytes)).hasSizeLessThan(50)
         }
@@ -320,7 +320,7 @@ class ProgramTest {
             )
 
             sources.forEach { source ->
-                val bytes = generate(Parser.parse(source))
+                val bytes = generate(Parser.parse(source)).bytes
 
                 assertThat(methodLimits(bytes).map { it.codeLength })
                     .allSatisfy { assertThat(it).isLessThanOrEqualTo(8000) }
