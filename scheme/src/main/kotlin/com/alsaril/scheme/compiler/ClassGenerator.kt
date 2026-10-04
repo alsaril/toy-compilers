@@ -102,20 +102,20 @@ class ClassGenerator private constructor() {
         return result to (if (i is Null) null else i)
     }
 
-    private fun CodeBuilder.boolTemplate(l: List<Node>, identity: Boolean) {
+    private fun CodeBuilder.boolTemplate(l: List<Node>, identity: Boolean, tail: Boolean) {
         if (l.isEmpty()) {
             boolean(identity)
             return
         }
         val exits = l.dropLast(1).map {
-            eval(it)
+            eval(it, tail = false)
             +dup
             boolean(false)
             val exit = if (identity) +if_acmpeq else +if_acmpne
             +pop
             exit
         }
-        eval(l.last())
+        eval(l.last(), tail)
         exits.forEach { link(it, end()) }
     }
 
@@ -135,7 +135,7 @@ class ClassGenerator private constructor() {
         }
     }
 
-    private fun CodeBuilder.special(form: Cell): Boolean {
+    private fun CodeBuilder.special(form: Cell, tail: Boolean): Boolean {
         val name = (form.first as? Special)?.name ?: return false
         val args = form.second
         val operands by lazy(NONE) { operands(form) }
@@ -155,12 +155,12 @@ class ClassGenerator private constructor() {
         }
 
         if (name == "and") {
-            boolTemplate(operands, true)
+            boolTemplate(operands, true, tail)
             return true
         }
 
         if (name == "or") {
-            boolTemplate(operands, false)
+            boolTemplate(operands, false, tail)
             return true
         }
 
@@ -179,19 +179,19 @@ class ClassGenerator private constructor() {
             val (key, def) = operands
             if (key !is Symbol) throw syntaxError(form, "$name: expected a symbol, got ${key.source()}")
             val binding = if (name == "define") Binding.DEFINE else Binding.SET
-            bind(key.name, binding) { eval(def) }
+            bind(key.name, binding) { eval(def, tail = false) }
             return true
         }
 
         if (name == "if") {
             if (operands.size !in 2..3) throw syntaxError(form, "if: expected 2 or 3 operands, got ${operands.size}")
-            eval(operands[0])
+            eval(operands[0], tail = false)
             boolean(false)
             val f = +if_acmpeq
-            eval(operands[1])
+            eval(operands[1], tail)
             val end = +goto
             link(f, end())
-            if (operands.size == 2) unspecified() else eval(operands[2])
+            if (operands.size == 2) unspecified() else eval(operands[2], tail)
             link(end, end())
 
             return true
@@ -249,27 +249,44 @@ class ClassGenerator private constructor() {
         +invokedynamic("call", "(Lcom/alsaril/scheme/runtime/Environment;)Lcom/alsaril/scheme/runtime/Function;", bootstrap)
     }
 
-    private fun CodeBuilder.call(cell: Cell) {
-        if (special(cell)) return
+    private fun CodeBuilder.call(cell: Cell, tail: Boolean) {
+        if (special(cell, tail)) return
         operands(cell) // rejects a dotted argument list
         val (op, args) = cell
-        eval(op)
+        eval(op, tail = false)
         +invokestatic(
             clazz("com/alsaril/scheme/runtime/Procedures"),
             "procedure",
             "(Ljava/lang/Object;)Lcom/alsaril/scheme/runtime/Function;"
         )
         copyArgs(args)
-        +invokeinterface(
-            clazz("com/alsaril/scheme/runtime/Function"),
-            "call",
+        if (tail) {
+            +invokestatic(
+                clazz("com/alsaril/scheme/runtime/Dispatch"),
+                "of",
+                "(Lcom/alsaril/scheme/runtime/Function;Ljava/lang/Object;)Lcom/alsaril/scheme/runtime/Dispatch;"
+            )
+        } else {
+            +invokeinterface(
+                clazz("com/alsaril/scheme/runtime/Function"),
+                "call",
+                "(Ljava/lang/Object;)Ljava/lang/Object;"
+            )
+            dispatch()
+        }
+    }
+
+    private fun CodeBuilder.dispatch() {
+        +invokestatic(
+            clazz("com/alsaril/scheme/runtime/Dispatch"),
+            "dispatchFully",
             "(Ljava/lang/Object;)Ljava/lang/Object;"
         )
     }
 
-    private fun CodeBuilder.eval(node: Node) {
+    private fun CodeBuilder.eval(node: Node, tail: Boolean) {
         if (node is Cell) {
-            call(node)
+            call(node, tail)
             return
         }
         when (node) {
@@ -287,7 +304,7 @@ class ClassGenerator private constructor() {
     private fun CodeBuilder.copyArgs(node: Node) {
         if (node is Cell) {
             val (first, second) = node
-            eval(first)
+            eval(first, tail = false)
             copyArgs(second)
             pair()
             return
@@ -297,7 +314,8 @@ class ClassGenerator private constructor() {
 
     private fun generateProcedure(node: Node) =
         classFileBuilder.method("run", "(Lcom/alsaril/scheme/runtime/Environment;)Ljava/lang/Object;", PUBLIC, FINAL) {
-            eval(node)
+            eval(node, tail = true)
+            dispatch()
             +areturn
         }
 
@@ -336,13 +354,14 @@ class ClassGenerator private constructor() {
                 "(Ljava/lang/Object;Ljava/util/List;Ljava/lang/String;Lcom/alsaril/scheme/runtime/Environment;)Lcom/alsaril/scheme/runtime/Environment;"
             )
             +astore(1)
-            +aconst_null // the outer scope stays reachable only through the new environment
+            +aconst_null // drop the outer scope
             +astore(0)
             nodes.forEachIndexed { index, node ->
-                eval(node)
                 if (index == nodes.size - 1) {
+                    eval(node, tail = true)
                     +areturn
                 } else {
+                    eval(node, tail = false)
                     +pop
                 }
             }

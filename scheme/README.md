@@ -51,7 +51,8 @@ expressions, of which the last is the value; a `define` among them is local to t
 - **`compiler/ClassGenerator`** — the class a line compiles to: the program, and its lambdas
   as methods of it.
 - **`compiler/SchemeCompiler`** — `compile(source)`, handing the parts to `codegen`'s pipeline.
-- **`runtime/`** — what the generated code calls: values, environments, builtins, `Binder`.
+- **`runtime/`** — what the generated code calls: values, environments, builtins, `Binder`,
+  `Dispatch`.
 
 ## Code generation
 
@@ -80,7 +81,7 @@ its body starts. So a single emitter serves the top level and every lambda body 
 | `#t`, `#f` | `getstatic Boolean.TRUE` / `Boolean.FALSE` |
 | `x` | `aload_1; ldc "x"; Environment.resolve` |
 | `'x`, `'(1 x)` | `ldc` of a dynamic constant, the datum's entry in the class data |
-| `(f a b)` | `f`, `Procedures.procedure`, then the arguments, `Nil.INSTANCE` and `Cons.of` once per argument, then `Function.call` |
+| `(f a b)` | `f`, `Procedures.procedure`, then the arguments, `Nil.INSTANCE` and `Cons.of` once per argument, then `Function.call; Dispatch.dispatchFully` — or, in tail position, `Dispatch.of` |
 
 **Variables are looked up by name when they run.** `resolve` walks from the innermost
 environment out to the global one, so a procedure can call another that is defined after
@@ -106,6 +107,15 @@ code loads them by `getstatic`, and the Kotlin builtins box through `Boolean.val
 and `or` keep the value on the stack and jump out as soon as one decides the result, so
 `(or 2 3)` is `2` and the rest are never evaluated. An `if` without an alternative, a
 `define` and a `set!` evaluate to `Unspecified.INSTANCE`.
+
+**A call in tail position is returned, not made.** The last expression of a lambda body or
+of the line is in tail position, and so are the branches of an `if` and the last operand
+of an `and` or `or` in tail position. A call there evaluates its operator and arguments,
+then returns `Dispatch.of(function, args)` in place of calling. Every other call is
+followed by `Dispatch.dispatchFully`, which calls a returned `Dispatch`'s function with its
+arguments until a value comes back, and `run` does the same with the line's value. So a
+loop written as a tail call, mutual recursion included, runs in constant stack, and a
+`Dispatch` never reaches a variable, a list or a condition.
 
 ### Lambdas
 
@@ -197,19 +207,20 @@ an expression the compiler runs out of stack on as `compile error: stack overflo
 
 Measured, not estimated:
 
-- **8 186 operands per call.** A call's arguments all stay on the operand stack until the
+- **8 189 operands per call.** A call's arguments all stay on the operand stack until the
   list is consed, and every expression is one method, so `(list 1 1 …)` with one number
   more reaches the 64 KB method limit and is refused by `codegen` with an
   `IllegalArgumentException`.
-- **2 184 levels of nested calls.** `(+ 1 (+ 1 … 0))` one level deeper reaches the same
+- **1 985 levels of nested calls.** `(+ 1 (+ 1 … 0))` one level deeper reaches the same
   method limit.
-- **9 750 elements per quoted list, 5 082 levels of nested quoted lists.** The generator
-  recurses down a quoted datum to build it, so a longer or deeper one overflows the stack
-  while compiling.
+- **About 9 400 elements per quoted list, about 5 100 levels of nested quoted lists.** The
+  generator recurses down a quoted datum to build it, so a longer or deeper one overflows
+  the stack while compiling.
 - **The REPL reports a stack overflow while compiling** as `compile error: stack overflow`
   and keeps going. The method limit is not caught, and ends the REPL.
-- **About 10 000 calls of recursion.** There are no tail calls; every Scheme call is a JVM
-  call, so recursion runs out of a default thread stack at around that depth.
+- **About 4 000 levels of recursion outside tail position.** Every such call is a JVM call,
+  so `(+ 1 (f (- n 1)))` runs out of the REPL's stack at around that depth. Calls in tail
+  position take no stack.
 - **One expression per line.** The REPL compiles each line on its own, so a definition has
   to fit on one.
 - **Special form names and `#t`/`#f` are reserved.** None of them can be defined, `set!` or
@@ -220,8 +231,8 @@ Measured, not estimated:
 ## Tests
 
 The compiler tests compile and run real source, one class per area of the language:
-`BooleanTest`, `IntegerTest`, `SymbolTest`, `ListTest`, `QuoteTest`, `IfTest` and
-`LambdaTest`. Each asserts values through `execute(source, env)`, which compiles, runs and
+`BooleanTest`, `IntegerTest`, `SymbolTest`, `ListTest`, `QuoteTest`, `IfTest`,
+`LambdaTest` and `TailCallTest`. Each asserts values through `execute(source, env)`, which compiles, runs and
 prints, and errors through `assertSyntaxError`, `assertNameError` and `assertRuntimeError`,
 which check the exception type and the exact message. A syntax error is asserted on
 compilation alone, so the test also shows it is caught before anything runs.

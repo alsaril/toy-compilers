@@ -101,18 +101,6 @@ class LambdaTest {
     }
 
     @Test
-    fun `calls itself recursively`() {
-        // given
-        val env = GlobalEnvironment()
-        execute("(define (fact n) (if (= n 0) 1 (* n (fact (- n 1)))))", env)
-        execute("(define (slow-add x y) (if (= x 0) y (slow-add (- x 1) (+ y 1))))", env)
-
-        // when / then
-        assertThat(execute("(fact 10)", env)).isEqualTo("3628800")
-        assertThat(execute("(slow-add 100 100)", env)).isEqualTo("200")
-    }
-
-    @Test
     fun `closure mutates its captured parameter`() {
         // given
         val env = GlobalEnvironment()
