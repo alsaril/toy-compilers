@@ -344,6 +344,18 @@ class ClassFileBuilderTest {
         }
 
         @Test
+        fun `counts both values dup2_x1 tucks under the third`() {
+            assertThat(stack("()V", STATIC) { +iconst(1); +iconst(2); +iconst(3); +dup2_x1; +`return` })
+                .isEqualTo(5)
+        }
+
+        @Test
+        fun `counts the long dup2_x1 tucks under an int`() {
+            // the copied long is as wide as the two ints of the other form
+            assertThat(stack("()V", STATIC) { +iconst(1); +lconst(0); +dup2_x1; +`return` }).isEqualTo(5)
+        }
+
+        @Test
         fun `counts the copy dup_x2 tucks under the top three`() {
             assertThat(stack("()V", STATIC) { +iconst(1); +iconst(2); +iconst(3); +dup_x2; +`return` })
                 .isEqualTo(4)

@@ -299,6 +299,41 @@ internal class Analyzer(
             enterFrame.copy(stack = stack)
         }
 
+        dup2_x1 -> {
+            requireDepth(enterFrame.stack, 2, instruction, pc)
+            val stack = enterFrame.stack.toMutableList()
+            val a = stack.removeLast()
+            if (a.slots == 2) {
+                val b = stack.removeLast()
+                require(b.slots == 1) {
+                    "$instruction at $pc reaches under $a, so it needs a one slot value there, but finds $b"
+                }
+                stack.add(a); stack.add(b); stack.add(a)
+            } else {
+                requireDepth(enterFrame.stack, 3, instruction, pc) // two one slot values and one under them
+                val b = stack.removeLast()
+                require(b.slots == 1) { "$instruction at $pc copies two one slot values, but finds $b under $a" }
+                val c = stack.removeLast()
+                require(c.slots == 1) {
+                    "$instruction at $pc reaches under $b, so it needs a one slot value there, but finds $c"
+                }
+                stack.add(b); stack.add(a); stack.add(c); stack.add(b); stack.add(a)
+            }
+            enterFrame.copy(stack = stack)
+        }
+
+        swap -> {
+            requireDepth(enterFrame.stack, 2, instruction, pc)
+            val stack = enterFrame.stack.toMutableList()
+            val a = stack.removeLast()
+            val b = stack.removeLast()
+            require(a.slots == 1 && b.slots == 1) {
+                "$instruction at $pc works on two one slot values, but finds $b and $a"
+            }
+            stack.add(a); stack.add(b)
+            enterFrame.copy(stack = stack)
+        }
+
         dup_x2 -> {
             requireDepth(enterFrame.stack, 2, instruction, pc)
             val stack = enterFrame.stack.toMutableList()

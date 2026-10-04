@@ -202,6 +202,10 @@ data object dup_x2 : NoArgInstruction(0x5b), DynamicInstruction
 
 data object dup2 : NoArgInstruction(0x5c), DynamicInstruction
 
+data object dup2_x1 : NoArgInstruction(0x5d), DynamicInstruction
+
+data object swap : NoArgInstruction(0x5f), DynamicInstruction
+
 data object ireturn : NoArgInstruction(0xac) {
     override fun stackEffect() = takes(INTEGER)
 }

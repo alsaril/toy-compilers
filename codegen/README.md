@@ -98,7 +98,7 @@ a bootstrap method. `constructDefault(clazz)` is the one helper that emits by it
 Covered so far: `int` arithmetic, `iinc`, comparisons and `int[]`, `byte[]` and `boolean[]`
 access; `float` arithmetic; `long` and `double` constants and `long` stores; objects, arrays
 of references, casts, type tests and reference comparisons; fields; every invoke
-instruction; `pop` and the `dup` forms; returns and `athrow`.
+instruction; `pop`, `swap` and the `dup` forms; returns and `athrow`.
 
 ## Fragments
 
@@ -186,7 +186,7 @@ data object iadd : NoArgInstruction(0x60) {
 `takes(...)` lists what it expects on top of the stack, bottom to top, each as an `Expected` —
 one type, any reference, or one of a few — and `gives(...)` what it leaves there; `Read` and
 `Write` name the local slots it uses. The few whose effect depends on what is there —
-`aload`, `astore`, `new`, `aaload`, `aastore`, `pop`, `pop2` and the `dup` forms — are marked
+`aload`, `astore`, `new`, `aaload`, `aastore`, `pop`, `pop2`, `swap` and the `dup` forms — are marked
 `DynamicInstruction`, and the analyzer has a rule for each.
 
 The rest of the walk:

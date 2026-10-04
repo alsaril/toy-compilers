@@ -260,6 +260,63 @@ class AnalysisTest {
     }
 
     @Test
+    fun `refuses dup2_x1 with only two one slot values`() {
+        // two ints are what it copies, so it needs a third one under them
+        assertThatIllegalArgumentException()
+            .isThrownBy { method { +iconst(0); +iconst(0); +dup2_x1; +`return` } }
+            .withMessageContaining("dup2_x1 at 2 pops 3 from a stack 2 deep")
+    }
+
+    @Test
+    fun `refuses dup2_x1 with nothing under a two slot value`() {
+        assertThatIllegalArgumentException()
+            .isThrownBy { method { +lconst(0); +dup2_x1; +`return` } }
+            .withMessageContaining("dup2_x1 at 1 pops 2 from a stack 1 deep")
+    }
+
+    @Test
+    fun `refuses dup2_x1 of a one slot value over a two slot one`() {
+        assertThatIllegalArgumentException()
+            .isThrownBy { method { +iconst(0); +lconst(0); +iconst(0); +dup2_x1; +`return` } }
+            .withMessageContaining("dup2_x1 at 3 copies two one slot values, but finds LONG under INTEGER")
+    }
+
+    @Test
+    fun `refuses dup2_x1 reaching under two ints into a two slot value`() {
+        assertThatIllegalArgumentException()
+            .isThrownBy { method { +lconst(0); +iconst(0); +iconst(0); +dup2_x1; +`return` } }
+            .withMessageContaining("dup2_x1 at 3 reaches under INTEGER, so it needs a one slot value there, but finds LONG")
+    }
+
+    @Test
+    fun `refuses dup2_x1 reaching under a two slot value into another`() {
+        assertThatIllegalArgumentException()
+            .isThrownBy { method { +lconst(0); +lconst(1); +dup2_x1; +`return` } }
+            .withMessageContaining("dup2_x1 at 2 reaches under LONG, so it needs a one slot value there, but finds LONG")
+    }
+
+    @Test
+    fun `refuses swap with fewer than two values on the stack`() {
+        assertThatIllegalArgumentException()
+            .isThrownBy { method { +iconst(0); +swap; +`return` } }
+            .withMessageContaining("swap at 1 pops 2 from a stack 1 deep")
+    }
+
+    @Test
+    fun `refuses swap with a two slot value under the top`() {
+        assertThatIllegalArgumentException()
+            .isThrownBy { method { +lconst(0); +iconst(0); +swap; +`return` } }
+            .withMessageContaining("swap at 2 works on two one slot values, but finds LONG and INTEGER")
+    }
+
+    @Test
+    fun `refuses swap with a two slot value on top`() {
+        assertThatIllegalArgumentException()
+            .isThrownBy { method { +iconst(0); +lconst(0); +swap; +`return` } }
+            .withMessageContaining("swap at 2 works on two one slot values, but finds INTEGER and LONG")
+    }
+
+    @Test
     fun `refuses dup_x2 with a two slot value on top`() {
         assertThatIllegalArgumentException()
             .isThrownBy { method { +iconst(0); +lconst(0); +dup_x2; +`return` } }

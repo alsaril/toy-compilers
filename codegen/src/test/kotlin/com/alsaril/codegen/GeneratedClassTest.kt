@@ -1140,6 +1140,77 @@ class GeneratedClassTest {
     }
 
     @Test
+    fun `tucks a copy of the top two under the third, or of a long under an int, with dup2_x1`() {
+        // given "a" "b" "c" becoming b c a b c, joined by concat from the top down so the
+        // result spells the stack out; 7 under a long becoming long 7 long, rotated by 7;
+        // and int string int crossing a jump, so the verifier checks the frame against the
+        // order the JVM itself derives
+        val bytes = classFile("GenDup2X1", "java/lang/Object")
+            .method("strings", "()Ljava/lang/String;", PUBLIC, STATIC) {
+                +ldc(string("a"))
+                +ldc(string("b"))
+                +ldc(string("c"))
+                +dup2_x1
+                repeat(4) { +invokevirtual(clazz("java/lang/String"), "concat", "(Ljava/lang/String;)Ljava/lang/String;") }
+                +areturn
+            }
+            .method("long", "()Ljava/lang/Object;", PUBLIC, STATIC) {
+                +iconst(7)
+                +lconst(1)
+                +dup2_x1
+                +pop2
+                +invokestatic(clazz("java/lang/Long"), "rotateLeft", "(JI)J")
+                +invokestatic(clazz("java/lang/Long"), "valueOf", "(J)Ljava/lang/Long;")
+                +areturn
+            }
+            .method("mixed", "()I", PUBLIC, STATIC) {
+                +iconst(1)
+                +ldc(string("s"))
+                +iconst(2)
+                +dup2_x1
+                val jump = +goto
+                val target = +pop
+                link(jump, target)
+                +pop
+                +pop
+                +ireturn
+            }
+            .build()
+        val clazz = load(bytes)
+
+        // then
+        assertThat(clazz.getDeclaredMethod("strings").invoke(null)).isEqualTo("bcabc")
+        assertThat(clazz.getDeclaredMethod("long").invoke(null)).isEqualTo(128L)
+        assertThat(clazz.getDeclaredMethod("mixed").invoke(null)).isEqualTo(2)
+    }
+
+    @Test
+    fun `exchanges the top two with swap`() {
+        // given 7 2 becoming 2 7 for isub, and an int under a string becoming the string's argument
+        val bytes = classFile("GenSwap", "java/lang/Object")
+            .method("ints", "()I", PUBLIC, STATIC) {
+                +iconst(7)
+                +iconst(2)
+                +swap
+                +isub
+                +ireturn
+            }
+            .method("mixed", "()Ljava/lang/String;", PUBLIC, STATIC) {
+                +iconst(3)
+                +ldc(string("ab"))
+                +swap
+                +invokevirtual(clazz("java/lang/String"), "repeat", "(I)Ljava/lang/String;")
+                +areturn
+            }
+            .build()
+        val clazz = load(bytes)
+
+        // then
+        assertThat(clazz.getDeclaredMethod("ints").invoke(null)).isEqualTo(-5)
+        assertThat(clazz.getDeclaredMethod("mixed").invoke(null)).isEqualTo("ababab")
+    }
+
+    @Test
     fun `calls a private method and the parent's version of a method through invokespecial`() {
         // given a class overriding toString, calling past its override and into its private method
         val bytes = classFile("GenSpecial", "java/lang/Object")
