@@ -1,9 +1,7 @@
 package com.alsaril.scheme.runtime
 
-import com.alsaril.scheme.SchemeNameException
 import com.alsaril.scheme.SchemeRuntimeException
 import com.alsaril.scheme.runtime.Printer.print
-import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
 
@@ -19,14 +17,57 @@ class GlobalEnvironment : Environment {
     }
 
     init {
-        set("+", object : Function {
-            override fun arity() = 2
-            override fun call2(arg1: Any, arg2: Any): Any {
-                arg1 as Int; arg2 as Int
-                return arg1 + arg2
-            }
+        arithmetic("+", 0) { a, b -> a + b }
+        arithmetic("-", unary = { -it }) { a, b -> a - b }
+        arithmetic("*", 1) { a, b -> a * b }
+        arithmetic("/", unary = { divide(1, it) }, f = ::divide)
+        arithmetic("max") { a, b -> max(a, b) }
+        arithmetic("min") { a, b -> min(a, b) }
+    }
+
+    private fun fvariadic(name: String, f: (List<Any>) -> Any) {
+        set(name, object : Function {
+            override fun arity() = -1
+            override fun call0() = f(emptyList())
+            override fun call1(arg1: Any) = f(listOf(arg1))
+            override fun call2(arg1: Any, arg2: Any) = f(listOf(arg1, arg2))
+            override fun call3(arg1: Any, arg2: Any, arg3: Any) = f(listOf(arg1, arg2, arg3))
+            override fun call4(arg1: Any, arg2: Any, arg3: Any, arg4: Any) = f(listOf(arg1, arg2, arg3, arg4))
+
+            override fun call5(
+                arg1: Any,
+                arg2: Any,
+                arg3: Any,
+                arg4: Any,
+                arg5: Any
+            ) = f(listOf(arg1, arg2, arg3, arg4, arg5))
         })
     }
+
+    private fun fnumvar(name: String, min: Int, f: (List<Int>) -> Any) = fvariadic(name) { args ->
+        if (args.size < min) throw SchemeRuntimeException("$name: expected at least ${arguments(min)}, got ${args.size}")
+        f(args.map { it.number(name) })
+    }
+
+    private fun arithmetic(name: String, identity: Int? = null, unary: ((Int) -> Int)? = null, f: (Int, Int) -> Int) =
+        fnumvar(name, if (identity == null) 1 else 0) {
+            when {
+                it.isEmpty() -> identity!!
+                it.size == 1 && unary != null -> unary(it.single())
+                else -> it.asSequence().drop(1).fold(it.first(), f)
+            }
+        }
+
+    private fun divide(a: Int, b: Int): Int {
+        if (b == 0) throw SchemeRuntimeException("/: division by zero")
+        return a / b
+    }
+
+    private fun Any.number(name: String) =
+        this as? Int ?: throw SchemeRuntimeException("$name: expected a number, got ${print(this)}")
+
+    private fun arguments(count: Int) = if (count == 1) "1 argument" else "$count arguments"
+
 
 //    private fun fvar(name: String, f: (List<Any>) -> Any) {
 //        map[name] = object : Function {
@@ -43,31 +84,12 @@ class GlobalEnvironment : Environment {
 //
 //    private fun f2(name: String, f: (Any, Any) -> Any) = fixed(name, 2) { f(it[0], it[1]) }
 //
-//    private fun fnumvar(name: String, min: Int, f: (List<Int>) -> Any) = fvar(name) { args ->
-//        if (args.size < min) throw SchemeRuntimeException("$name: expected at least ${arguments(min)}, got ${args.size}")
-//        f(args.map { it.number(name) })
-//    }
+
 //
 //    private fun comparison(name: String, f: (Int, Int) -> Boolean) = fnumvar(name, 0) {
 //        (it.asSequence() zip it.asSequence().drop(1)).fold(true) { acc, (a, b) -> acc && f(a, b) }
 //    }
 //
-//    private fun arithmetic(name: String, identity: Int? = null, unary: ((Int) -> Int)? = null, f: (Int, Int) -> Int) =
-//        fnumvar(name, if (identity == null) 1 else 0) {
-//            when {
-//                it.isEmpty() -> identity!!
-//                it.size == 1 && unary != null -> unary(it.single())
-//                else -> it.asSequence().drop(1).fold(it.first(), f)
-//            }
-//        }
-//
-//    private fun divide(a: Int, b: Int): Int {
-//        if (b == 0) throw SchemeRuntimeException("/: division by zero")
-//        return a / b
-//    }
-//
-//    private fun Any.number(name: String) =
-//        this as? Int ?: throw SchemeRuntimeException("$name: expected a number, got ${print(this)}")
 //
 //    private fun Any.pair(name: String) =
 //        this as? Cons ?: throw SchemeRuntimeException("$name: expected a pair, got ${print(this)}")
@@ -114,12 +136,6 @@ class GlobalEnvironment : Environment {
 //        comparison(">") { a, b -> a > b }
 //        comparison("<=") { a, b -> a <= b }
 //        comparison(">=") { a, b -> a >= b }
-//        arithmetic("+", 0) { a, b -> a + b }
-//        arithmetic("-", unary = { -it }) { a, b -> a - b }
-//        arithmetic("*", 1) { a, b -> a * b }
-//        arithmetic("/", unary = { divide(1, it) }, f = ::divide)
-//        arithmetic("max") { a, b -> max(a, b) }
-//        arithmetic("min") { a, b -> min(a, b) }
 //        f1("abs") { abs(it.number("abs")) }
 //    }
 }

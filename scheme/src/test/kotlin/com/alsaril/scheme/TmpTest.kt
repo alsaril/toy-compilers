@@ -18,7 +18,7 @@ class TmpTest {
     @Test
     fun test() {
         // given
-        val ast = Call(Reference("+", GLOBAL, true, 0), listOf(NumberConstant(10), NumberConstant(42)), false)
+        val ast = Call(Reference("+", GLOBAL, true, 0), listOf(), false)
         val refs = listOf(
             Reference("+", GLOBAL, true, 0),
         )
