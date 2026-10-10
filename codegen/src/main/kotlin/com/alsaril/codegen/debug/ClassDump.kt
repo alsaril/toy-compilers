@@ -20,7 +20,7 @@ import kotlin.io.path.writeText
  * listings of the previous run are deleted first; nothing else in the directory is touched.
  * Needs a JDK, which is where `javap` lives.
  */
-internal object ClassDump {
+object ClassDump {
     private val directory: Path? = (System.getProperty("codegen.dump") ?: System.getenv("CODEGEN_DUMP"))
         ?.takeIf { it.isNotBlank() }
         ?.let(Path::of)

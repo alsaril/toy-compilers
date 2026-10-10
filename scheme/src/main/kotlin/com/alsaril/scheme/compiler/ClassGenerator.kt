@@ -5,54 +5,108 @@ import com.alsaril.codegen.classfile.AccessFlag.*
 import com.alsaril.codegen.code.*
 import com.alsaril.codegen.code.ClassFileBuilder.Companion.classFile
 import com.alsaril.codegen.constantpool.ConstantMethodHandleInfo.ReferenceKind.INVOKE_STATIC
+import com.alsaril.codegen.constantpool.ConstantMethodHandleInfo.ReferenceKind.INVOKE_VIRTUAL
+import com.alsaril.codegen.debug.ClassDump
 import com.alsaril.codegen.instruction.*
-import com.alsaril.scheme.SchemeSyntaxException
+import com.alsaril.scheme.analyser.*
+import com.alsaril.scheme.analyser.BooleanConstant.FALSE
+import com.alsaril.scheme.analyser.BooleanConstant.TRUE
+import com.alsaril.scheme.analyser.Reference.Location.*
 import com.alsaril.scheme.parser.*
 import com.alsaril.scheme.parser.Number
-import com.alsaril.scheme.runtime.Cons
-import com.alsaril.scheme.runtime.Nil
+import com.alsaril.scheme.parser.Symbol
+import com.alsaril.scheme.runtime.*
+import java.lang.invoke.MethodHandle
 import java.lang.invoke.MethodHandles
-import kotlin.LazyThreadSafetyMode.NONE
+import java.lang.invoke.MethodType.methodType
 
-class ClassGenerator private constructor() {
+class ClassGenerator {
     companion object {
         internal val lookup: MethodHandles.Lookup = MethodHandles.lookup()
 
-        fun generate(node: Node) = ClassGenerator().generate(node)
+        fun generate(expression: GlobalForm) = ClassGenerator().generateBootstrap(expression)
     }
 
     private var lambdaCnt = 0
 
-    private val classFileBuilder = classFile("com/alsaril/scheme/compiler/Impl", parent = "java/lang/Object")
-        .iface("com/alsaril/scheme/runtime/Program")
-        .method("<init>", "()V", PUBLIC) {
-            +aload(0)
-            +invokespecial(parent(), "<init>", "()V")
-            +`return`
-        }
+    private val classFileBuilder = classFile("com/alsaril/scheme/compiler/Impl", parent = "java/lang/Object");
 
     private val classData = mutableListOf<Any>()
 
-    private fun generate(node: Node) = ClassOutput(
-        generateProcedure(node).build(),
-        classData.takeIf { it.isNotEmpty() }?.toList()
-    )
+    private fun generateBootstrap(expression: GlobalForm): ClassOutput {
+        val classFile = classFile("com/alsaril/scheme/compiler/Proxy", parent = "java/lang/Object")
+            .iface("com/alsaril/scheme/runtime/Program")
+            .method("<init>", "()V", PUBLIC) {
+                +aload(0)
+                +invokespecial(parent(), "<init>", "()V")
+                +`return`
+            }
+            .method("run", "(Lcom/alsaril/scheme/runtime/Environment;)Ljava/lang/Object;", PUBLIC, FINAL) {
+                val classData = methodHandle(
+                    INVOKE_STATIC,
+                    clazz("java/lang/invoke/MethodHandles"),
+                    "classData",
+                    "(${CBP})Ljava/lang/Object;"
+                )
+                +ldc(constantDynamic("_", "Ljava/lang/invoke/MethodHandle;", bootstrap(classData)))
+                +aload(1)
+                +invokevirtual(
+                    clazz("java/lang/invoke/MethodHandle"),
+                    "invoke",
+                    "(Lcom/alsaril/scheme/runtime/Environment;)Ljava/lang/Object;"
+                )
+                +checkcast(clazz("java/util/function/Supplier"))
+                +invokeinterface(clazz("java/util/function/Supplier"), "get", "()Ljava/lang/Object;")
+                +areturn
+            }
+            .build()
 
-    private fun CodeBuilder.resolveSymbol(name: String) {
-        +aload(1)
-        +ldc(string(name))
-        +invokeinterface(
-            clazz("com/alsaril/scheme/runtime/Environment"),
-            "resolve",
-            "(Ljava/lang/String;)Ljava/lang/Object;"
-        )
+        return ClassOutput(classFile, generate(expression))
     }
 
-    private fun CodeBuilder.nil() {
-        +getstatic(field(clazz("com/alsaril/scheme/runtime/Nil"), "INSTANCE", "Lcom/alsaril/scheme/runtime/Nil;"))
+    private fun generate(expression: GlobalForm): MethodHandle {
+        val globalFields = expression.references.filter { it.location == GLOBAL }
+        val impl = classFileBuilder
+            .iface("java/util/function/Supplier")
+            .apply {
+                globalFields.forEach { ref ->
+                    field(ref.fieldName(), "Lcom/alsaril/scheme/runtime/Box;", PRIVATE, FINAL)
+                }
+            }
+            .method("<init>", "(Lcom/alsaril/scheme/runtime/Environment;)V", PUBLIC) {
+                +aload(0)
+                +invokespecial(parent(), "<init>", "()V")
+                globalFields.forEach { ref ->
+                    +aload(0)
+                    +aload(1)
+                    +ldc(string(ref.name))
+                    +invokeinterface(
+                        clazz("com/alsaril/scheme/runtime/Environment"),
+                        "get",
+                        "(Ljava/lang/String;)Lcom/alsaril/scheme/runtime/Box;"
+                    )
+                    +putfield(field(self(), ref.fieldName(), "Lcom/alsaril/scheme/runtime/Box;"))
+                }
+                +`return`
+            }
+            .method("get", "()Ljava/lang/Object;", PUBLIC, FINAL) {
+                emitEval(expression.body)
+                +areturn
+            }
+            .build()
+
+        ClassDump.dump(impl)
+
+        val classData = classData.takeIf { it.isNotEmpty() }?.toList()
+        val hidden = when (classData) {
+            null -> lookup.defineHiddenClass(impl, true)
+            else -> lookup.defineHiddenClassWithClassData(impl, classData, true)
+        }
+
+        return hidden.findConstructor(hidden.lookupClass(), methodType(Void.TYPE, Environment::class.java))
     }
 
-    private fun CodeBuilder.unspecified() {
+    private fun CodeBuilder.emitUnspecified() {
         +getstatic(
             field(
                 clazz("com/alsaril/scheme/runtime/Unspecified"),
@@ -62,7 +116,7 @@ class ClassGenerator private constructor() {
         )
     }
 
-    private fun CodeBuilder.boolean(value: Boolean) =
+    private fun CodeBuilder.emitBoolean(value: Boolean) =
         +getstatic(
             field(
                 clazz("java/lang/Boolean"),
@@ -71,52 +125,77 @@ class ClassGenerator private constructor() {
             )
         )
 
-    private fun CodeBuilder.number(value: Int) {
+    private fun CodeBuilder.emitNumber(value: Int) {
         +ldc(int(value))
         +invokestatic(clazz("java/lang/Integer"), "valueOf", "(I)Ljava/lang/Integer;")
     }
 
-    private fun CodeBuilder.pair() {
-        +invokestatic(
-            clazz("com/alsaril/scheme/runtime/Cons"),
-            "of",
-            "(Ljava/lang/Object;Ljava/lang/Object;)Lcom/alsaril/scheme/runtime/Cons;"
-        )
+    private fun CodeBuilder.emitUnbox() {
+        +getfield(field(clazz("com/alsaril/scheme/runtime/Box"), "value", "Ljava/lang/Object;"))
     }
 
-    private fun syntaxError(form: Node, problem: String) = SchemeSyntaxException("$problem in ${form.source()}")
+    private fun CodeBuilder.emitLoad(reference: Reference) {
+        when (reference.location) {
+            GLOBAL -> {
+                +aload(0)
+                +getfield(field(self(), reference.fieldName(), "Lcom/alsaril/scheme/runtime/Box;"))
+                emitUnbox()
+            }
 
-    private fun operands(form: Cell): List<Node> {
-        val (list, rest) = collectImproperArgs(form.second)
-        if (rest != null) throw syntaxError(form, "expected a proper list of operands")
-        return list
-    }
+            CAPTURE -> {
+                if (reference.boxed) {
+                    +getfield(field(self(), reference.fieldName(), "Lcom/alsaril/scheme/runtime/Box;"))
+                    emitUnbox()
+                } else {
+                    +getfield(field(self(), reference.fieldName(), "Ljava/lang/Object;"))
+                }
+            }
 
-    private fun collectImproperArgs(args: Node): Pair<List<Node>, Node?> {
-        var i = args
-        val result = mutableListOf<Node>()
-        while (i is Cell) {
-            result.add(i.first)
-            i = i.second
+            LOCAL -> {
+                +aload(reference.index)
+                if (reference.boxed) {
+                    emitUnbox()
+                }
+            }
         }
-        return result to (if (i is Null) null else i)
     }
 
-    private fun CodeBuilder.boolTemplate(l: List<Node>, identity: Boolean, tail: Boolean) {
-        if (l.isEmpty()) {
-            boolean(identity)
+    private fun CodeBuilder.emitBooleanExpression(expression: BooleanExpression) {
+        if (expression.args.isEmpty()) {
+            emitBoolean(expression.identity)
             return
         }
-        val exits = l.dropLast(1).map {
-            eval(it, tail = false)
+        val exits = expression.args.dropLast(1).map {
+            emitEval(it)
             +dup
-            boolean(false)
-            val exit = if (identity) +if_acmpeq else +if_acmpne
+            emitBoolean(false)
+            val exit = if (expression.identity) +if_acmpeq else +if_acmpne
             +pop
             exit
         }
-        eval(l.last(), tail)
+        emitEval(expression.args.last())
         exits.forEach { link(it, end()) }
+    }
+
+    private fun CodeBuilder.emitCall(call: Call) {
+        emitEval(call.function)
+        call.args.asSequence().take(INLINE_FUNCTION_MAX_ARITY).forEach { emitEval(it) }
+        if (call.args.size > INLINE_FUNCTION_MAX_ARITY) { // variadic tail
+            +ldc(int(call.args.size - INLINE_FUNCTION_MAX_ARITY))
+            +anewarray(clazz("java/lang/Object"))
+            call.args.asSequence().drop(INLINE_FUNCTION_MAX_ARITY).forEachIndexed { it, arg ->
+                +dup
+                +ldc(int(it))
+                emitEval(arg)
+                +aaload
+            }
+        }
+        +invokeinterface(
+            clazz("com/alsaril/scheme/runtime/Function"),
+            internalName(call.args.size),
+            internalDescriptor(call.args.size),
+        )
+        // todo revive tail calls
     }
 
     private fun datum(node: Node): Any {
@@ -135,237 +214,120 @@ class ClassGenerator private constructor() {
         }
     }
 
-    private fun CodeBuilder.special(form: Cell, tail: Boolean): Boolean {
-        val name = (form.first as? Special)?.name ?: return false
-        val args = form.second
-        val operands by lazy(NONE) { operands(form) }
+    private fun CodeBuilder.emitDatum(datum: Datum) {
+        val index = classData.size
+        classData.add(datum(datum.value))
+        val classDataAt = methodHandle(
+            INVOKE_STATIC,
+            clazz("java/lang/invoke/MethodHandles"),
+            "classDataAt",
+            "(${CBP}I)Ljava/lang/Object;"
+        )
+        +ldc(constantDynamic("_", "Ljava/lang/Object;", bootstrap(classDataAt, int(index))))
+    }
 
-        if (name == "quote") {
-            if (operands.size != 1) throw syntaxError(form, "quote: expected 1 operand, got ${operands.size}")
-            val index = classData.size
-            classData.add(datum(operands[0]))
-            val classDataAt = methodHandle(
-                INVOKE_STATIC,
-                clazz("java/lang/invoke/MethodHandles"),
-                "classDataAt",
-                "(${CBP}I)Ljava/lang/Object;"
-            )
-            +ldc(constantDynamic("_", "Ljava/lang/Object;", bootstrap(classDataAt, int(index))))
-            return true
-        }
+    private fun CodeBuilder.emitBox() {
+        +putfield(field(clazz("com/alsaril/scheme/runtime/Box"), "value", "Ljava/lang/Object;"))
+    }
 
-        if (name == "and") {
-            boolTemplate(operands, true, tail)
-            return true
-        }
-
-        if (name == "or") {
-            boolTemplate(operands, false, tail)
-            return true
-        }
-
-        if (name == "define" && args is Cell && args.first is Cell) { // this is a lambda
-            val head = args.first
-            val procedure = head.first as? Symbol
-                ?: throw syntaxError(form, "define: expected a symbol as the procedure name, got ${head.first.source()}")
-            bind(procedure.name, Binding.DEFINE) {
-                lambda(name, form, listOf(head.second) + operands.drop(1))
+    private fun CodeBuilder.emitBind(bind: Bind) {
+        when (bind.reference.location) {
+            GLOBAL -> {
+                +aload(0)
+                +getfield(field(self(), bind.reference.fieldName(), "Lcom/alsaril/scheme/runtime/Box;"))
+                emitEval(bind.value)
+                emitBox()
             }
-            return true
-        }
 
-        if (name == "define" || name == "set!") {
-            if (operands.size != 2) throw syntaxError(form, "$name: expected 2 operands, got ${operands.size}")
-            val (key, def) = operands
-            if (key !is Symbol) throw syntaxError(form, "$name: expected a symbol, got ${key.source()}")
-            val binding = if (name == "define") Binding.DEFINE else Binding.SET
-            bind(key.name, binding) { eval(def, tail = false) }
-            return true
-        }
+            CAPTURE -> {
+                +getfield(field(self(), bind.reference.fieldName(), "Lcom/alsaril/scheme/runtime/Box;"))
+                emitEval(bind.value)
+                emitBox()
+            }
 
-        if (name == "if") {
-            if (operands.size !in 2..3) throw syntaxError(form, "if: expected 2 or 3 operands, got ${operands.size}")
-            eval(operands[0], tail = false)
-            boolean(false)
-            val f = +if_acmpeq
-            eval(operands[1], tail)
-            val end = +goto
-            link(f, end())
-            if (operands.size == 2) unspecified() else eval(operands[2], tail)
-            link(end, end())
-
-            return true
-        }
-
-        if (name == "lambda") {
-            lambda(name, form, operands)
-            return true
-        }
-
-        return false
-    }
-
-    private enum class Binding(val method: String) { DEFINE("define"), SET("set") }
-
-    private fun CodeBuilder.bind(name: String, binding: Binding, value: () -> Unit) {
-        +aload(1)
-        +ldc(string(name))
-        value()
-        +invokeinterface(
-            clazz("com/alsaril/scheme/runtime/Environment"),
-            binding.method,
-            "(Ljava/lang/String;Ljava/lang/Object;)V"
-        )
-        unspecified()
-    }
-
-    private fun CodeBuilder.lambda(keyword: String, form: Cell, l: List<Node>) {
-        if (l.isEmpty()) throw syntaxError(form, "$keyword: expected parameters and a body")
-        if (l.size == 1) throw syntaxError(form, "$keyword: expected a body")
-
-        val head = l.first()
-        val nodes = l.drop(1)
-        val (args, rest) = collectImproperArgs(head)
-        val argNames = args.map {
-            (it as? Symbol)?.name ?: throw syntaxError(form, "$keyword: expected a symbol as a parameter, got ${it.source()}")
-        }
-        val restName = when (rest) {
-            null -> null
-            is Symbol -> rest.name
-            head -> throw syntaxError(form, "$keyword: expected a parameter list, got ${head.source()}")
-            else -> throw syntaxError(form, "$keyword: expected a symbol as the rest parameter, got ${rest.source()}")
-        }
-        (argNames + listOfNotNull(restName)).groupingBy { it }.eachCount().entries.firstOrNull { it.value > 1 }?.let {
-            throw syntaxError(form, "$keyword: parameter ${it.key} is declared more than once")
-        }
-
-        val lambda = generateLambda(argNames, restName, nodes)
-        val bootstrap = lambdaBootstrap(
-            "(Ljava/lang/Object;)Ljava/lang/Object;",
-            methodHandle(INVOKE_STATIC, self(), lambda, "(Lcom/alsaril/scheme/runtime/Environment;Ljava/lang/Object;)Ljava/lang/Object;"),
-            "(Ljava/lang/Object;)Ljava/lang/Object;",
-        )
-        +aload(1)
-        +invokedynamic("call", "(Lcom/alsaril/scheme/runtime/Environment;)Lcom/alsaril/scheme/runtime/Function;", bootstrap)
-    }
-
-    private fun CodeBuilder.call(cell: Cell, tail: Boolean) {
-        if (special(cell, tail)) return
-        operands(cell) // rejects a dotted argument list
-        val (op, args) = cell
-        eval(op, tail = false)
-        +invokestatic(
-            clazz("com/alsaril/scheme/runtime/Procedures"),
-            "procedure",
-            "(Ljava/lang/Object;)Lcom/alsaril/scheme/runtime/Function;"
-        )
-        copyArgs(args)
-        if (tail) {
-            +invokestatic(
-                clazz("com/alsaril/scheme/runtime/Dispatch"),
-                "of",
-                "(Lcom/alsaril/scheme/runtime/Function;Ljava/lang/Object;)Lcom/alsaril/scheme/runtime/Dispatch;"
-            )
-        } else {
-            +invokeinterface(
-                clazz("com/alsaril/scheme/runtime/Function"),
-                "call",
-                "(Ljava/lang/Object;)Ljava/lang/Object;"
-            )
-            dispatch()
-        }
-    }
-
-    private fun CodeBuilder.dispatch() {
-        +invokestatic(
-            clazz("com/alsaril/scheme/runtime/Dispatch"),
-            "dispatchFully",
-            "(Ljava/lang/Object;)Ljava/lang/Object;"
-        )
-    }
-
-    private fun CodeBuilder.eval(node: Node, tail: Boolean) {
-        if (node is Cell) {
-            call(node, tail)
-            return
-        }
-        when (node) {
-            is Null -> throw SchemeSyntaxException("() is not an expression, quote it as '() for the empty list")
-            is Number -> number(node.value)
-            is Symbol -> resolveSymbol(node.name)
-            is Special -> when (node.name) {
-                "#f" -> boolean(false)
-                "#t" -> boolean(true)
-                else -> throw SchemeSyntaxException("${node.name} is a special form, not a value")
+            LOCAL -> {
+                if (bind.reference.boxed) {
+                    +aload(bind.reference.index)
+                    emitEval(bind.value)
+                    emitBox()
+                } else {
+                    emitEval(bind.value)
+                    +astore(bind.reference.index)
+                }
             }
         }
     }
 
-    private fun CodeBuilder.copyArgs(node: Node) {
-        if (node is Cell) {
-            val (first, second) = node
-            eval(first, tail = false)
-            copyArgs(second)
-            pair()
-            return
-        }
-        nil() // operands() has refused any other tail
+    private fun CodeBuilder.emitIf(expression: IfExpression) {
+        emitEval(expression.condition)
+        emitBoolean(false)
+        val f = +if_acmpeq
+        emitEval(expression.thenBranch)
+        val end = +goto
+        link(f, end())
+        if (expression.elseBranch == null) emitUnspecified() else emitEval(expression.elseBranch)
+        link(end, end())
     }
 
-    private fun generateProcedure(node: Node) =
-        classFileBuilder.method("run", "(Lcom/alsaril/scheme/runtime/Environment;)Ljava/lang/Object;", PUBLIC, FINAL) {
-            eval(node, tail = true)
-            dispatch()
-            +areturn
-        }
+    private fun CodeBuilder.emitLambda(lambda: Lambda) {
+//        val captureDescriptor =
+//            lambda.frame.captures.joinToString { (_, boxed) -> if (boxed) "Lcom/alsaril/scheme/runtime/Box;" else "Ljava/lang/Object;" }
+//        val methodDescriptor =
+//            "(" + captureDescriptor + "Ljava/lang/Object;".repeat(lambda.frame.locals.size) + ")Ljava/lang/Object;"
+//        val constructorDescriptor = "($captureDescriptor)Lcom/alsaril/scheme/runtime/Function;"
+//        val name = emitLambdaMethod(lambda, methodDescriptor)
+//        val bootstrap = bootstrap(
+//            methodHandle(
+//                INVOKE_STATIC,
+//                clazz("com/alsaril/scheme/compiler/LambdaBootstrap"),
+//                "bootstrap",
+//                "(${IDP}Ljava/lang/invoke/MethodHandle;I)Ljava/lang/invoke/CallSite;"
+//            ),
+//            methodHandle(INVOKE_VIRTUAL, self(), name, methodDescriptor),
+//        )
+//        +invokedynamic("_", constructorDescriptor, bootstrap)
+    }
 
-    private fun generateLambda(
-        names: List<String>,
-        rest: String?,
-        nodes: List<Node>,
-    ): String {
+    private fun emitLambdaMethod(lambda: Lambda, descriptor: String): String {
         val name = "lambda${lambdaCnt++}"
-        classFileBuilder.method(name, "(Lcom/alsaril/scheme/runtime/Environment;Ljava/lang/Object;)Ljava/lang/Object;", PRIVATE, STATIC, FINAL) {
-            +aload(1)
-            val listOf = methodHandle(
-                INVOKE_STATIC,
-                clazz("java/util/List"),
-                "of",
-                "([Ljava/lang/Object;)Ljava/util/List;",
-                onInterface = true
-            )
-            val args = names.map(::string).toTypedArray()
-            val invoke = methodHandle(
-                INVOKE_STATIC,
-                clazz("java/lang/invoke/ConstantBootstraps"),
-                "invoke",
-                "(${CBP}Ljava/lang/invoke/MethodHandle;[Ljava/lang/Object;)Ljava/lang/Object;",
-            )
-            +ldc(constantDynamic("_", "Ljava/util/List;", bootstrap(invoke, listOf, *args)))
-            if (rest != null) {
-                +ldc(string(rest))
-            } else {
-                +aconst_null
-            }
-            +aload(0)
-            +invokestatic(
-                clazz("com/alsaril/scheme/runtime/Binder"),
-                "bind",
-                "(Ljava/lang/Object;Ljava/util/List;Ljava/lang/String;Lcom/alsaril/scheme/runtime/Environment;)Lcom/alsaril/scheme/runtime/Environment;"
-            )
-            +astore(1)
-            +aconst_null // drop the outer scope
-            +astore(0)
-            nodes.forEachIndexed { index, node ->
-                if (index == nodes.size - 1) {
-                    eval(node, tail = true)
+        classFileBuilder.method(name, descriptor, PRIVATE, STATIC, FINAL) {
+            // wrap volatile locals
+            lambda.references
+                .asSequence()
+                .filter { it.location == LOCAL && it.boxed }
+                .forEach { ref ->
+                    +new(clazz("com/alsaril/scheme/runtime/Box"))
+                    +dup
+                    +aload(ref.index)
+                    +invokespecial(clazz("com/alsaril/scheme/runtime/Box"), "<init>", "()V")
+                    +astore(ref.index)
+                }
+            lambda.body.forEachIndexed { index, node ->
+                if (index == lambda.body.size - 1) {
+                    emitEval(node)
                     +areturn
                 } else {
-                    eval(node, tail = false)
+                    emitEval(node)
                     +pop
                 }
             }
         }
         return name
+    }
+
+    private fun CodeBuilder.emitEval(expression: Expression) {
+        when (expression) {
+            FALSE -> emitBoolean(false)
+            TRUE -> emitBoolean(true)
+            is NumberConstant -> emitNumber(expression.value)
+            is Reference -> emitLoad(expression)
+            is BooleanExpression -> emitBooleanExpression(expression)
+            is Call -> emitCall(expression)
+            is Datum -> emitDatum(expression)
+            is Bind -> emitBind(expression)
+            is IfExpression -> emitIf(expression)
+            is Lambda -> emitLambda(expression)
+            is GlobalForm -> throw IllegalStateException()
+        }
     }
 }

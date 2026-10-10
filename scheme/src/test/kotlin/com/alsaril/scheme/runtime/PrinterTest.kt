@@ -15,10 +15,11 @@ class PrinterTest {
 
     companion object {
         private val procedure = object : Function {
-            override fun call(args: Any) = args
+            override fun arity() = 0
         }
 
-        private fun list(vararg items: Any, tail: Any = Nil): Any = items.foldRight(tail) { item, rest -> Cons(item, rest) }
+        private fun list(vararg items: Any, tail: Any = Nil): Any =
+            items.foldRight(tail) { item, rest -> Cons(item, rest) }
 
         @JvmStatic
         fun values() = listOf(

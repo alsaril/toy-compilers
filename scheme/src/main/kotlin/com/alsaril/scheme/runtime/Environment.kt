@@ -1,7 +1,6 @@
 package com.alsaril.scheme.runtime
 
 interface Environment {
-    fun define(name: String, value: Any)
+    fun get(name: String): Box
     fun set(name: String, value: Any)
-    fun resolve(name: String): Any
 }

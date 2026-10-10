@@ -5,13 +5,13 @@ class Dispatch(val function: Function, val args: Any) {
         @JvmStatic
         fun of(function: Function, args: Any) = Dispatch(function, args)
 
-        @JvmStatic
-        fun dispatchFully(result: Any): Any {
-            var i = result
-            while (i is Dispatch) {
-                i = i.function.call(i.args)
-            }
-            return i
-        }
+//        @JvmStatic
+//        fun dispatchFully(result: Any): Any {
+//            var i = result
+//            while (i is Dispatch) {
+//                i = i.function.call(i.args)
+//            }
+//            return i
+//        }
     }
 }
