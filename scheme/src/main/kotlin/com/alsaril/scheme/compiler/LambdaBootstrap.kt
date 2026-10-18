@@ -75,7 +75,7 @@ object LambdaBootstrap {
 
         ClassDump.dump(bytes)
 
-        val erased = dest.asType(dest.type().erase())
+        val erased = dest.asType(dest.type().changeParameterType(0, Any::class.java))
         val clazz = lookup.defineHiddenClassWithClassData(bytes, erased, true, NESTMATE).lookupClass()
         val mh = lookup.findConstructor(clazz, constructorDescriptor).asType(methodType)
         return ConstantCallSite(mh)

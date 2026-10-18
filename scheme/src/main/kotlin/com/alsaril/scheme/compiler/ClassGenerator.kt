@@ -232,6 +232,7 @@ class ClassGenerator {
                 }
             }
         }
+        emitUnspecified()
     }
 
     private fun CodeBuilder.emitIf(expression: IfExpression, frame: Frame) {
@@ -294,13 +295,8 @@ class ClassGenerator {
                     +astore(ref.index)
                 }
             lambda.body.forEachIndexed { index, node ->
-                if (index == lambda.body.size - 1) {
-                    emitEval(node, lambda.frame)
-                    +areturn
-                } else {
-                    emitEval(node, lambda.frame)
-                    +pop
-                }
+                emitEval(node, lambda.frame)
+                if (index == lambda.body.size - 1) +areturn else +pop
             }
         }
         return name
